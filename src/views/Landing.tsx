@@ -352,32 +352,35 @@ export default function Landing() {
             <h2 style={{ fontFamily:D, fontSize:'clamp(24px,3.2vw,42px)', fontWeight:800, margin:'0 0 12px', letterSpacing:'-0.03em', color:'#f5f5f7' }}>Start free. Scale when ready.</h2>
             <p style={{ fontSize:15, color:'rgba(255,255,255,.4)' }}>No credit card required. Cancel anytime.</p>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, maxWidth:680, margin:'0 auto' }}>
             {[
-              { name:'Free', price:'₹0', period:'/month', highlight:false, desc:'Try Markr on your first app, free for 7 days.', features:['1 app','Content Studio','Basic strategy','Community support'], cta:'Get started free', href:'/app' },
-              { name:'Pro', price:'₹999', period:'/month', highlight:true, desc:'Everything you need to grow your app.', features:['Unlimited apps','Daily content generation','Product test + QA report','Competitive intelligence','Growth playbook','Pricing strategy','Priority support'], cta:'Get your first insights →', href:'/app' },
-              { name:'Agency', price:'₹2,999', period:'/month', highlight:false, desc:'For teams managing multiple client apps.', features:['Everything in Pro','Multiple workspaces','Client sharing','White-label exports','Team collaboration','Dedicated support'], cta:'Contact us', href:'mailto:hello@markr.app' },
+              { name:'Free', price:'₹0', period:'/month', highlight:false, desc:'Try Markr on your first app, free for 7 days. No credit card.', features:['1 app','Content Studio — 3 posts/day','Strategy & value proposition','Basic insights','Community support'], cta:'Get started free', href:'/app' },
+              { name:'Pro', price:'₹999', period:'/month', highlight:true, desc:'Everything you need to launch and grow any app.', features:['Unlimited apps','Daily content generation','Product test + full QA report','Competitive intelligence','AARRR growth playbook','Pricing strategy','SWOT & Business Model Canvas','Priority support'], cta:'Get your first insights →', href:'/app' },
             ].map(plan=>(
-              <div key={plan.name} style={{ background: plan.highlight?'linear-gradient(135deg,rgba(124,111,247,.12),rgba(226,111,175,.08))':'rgba(255,255,255,.025)', border:`1px solid ${plan.highlight?'rgba(124,111,247,.4)':'rgba(255,255,255,.08)'}`, borderRadius:16, padding:26, position:'relative', boxShadow: plan.highlight?'0 0 50px rgba(124,111,247,.15)':'none' }}>
+              <div key={plan.name} style={{ background: plan.highlight?'linear-gradient(135deg,rgba(124,111,247,.12),rgba(226,111,175,.08))':'rgba(255,255,255,.025)', border:`1px solid ${plan.highlight?'rgba(124,111,247,.4)':'rgba(255,255,255,.08)'}`, borderRadius:16, padding:28, position:'relative', boxShadow: plan.highlight?'0 0 50px rgba(124,111,247,.15)':'none' }}>
                 {plan.highlight && <div style={{ position:'absolute', top:-11, left:'50%', transform:'translateX(-50%)', background:'linear-gradient(135deg,#7c6ff7,#e26faf)', padding:'3px 14px', borderRadius:20, fontSize:11, fontWeight:700, color:'#fff', whiteSpace:'nowrap', letterSpacing:'.02em' }}>Most popular</div>}
-                <div style={{ fontFamily:D, fontSize:16, fontWeight:700, marginBottom:6, letterSpacing:'-.01em' }}>{plan.name}</div>
+                <div style={{ fontFamily:D, fontSize:17, fontWeight:700, marginBottom:6, letterSpacing:'-.01em' }}>{plan.name}</div>
                 <div style={{ display:'flex', alignItems:'baseline', gap:3, marginBottom:8 }}>
-                  <span style={{ fontFamily:D, fontSize:36, fontWeight:800, color: plan.highlight?'#a599ff':'#f0f0f5', letterSpacing:'-0.03em' }}>{plan.price}</span>
+                  <span style={{ fontFamily:D, fontSize:40, fontWeight:800, color: plan.highlight?'#a599ff':'#f0f0f5', letterSpacing:'-0.03em' }}>{plan.price}</span>
                   <span style={{ fontSize:13, color:'rgba(255,255,255,.35)' }}>{plan.period}</span>
                 </div>
-                <div style={{ fontSize:13, color:'rgba(255,255,255,.4)', marginBottom:22, lineHeight:1.55 }}>{plan.desc}</div>
-                <div style={{ marginBottom:24 }}>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,.4)', marginBottom:24, lineHeight:1.55 }}>{plan.desc}</div>
+                <div style={{ marginBottom:28 }}>
                   {plan.features.map(f=>(
-                    <div key={f} style={{ display:'flex', gap:8, alignItems:'center', marginBottom:9, fontSize:13, color:'rgba(255,255,255,.7)' }}>
+                    <div key={f} style={{ display:'flex', gap:8, alignItems:'center', marginBottom:10, fontSize:13, color:'rgba(255,255,255,.7)' }}>
                       <span style={{ color:'#34c98a', flexShrink:0, fontSize:12 }}>✓</span>{f}
                     </div>
                   ))}
                 </div>
-                <a href={plan.href} style={{ display:'block', textAlign:'center', padding:'11px 20px', borderRadius:8, background: plan.highlight?'linear-gradient(135deg,#7c6ff7,#9b8af4)':'rgba(255,255,255,.05)', border: plan.highlight?'none':'1px solid rgba(255,255,255,.1)', color:'#fff', fontSize:13, fontWeight:600, textDecoration:'none', transition:'opacity .15s', fontFamily:B }} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.8'} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
+                <a href={plan.href} style={{ display:'block', textAlign:'center', padding:'12px 20px', borderRadius:8, background: plan.highlight?'linear-gradient(135deg,#7c6ff7,#9b8af4)':'rgba(255,255,255,.05)', border: plan.highlight?'none':'1px solid rgba(255,255,255,.1)', color:'#fff', fontSize:14, fontWeight:600, textDecoration:'none', transition:'opacity .15s', fontFamily:B }} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.8'} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
                   {plan.cta}
                 </a>
               </div>
             ))}
+          </div>
+          <div style={{ textAlign:'center', marginTop:24, fontSize:13, color:'rgba(255,255,255,.3)' }}>
+            Need multiple workspaces or white-label exports?{' '}
+            <a href="mailto:hello@markr.app" style={{ color:'var(--accent2)', textDecoration:'none' }}>Contact us about Agency →</a>
           </div>
         </div>
       </section>
