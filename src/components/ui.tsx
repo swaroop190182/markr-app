@@ -129,7 +129,7 @@ export function SelectField({ label, value, onChange, options }: {
   label: string
   value: string
   onChange: (v: string) => void
-  options: string[]
+  options: readonly string[]
 }) {
   return (
     <Field label={label}>
