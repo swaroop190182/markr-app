@@ -55,10 +55,10 @@ export default function Landing() {
           Built for indie hackers &amp; app founders
         </div>
 
-        <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(36px,5.5vw,72px)', fontWeight: 800, lineHeight: 1.1, margin: '0 0 20px', maxWidth: 820, letterSpacing: '-0.03em', color: '#f5f5f7' }}>
-          Your AI Marketing Manager<br />
+        <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(28px,3.8vw,56px)', fontWeight: 800, lineHeight: 1.15, margin: '0 0 20px', maxWidth: 860, letterSpacing: '-0.03em', color: '#f5f5f7', whiteSpace: 'nowrap' }}>
+          Your AI Marketing Manager for&nbsp;
           <span style={{ background: 'linear-gradient(135deg,#7c6ff7 30%,#e26faf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            for Every App You Build
+            Every App You Build
           </span>
         </h1>
 
