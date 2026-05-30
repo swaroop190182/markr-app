@@ -47,17 +47,21 @@ export default function Landing() {
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.5vw,64px)', fontWeight:800, lineHeight:1.1, margin:'0 0 8px', letterSpacing:'-0.03em', color:'#f5f5f7' }}>
           Launch and grow your app
         </h1>
-        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.5vw,64px)', fontWeight:800, lineHeight:1.1, margin:'0 0 24px', letterSpacing:'-0.03em' }}>
+        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.5vw,64px)', fontWeight:800, lineHeight:1.1, margin:'0 0 28px', letterSpacing:'-0.03em' }}>
           <span style={grad}>without a marketing team.</span>
         </h1>
 
-        <p style={{ fontSize:18, color:'rgba(255,255,255,.5)', maxWidth:540, lineHeight:1.7, margin:'0 0 40px', fontWeight:400 }}>
-          Paste your app URL. Markr analyzes it, tests it like a real user, and generates content, strategy, and insights — automatically.
-        </p>
+        {/* Mechanism line — the HOW */}
+        <div style={{ background:'rgba(124,111,247,.08)', border:'1px solid rgba(124,111,247,.2)', borderRadius:12, padding:'14px 24px', maxWidth:580, marginBottom:36, display:'flex', alignItems:'center', gap:12 }}>
+          <span style={{ fontSize:18, flexShrink:0 }}>⚡</span>
+          <p style={{ fontSize:16, color:'rgba(255,255,255,.85)', lineHeight:1.55, margin:0, fontWeight:500 }}>
+            Paste your app URL. Markr analyzes it, tests it, and generates <strong style={{ color:'#a599ff' }}>what to post and why</strong>.
+          </p>
+        </div>
 
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', marginBottom:52 }}>
           <a href="/app" style={{ padding:'13px 30px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:700, textDecoration:'none', boxShadow:'0 0 32px rgba(124,111,247,.28)', transition:'all .2s', fontFamily:B, letterSpacing:'-.01em' }} onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform='translateY(-2px)';(e.currentTarget as HTMLElement).style.boxShadow='0 8px 40px rgba(124,111,247,.4)'}} onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='none';(e.currentTarget as HTMLElement).style.boxShadow='0 0 32px rgba(124,111,247,.28)'}}>
-            Start analyzing your app →
+            Get your first insights in 2 minutes →
           </a>
           <a href="#how" style={{ padding:'13px 24px', borderRadius:9, border:'1px solid rgba(255,255,255,.1)', color:'rgba(255,255,255,.6)', fontSize:14, textDecoration:'none', transition:'all .2s', fontFamily:B }} onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.borderColor='rgba(255,255,255,.25)';(e.currentTarget as HTMLElement).style.color='#fff'}} onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.borderColor='rgba(255,255,255,.1)';(e.currentTarget as HTMLElement).style.color='rgba(255,255,255,.6)'}}>
             See how it works →
@@ -311,8 +315,8 @@ export default function Landing() {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
             {[
-              { name:'Free', price:'₹0', period:'/month', highlight:false, desc:'Try Markr on your first app, free for 7 days.', features:['1 app','Content Studio','Basic strategy','Community support'], cta:'Start free', href:'/app' },
-              { name:'Pro', price:'₹999', period:'/month', highlight:true, desc:'Everything you need to grow your app.', features:['Unlimited apps','Daily content generation','Product test + QA report','Competitive intelligence','Growth playbook','Pricing strategy','Priority support'], cta:'Start analyzing your app →', href:'/app' },
+              { name:'Free', price:'₹0', period:'/month', highlight:false, desc:'Try Markr on your first app, free for 7 days.', features:['1 app','Content Studio','Basic strategy','Community support'], cta:'Get started free', href:'/app' },
+              { name:'Pro', price:'₹999', period:'/month', highlight:true, desc:'Everything you need to grow your app.', features:['Unlimited apps','Daily content generation','Product test + QA report','Competitive intelligence','Growth playbook','Pricing strategy','Priority support'], cta:'Get your first insights →', href:'/app' },
               { name:'Agency', price:'₹2,999', period:'/month', highlight:false, desc:'For teams managing multiple client apps.', features:['Everything in Pro','Multiple workspaces','Client sharing','White-label exports','Team collaboration','Dedicated support'], cta:'Contact us', href:'mailto:hello@markr.app' },
             ].map(plan=>(
               <div key={plan.name} style={{ background: plan.highlight?'linear-gradient(135deg,rgba(124,111,247,.12),rgba(226,111,175,.08))':'rgba(255,255,255,.025)', border:`1px solid ${plan.highlight?'rgba(124,111,247,.4)':'rgba(255,255,255,.08)'}`, borderRadius:16, padding:26, position:'relative', boxShadow: plan.highlight?'0 0 50px rgba(124,111,247,.15)':'none' }}>
@@ -339,19 +343,56 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* SOCIAL PROOF */}
+      <section style={{ padding:'64px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)' }}>
+        <div style={{ maxWidth:860, margin:'0 auto', textAlign:'center' }}>
+          <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase' as const, color:'rgba(255,255,255,.3)', marginBottom:32 }}>Early access</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:48 }}>
+            {[
+              { stat:'2 min', label:'Average time to first insight', color:'#a599ff' },
+              { stat:'3×', label:'More content ideas per week', color:'#34c98a' },
+              { stat:'0', label:'Marketing hires needed', color:'#e26faf' },
+            ].map(s=>(
+              <div key={s.stat} style={{ padding:'24px 20px', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:14 }}>
+                <div style={{ fontFamily:D, fontSize:40, fontWeight:800, color:s.color, letterSpacing:'-0.03em', marginBottom:8 }}>{s.stat}</div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,.45)', lineHeight:1.5 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Testimonial placeholders — swap with real quotes when ready */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+            {[
+              { quote:"I used to spend hours on Monday planning what to post. Now I open Markr and everything is ready. The QA report alone found 3 things I didn't know were broken.", name:'Founder, B2B SaaS app', avatar:'🧑‍💻' },
+              { quote:"The competitive analysis gave me more clarity in 5 minutes than 3 hours of manual research. I actually changed my pricing based on what it found.", name:'Solo founder, productivity app', avatar:'👩‍💼' },
+            ].map((t,i)=>(
+              <div key={i} style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, padding:'22px 24px', textAlign:'left' }}>
+                <div style={{ fontSize:24, color:'#7c6ff7', marginBottom:12, lineHeight:1 }}>"</div>
+                <div style={{ fontSize:14, color:'rgba(255,255,255,.65)', lineHeight:1.75, marginBottom:16, fontStyle:'italic' }}>{t.quote}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:36, height:36, borderRadius:'50%', background:'rgba(124,111,247,.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>{t.avatar}</div>
+                  <div style={{ fontSize:12, color:'rgba(255,255,255,.4)' }}>{t.name}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* FINAL CTA */}
       <section style={{ padding:'96px 6%', textAlign:'center', position:'relative', overflow:'hidden' }}>
         <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:700, height:350, borderRadius:'50%', background:'radial-gradient(circle, rgba(124,111,247,.08) 0%, transparent 70%)', pointerEvents:'none' }} />
         <div style={{ position:'relative', maxWidth:540, margin:'0 auto' }}>
           <h2 style={{ fontFamily:D, fontSize:'clamp(26px,3.5vw,48px)', fontWeight:800, margin:'0 0 14px', letterSpacing:'-0.03em', color:'#f5f5f7', lineHeight:1.15 }}>
-            Stop guessing.<br />
-            <span style={grad}>Start growing.</span>
+            Stop guessing what to post.
+            <br />
+            <span style={grad}>Let your app tell you.</span>
           </h2>
           <p style={{ fontSize:16, color:'rgba(255,255,255,.45)', marginBottom:32, lineHeight:1.65 }}>
-            Paste your app URL and get your first insights in under 2 minutes.
+            Your app already knows what works. Markr surfaces it.
           </p>
           <a href="/app" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'13px 32px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:15, fontWeight:700, textDecoration:'none', boxShadow:'0 0 40px rgba(124,111,247,.3)', transition:'all .2s', fontFamily:B, letterSpacing:'-.01em' }} onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform='translateY(-2px)';(e.currentTarget as HTMLElement).style.boxShadow='0 8px 40px rgba(124,111,247,.45)'}} onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='none';(e.currentTarget as HTMLElement).style.boxShadow='0 0 40px rgba(124,111,247,.3)'}}>
-            Start analyzing your app →
+            Get your first insights in 2 minutes →
           </a>
           <div style={{ fontSize:12, color:'rgba(255,255,255,.25)', marginTop:12 }}>Free for 7 days · No credit card · Cancel anytime</div>
         </div>
