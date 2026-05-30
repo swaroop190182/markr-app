@@ -189,7 +189,7 @@ export default function Landing() {
             <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase' as const, color:'#7c6ff7', marginBottom:12 }}>See it in action</div>
             <h2 style={{ fontFamily:D, fontSize:'clamp(24px,3.2vw,42px)', fontWeight:800, margin:'0 0 12px', letterSpacing:'-0.03em', color:'#f5f5f7' }}>Watch Markr analyze a real app</h2>
             <p style={{ fontSize:15, color:'rgba(255,255,255,.4)', maxWidth:480, margin:'0 auto' }}>
-              Mindprint — a mental wellness app — analyzed, tested, and content-ready in minutes.
+              Emrise — analyzed, tested, and content-ready in minutes. This is what Markr generates for a real app.
             </p>
           </div>
 
