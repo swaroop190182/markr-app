@@ -5,7 +5,7 @@ import type { AppData, ProductTest } from '../types'
 
 const API_KEY = (import.meta as any).env?.VITE_ANTHROPIC_API_KEY ?? ''
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages'
-const MODEL = 'claude-sonnet-4-20250514'
+const MODEL = 'claude-sonnet-4-5'
 
 // ── Core API call ──────────────────────────────────────────────────────────────
 export async function callClaude(
