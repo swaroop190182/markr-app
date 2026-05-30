@@ -1,9 +1,6 @@
 import type { AppData, ProductTest } from '../types'
 
-// Vite exposes env vars via import.meta.env — the /// reference tells TS about it
-/// <reference types="vite/client" />
-
-const API_KEY = (import.meta as any).env?.VITE_ANTHROPIC_API_KEY ?? ''
+const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY ?? ''
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-5'
 
