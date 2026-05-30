@@ -48,20 +48,37 @@ function AppInner({ session }: { session: Session }) {
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const path = window.location.pathname
+  const [path, setPath] = useState(window.location.pathname)
 
   useEffect(() => {
+    // Get initial session
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+
+    // Listen for ALL auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
-      // After login redirect to /app
-      if (session && window.location.pathname === '/login') {
-        window.location.href = '/app'
+
+      if (session) {
+        // Any successful sign in — go to app
+        // This covers: email login, Google OAuth callback, token refresh
+        if (
+          event === 'SIGNED_IN' ||
+          event === 'TOKEN_REFRESHED' ||
+          event === 'USER_UPDATED'
+        ) {
+          setPath('/app')
+          window.history.pushState({}, '', '/app')
+        }
+      } else if (event === 'SIGNED_OUT') {
+        // On sign out — go to landing
+        setPath('/')
+        window.history.pushState({}, '', '/')
       }
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
@@ -77,17 +94,27 @@ export default function App() {
     )
   }
 
+  // Already logged in and trying to access landing or login — send to app
+  if (session && (path === '/' || path === '/login' || path === '')) {
+    return (
+      <StoreProvider userId={session.user.id}>
+        <AppInner session={session} />
+      </StoreProvider>
+    )
+  }
+
   // Landing page
   if (path === '/' || path === '') return <Landing />
 
-  // Login page
+  // Login / signup page
   if (path === '/login') return <Auth />
 
   // App — requires auth
   if (path.startsWith('/app')) {
     if (!session) {
-      window.location.href = '/login'
-      return null
+      window.history.pushState({}, '', '/login')
+      setPath('/login')
+      return <Auth />
     }
     return (
       <StoreProvider userId={session.user.id}>
