@@ -87,7 +87,7 @@ export default function Landing() {
 
         {/* App mockup */}
         <div style={{ marginTop: 64, width: '100%', maxWidth: 960, position: 'relative' }}>
-          <div style={{ position: 'absolute', inset: -1, borderRadius: 18, background: 'linear-gradient(135deg,rgba(124,111,247,.25),rgba(226,111,175,.15))', filter: 'blur(1px)', borderRadius: 18 }} />
+          <div style={{ position: 'absolute', inset: -1, borderRadius: 18, background: 'linear-gradient(135deg,rgba(124,111,247,.25),rgba(226,111,175,.15))', filter: 'blur(1px)' }} />
           <div style={{ position: 'relative', background: '#161619', borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,.6)' }}>
             <div style={{ background: '#111113', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 7, borderBottom: '1px solid rgba(255,255,255,.05)' }}>
               {['#e55','#f5a623','#34c98a'].map(c=><div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
