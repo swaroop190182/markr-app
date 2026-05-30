@@ -57,7 +57,7 @@ export default function Landing() {
 
         <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(36px,5.5vw,72px)', fontWeight: 800, lineHeight: 1.1, margin: '0 0 20px', maxWidth: 820, letterSpacing: '-0.03em', color: '#f5f5f7' }}>
           Your AI Marketing Manager<br />
-          <span style={{ background: 'linear-gradient(135deg,#7c6ff7 30%,#e26faf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+          <span style={{ background: 'linear-gradient(135deg,#7c6ff7 30%,#e26faf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             for Every App You Build
           </span>
         </h1>
@@ -144,16 +144,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
-      {/* POWERED BY */}
-      <div style={{ padding: '28px 6%', borderTop: '1px solid rgba(255,255,255,.05)', borderBottom: '1px solid rgba(255,255,255,.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 48, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,.25)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Powered by</span>
-        {[['🤖','Claude AI'],['⚡','Supabase'],['▲','Vercel'],['◈','Instagram']].map(([icon,name])=>(
-          <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,.3)' }}>
-            <span>{icon}</span>{name}
-          </div>
-        ))}
-      </div>
 
       {/* FEATURES */}
       <section id="features" style={{ padding: '96px 6%' }}>
