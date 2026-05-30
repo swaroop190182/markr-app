@@ -3,11 +3,24 @@ import type { AppData, ViewType } from '../types'
 import { COLORS } from './data'
 import { supabase } from './supabase'
 
+// ── Plan config ────────────────────────────────────────────────────────────────
+const PRO_EMAILS = ['swaroop.raghu@gmail.com']
+
+export function getUserPlan(email: string): 'pro' | 'free' {
+  return PRO_EMAILS.includes(email.toLowerCase()) ? 'pro' : 'free'
+}
+
+export function getAppLimit(plan: 'pro' | 'free'): number {
+  return plan === 'pro' ? Infinity : 1
+}
+
 interface AppStore {
   apps: AppData[]
   currentApp: AppData
   view: ViewType
   loading: boolean
+  plan: 'pro' | 'free'
+  canAddApp: boolean
   setView: (v: ViewType) => void
   setCurrentApp: (id: number) => void
   addApp: (app: AppData) => Promise<void>
@@ -23,11 +36,15 @@ const FALLBACK_APP: AppData = {
   brand: '', pillars: [], features: []
 }
 
-export function StoreProvider({ children, userId }: { children: React.ReactNode; userId: string }) {
+export function StoreProvider({ children, userId, userEmail }: { children: React.ReactNode; userId: string; userEmail: string }) {
   const [apps,         setApps]         = useState<AppData[]>([])
   const [currentAppId, setCurrentAppId] = useState<number>(0)
   const [view,         setView]         = useState<ViewType>('overview')
   const [loading,      setLoading]      = useState(true)
+
+  const plan      = getUserPlan(userEmail)
+  const appLimit  = getAppLimit(plan)
+  const canAddApp = apps.length < appLimit
 
   // ── Load apps from Supabase on mount ──────────────────────────────────────
   useEffect(() => {
@@ -164,6 +181,7 @@ export function StoreProvider({ children, userId }: { children: React.ReactNode;
   return (
     <StoreContext.Provider value={{
       apps, currentApp, view, loading,
+      plan, canAddApp,
       setView, setCurrentApp, addApp, updateApp, removeApp
     }}>
       {children}
