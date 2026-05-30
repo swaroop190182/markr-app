@@ -1,0 +1,110 @@
+export interface TestCreds {
+  user: string
+  password?: string
+  loginUrl: string
+  flows: string
+}
+
+export interface ProductTestFlow {
+  name: string
+  status: 'Pass' | 'Partial' | 'Fail'
+  score: number
+  steps_tested: string[]
+  observation: string
+  friction_point: string | null
+}
+
+export interface ProductTestFeature {
+  name: string
+  description: string
+  quality: 'Excellent' | 'Good' | 'Average' | 'Poor'
+  tested?: boolean
+}
+
+export interface ProductTestBug {
+  title: string
+  description: string
+  severity: 'Critical' | 'High' | 'Medium' | 'Low'
+  location: string
+  reproducible?: boolean
+}
+
+export interface ProductTest {
+  overall_score: number
+  verdict: string
+  verdict_emoji: string
+  executive_summary: string
+  tester_recommendation: string
+  first_impression: string
+  tested_flows: ProductTestFlow[]
+  features_found: ProductTestFeature[]
+  bugs_and_issues: ProductTestBug[]
+  ux_ratings: {
+    onboarding: number
+    navigation: number
+    visual_design: number
+    performance: number
+    mobile_responsiveness: number
+    error_handling: number
+  }
+  what_works_well: string[]
+  what_needs_fixing: string[]
+  content_implications: string[]
+  ux_observations: string
+  onboarding_verdict: string
+  competitive_edge_from_test: string
+  error?: string
+}
+
+export interface AppData {
+  id: number
+  name: string
+  platform: 'Web' | 'Mobile' | 'Both'
+  color: string
+  stage: 'Idea' | 'Early' | 'Launch' | 'Growth'
+  category: string
+  url: string
+  desc: string
+  brand: string
+  pillars: string[]
+  features: string[]
+  audience?: string
+  problem?: string
+  diff?: string
+  testCreds?: TestCreds | null
+  productTest?: ProductTest | null
+  analyzed?: boolean
+}
+
+export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights'
+
+export interface AgentPost {
+  caption: string
+  hashtags: string[]
+  image_prompt: string
+  best_posting_time: string
+  pillar: string
+  save_hook?: string
+  share_hook?: string
+  comment_hook?: string
+  insight_headline?: string
+  poll_options?: string[]
+  post_idea: string
+  journal_prompt?: string
+  engagement_type: string
+}
+
+export interface SlotConfig {
+  label: string
+  time: string
+  emoji: string
+  color: string
+  bg: string
+  border: string
+  metricLabel: string
+  metricColor: string
+  metricBg: string
+  metricReason: string
+  timeReason: string
+  bestDays: string
+}
