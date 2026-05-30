@@ -97,7 +97,7 @@ export default function App() {
   // Already logged in and trying to access landing or login — send to app
   if (session && (path === '/' || path === '/login' || path === '')) {
     return (
-      <StoreProvider userId={session.user.id}>
+      <StoreProvider userId={session.user.id} userEmail={session.user.email ?? ''}>
         <AppInner session={session} />
       </StoreProvider>
     )
@@ -117,7 +117,7 @@ export default function App() {
       return <Auth />
     }
     return (
-      <StoreProvider userId={session.user.id}>
+      <StoreProvider userId={session.user.id} userEmail={session.user.email ?? ''}>
         <AppInner session={session} />
       </StoreProvider>
     )
