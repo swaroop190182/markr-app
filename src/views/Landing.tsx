@@ -206,9 +206,9 @@ export default function Landing() {
 
           <div style={{ display:'flex', justifyContent:'center', gap:32, marginTop:28, flexWrap:'wrap' }}>
             {[
-              { t:'Real app URL', d:'mindprintjournal.com' },
-              { t:'Analysis time', d:'Under 2 minutes' },
-              { t:'Features tested', d:'8 screens & flows' },
+              { t:'App analyzed', d:'Emrise' },
+              { t:'Category', d:'Mental wellness' },
+              { t:'Time to first insights', d:'Under 2 mins' },
             ].map(s=>(
               <div key={s.t} style={{ textAlign:'center' }}>
                 <div style={{ fontFamily:D, fontSize:18, fontWeight:700, color:'#a599ff', marginBottom:4 }}>{s.d}</div>
