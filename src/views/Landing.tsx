@@ -182,6 +182,43 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* VIDEO DEMO */}
+      <section style={{ padding:'96px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)' }}>
+        <div style={{ maxWidth:860, margin:'0 auto' }}>
+          <div style={{ textAlign:'center', marginBottom:40 }}>
+            <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase' as const, color:'#7c6ff7', marginBottom:12 }}>See it in action</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(24px,3.2vw,42px)', fontWeight:800, margin:'0 0 12px', letterSpacing:'-0.03em', color:'#f5f5f7' }}>Watch Markr analyze a real app</h2>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,.4)', maxWidth:480, margin:'0 auto' }}>
+              Mindprint — a mental wellness app — analyzed, tested, and content-ready in minutes.
+            </p>
+          </div>
+
+          {/* Video embed */}
+          <div style={{ position:'relative', width:'100%', paddingBottom:'56.25%', borderRadius:16, overflow:'hidden', border:'1px solid rgba(255,255,255,.08)', boxShadow:'0 32px 80px rgba(0,0,0,.6)' }}>
+            <iframe
+              style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', border:'none' }}
+              src="https://www.youtube.com/embed/G8xh5wXhemU"
+              title="Markr Demo — AI co-founder for app founders"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+
+          <div style={{ display:'flex', justifyContent:'center', gap:32, marginTop:28, flexWrap:'wrap' }}>
+            {[
+              { t:'Real app URL', d:'mindprintjournal.com' },
+              { t:'Analysis time', d:'Under 2 minutes' },
+              { t:'Features tested', d:'8 screens & flows' },
+            ].map(s=>(
+              <div key={s.t} style={{ textAlign:'center' }}>
+                <div style={{ fontFamily:D, fontSize:18, fontWeight:700, color:'#a599ff', marginBottom:4 }}>{s.d}</div>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,.35)' }}>{s.t}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* FEATURES — 3 buckets */}
       <section id="features" style={{ padding:'96px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth:1060, margin:'0 auto' }}>
