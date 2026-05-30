@@ -12,9 +12,11 @@ const NAV_ITEMS: { view: ViewType; icon: string; label: string; badge?: number }
 interface Props {
   onAddApp: () => void
   onEditApp: (id: number) => void
+  onSignOut: () => void
+  userEmail: string
 }
 
-export default function Sidebar({ onAddApp, onEditApp }: Props) {
+export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: Props) {
   const { apps, currentApp, view, setView, setCurrentApp } = useStore()
 
   return (
@@ -156,14 +158,19 @@ export default function Sidebar({ onAddApp, onEditApp }: Props) {
         </div>
       </div>
 
-      {/* Settings */}
       <div style={{ marginTop: 'auto', padding: '12px 8px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ padding: '6px 10px', marginBottom: 4 }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userEmail}</div>
+        </div>
         <div
           className="flex items-center gap-2 cursor-pointer"
-          style={{ padding: '8px 10px', borderRadius: 7, fontSize: 13, color: 'var(--text2)' }}
+          onClick={onSignOut}
+          style={{ padding: '8px 10px', borderRadius: 7, fontSize: 13, color: 'var(--text2)', transition: 'all .15s' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface2)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
         >
-          <i className="ti ti-settings" style={{ fontSize: 15 }} />
-          Settings
+          <i className="ti ti-logout" style={{ fontSize: 15 }} />
+          Sign out
         </div>
       </div>
     </div>
