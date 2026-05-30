@@ -41,21 +41,22 @@ export default function Landing() {
 
         <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'5px 14px', borderRadius:20, border:'1px solid rgba(124,111,247,.3)', background:'rgba(124,111,247,.08)', fontSize:12, fontWeight:600, color:'#a599ff', marginBottom:28, letterSpacing:'.01em' }}>
           <span style={{ width:6, height:6, borderRadius:'50%', background:'#7c6ff7', display:'inline-block' }} />
-          AI-powered · Built for app founders &amp; product teams
+          Your AI co-founder for launch and growth
         </div>
 
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.5vw,64px)', fontWeight:800, lineHeight:1.1, margin:'0 0 8px', letterSpacing:'-0.03em', color:'#f5f5f7' }}>
-          Launch and grow your app
+          The AI co-founder you didn't have.
         </h1>
-        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.5vw,64px)', fontWeight:800, lineHeight:1.1, margin:'0 0 28px', letterSpacing:'-0.03em' }}>
-          <span style={grad}>without a marketing team.</span>
+        <h1 style={{ fontFamily:D, fontSize:'clamp(24px,3vw,42px)', fontWeight:700, lineHeight:1.2, margin:'0 0 28px', letterSpacing:'-0.02em', color:'rgba(255,255,255,.5)' }}>
+          Launch, grow, and market any app —{' '}
+          <span style={grad}>without a team.</span>
         </h1>
 
-        {/* Mechanism line — the HOW */}
-        <div style={{ background:'rgba(124,111,247,.08)', border:'1px solid rgba(124,111,247,.2)', borderRadius:12, padding:'14px 24px', maxWidth:580, marginBottom:36, display:'flex', alignItems:'center', gap:12 }}>
+        {/* Mechanism line */}
+        <div style={{ background:'rgba(124,111,247,.08)', border:'1px solid rgba(124,111,247,.2)', borderRadius:12, padding:'14px 24px', maxWidth:600, marginBottom:36, display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ fontSize:18, flexShrink:0 }}>⚡</span>
-          <p style={{ fontSize:16, color:'rgba(255,255,255,.85)', lineHeight:1.55, margin:0, fontWeight:500 }}>
-            Paste your app URL. Markr analyzes it, tests it, and generates <strong style={{ color:'#a599ff' }}>what to post and why</strong>.
+          <p style={{ fontSize:15, color:'rgba(255,255,255,.85)', lineHeight:1.55, margin:0, fontWeight:500 }}>
+            Paste your app URL. Markr analyzes it, tests it like a real user, and tells you <strong style={{ color:'#a599ff' }}>exactly what to post and why</strong>.
           </p>
         </div>
 
@@ -135,11 +136,12 @@ export default function Landing() {
       <section style={{ padding:'80px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)', borderBottom:'1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth:760, margin:'0 auto', textAlign:'center' }}>
           <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,40px)', fontWeight:800, letterSpacing:'-0.03em', margin:'0 0 16px', color:'#f5f5f7' }}>
-            You built a great app.<br />
-            <span style={{ color:'rgba(255,255,255,.4)', fontWeight:600, fontSize:'.85em' }}>Marketing it shouldn't feel like guessing.</span>
+            Most founders build alone.
+            <br />
+            <span style={{ color:'rgba(255,255,255,.4)', fontWeight:600, fontSize:'.85em' }}>No marketing team. No growth strategist. Just you.</span>
           </h2>
           <p style={{ fontSize:16, color:'rgba(255,255,255,.45)', maxWidth:520, margin:'0 auto 40px', lineHeight:1.75 }}>
-            Most founders waste hours wondering what to post, why users drop off, and what competitors are doing. There's no playbook. No team. Just guesswork.
+            You know your product better than anyone. But marketing it still feels like guessing — what to post, why users drop off, how you stack up. Markr is the co-founder who handles all of that.
           </p>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, textAlign:'left' }}>
             {[
@@ -389,7 +391,7 @@ export default function Landing() {
             <span style={grad}>Let your app tell you.</span>
           </h2>
           <p style={{ fontSize:16, color:'rgba(255,255,255,.45)', marginBottom:32, lineHeight:1.65 }}>
-            Your app already knows what works. Markr surfaces it.
+            Markr is the co-founder you didn't have — handling strategy, content, testing, and growth so you can focus on building.
           </p>
           <a href="/app" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'13px 32px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:15, fontWeight:700, textDecoration:'none', boxShadow:'0 0 40px rgba(124,111,247,.3)', transition:'all .2s', fontFamily:B, letterSpacing:'-.01em' }} onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform='translateY(-2px)';(e.currentTarget as HTMLElement).style.boxShadow='0 8px 40px rgba(124,111,247,.45)'}} onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='none';(e.currentTarget as HTMLElement).style.boxShadow='0 0 40px rgba(124,111,247,.3)'}}>
             Get your first insights in 2 minutes →
