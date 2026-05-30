@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: Props) {
-  const { apps, currentApp, view, setView, setCurrentApp } = useStore()
+  const { apps, currentApp, view, plan, canAddApp, setView, setCurrentApp } = useStore()
 
   return (
     <div
@@ -136,25 +136,34 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: P
           </div>
         ))}
 
-        <div
-          onClick={onAddApp}
-          className="flex items-center gap-1.5 cursor-pointer"
-          style={{
-            margin: '4px 2px 14px', padding: '7px 10px', borderRadius: 7,
-            border: '1px dashed var(--border2)', fontSize: 12, color: 'var(--text3)',
-            transition: 'all .15s',
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLElement
-            el.style.borderColor = 'var(--accent)'; el.style.color = 'var(--accent)'
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLElement
-            el.style.borderColor = 'var(--border2)'; el.style.color = 'var(--text3)'
-          }}
-        >
-          <i className="ti ti-plus" style={{ fontSize: 13 }} />
-          Add app
+        {canAddApp ? (
+          <div
+            onClick={onAddApp}
+            className="flex items-center gap-1.5 cursor-pointer"
+            style={{ margin: '4px 2px 8px', padding: '7px 10px', borderRadius: 7, border: '1px dashed var(--border2)', fontSize: 12, color: 'var(--text3)', transition: 'all .15s' }}
+            onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--accent)'; el.style.color = 'var(--accent)' }}
+            onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--border2)'; el.style.color = 'var(--text3)' }}
+          >
+            <i className="ti ti-plus" style={{ fontSize: 13 }} />
+            Add app
+          </div>
+        ) : (
+          <div
+            style={{ margin: '4px 2px 8px', padding: '10px 10px', borderRadius: 7, border: '1px solid rgba(124,111,247,.25)', background: 'rgba(124,111,247,.06)', fontSize: 11, cursor: 'default' }}
+          >
+            <div style={{ color: 'var(--accent2)', fontWeight: 700, marginBottom: 4 }}>Free plan · 1 app limit</div>
+            <div style={{ color: 'var(--text3)', lineHeight: 1.5, marginBottom: 8 }}>Upgrade to Pro for unlimited apps</div>
+            <a href="/pricing" style={{ display: 'block', textAlign: 'center', padding: '5px 10px', borderRadius: 6, background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
+              Upgrade to Pro →
+            </a>
+          </div>
+        )}
+
+        {/* Plan badge */}
+        <div style={{ padding: '4px 10px', marginBottom: 8 }}>
+          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700, background: plan === 'pro' ? 'rgba(52,201,138,.12)' : 'rgba(124,111,247,.1)', color: plan === 'pro' ? 'var(--green)' : 'var(--accent2)', border: `1px solid ${plan === 'pro' ? 'rgba(52,201,138,.25)' : 'rgba(124,111,247,.2)'}` }}>
+            {plan === 'pro' ? '✓ Pro' : 'Free'}
+          </span>
         </div>
       </div>
 
