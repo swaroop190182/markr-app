@@ -52,13 +52,13 @@ export default function Landing() {
 
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 20, border: '1px solid rgba(124,111,247,.3)', background: 'rgba(124,111,247,.08)', fontSize: 12, fontWeight: 600, color: '#a599ff', marginBottom: 28, letterSpacing: '.01em' }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7c6ff7', display: 'inline-block' }} />
-          Built for indie hackers &amp; app founders
+          Built for app founders &amp; product teams
         </div>
 
-        <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(28px,3.8vw,56px)', fontWeight: 800, lineHeight: 1.15, margin: '0 0 20px', maxWidth: 860, letterSpacing: '-0.03em', color: '#f5f5f7', whiteSpace: 'nowrap' }}>
-          Your AI Marketing Manager for&nbsp;
+        <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(24px,3.2vw,48px)', fontWeight: 800, lineHeight: 1.15, margin: '0 0 20px', letterSpacing: '-0.03em', color: '#f5f5f7' }}>
+          Your AI Marketing Manager —{' '}
           <span style={{ background: 'linear-gradient(135deg,#7c6ff7 30%,#e26faf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Every App You Build
+            for every app you build
           </span>
         </h1>
 
@@ -245,11 +245,11 @@ export default function Landing() {
       <section style={{ padding: '96px 6%', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 700, height: 350, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,111,247,.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
         <div style={{ position: 'relative', maxWidth: 560, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: DISPLAY, fontSize: 'clamp(28px,4vw,52px)', fontWeight: 800, margin: '0 0 14px', letterSpacing: '-0.03em', color: '#f5f5f7', lineHeight: 1.1 }}>
-            Your app deserves<br />
-            <span style={{ background: 'linear-gradient(135deg,#7c6ff7,#e26faf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>great marketing</span>
+          <h2 style={{ fontFamily: DISPLAY, fontSize: 'clamp(24px,3vw,44px)', fontWeight: 800, margin: '0 0 14px', letterSpacing: '-0.03em', color: '#f5f5f7', lineHeight: 1.15 }}>
+            Your app deserves{' '}
+            <span style={{ background: 'linear-gradient(135deg,#7c6ff7,#e26faf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>great marketing</span>
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,.45)', marginBottom: 32, lineHeight: 1.65 }}>Join indie hackers and founders who use Markr to grow their apps — without hiring a marketing team.</p>
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,.45)', marginBottom: 32, lineHeight: 1.65 }}>Stop juggling tools and agencies. Markr gives every app founder a full marketing team — powered by AI.</p>
           <a href="/app" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 32px', borderRadius: 9, background: 'linear-gradient(135deg,#7c6ff7,#9b8af4)', color: '#fff', fontSize: 15, fontWeight: 700, textDecoration: 'none', boxShadow: '0 0 40px rgba(124,111,247,.3)', transition: 'all .2s', fontFamily: BODY, letterSpacing: '-.01em' }}
             onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform='translateY(-2px)';(e.currentTarget as HTMLElement).style.boxShadow='0 8px 40px rgba(124,111,247,.45)'}}
             onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='none';(e.currentTarget as HTMLElement).style.boxShadow='0 0 40px rgba(124,111,247,.3)'}}>
@@ -265,7 +265,7 @@ export default function Landing() {
           <div style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(135deg,#7c6ff7,#e26faf)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: DISPLAY, fontSize: 13, fontWeight: 800, color: '#fff' }}>M</div>
           <span style={{ fontFamily: DISPLAY, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,.5)' }}>Markr</span>
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,.25)' }}>© 2026 Markr. Built for indie hackers.</div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,.25)' }}>© 2026 Markr. AI marketing for app teams.</div>
         <div style={{ display: 'flex', gap: 20, fontSize: 12 }}>
           {[['App','/app'],['Sign in','/login'],['Contact','mailto:hello@markr.app']].map(([l,h])=>(
             <a key={l} href={h} style={{ color: 'rgba(255,255,255,.3)', textDecoration: 'none', transition: 'color .15s' }}
