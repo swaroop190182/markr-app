@@ -1,55 +1,170 @@
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { AppData, ViewType } from '../types'
-import { SEEDED_APPS, COLORS } from '../lib/data'
+import { COLORS } from './data'
+import { supabase } from './supabase'
 
 interface AppStore {
   apps: AppData[]
   currentApp: AppData
   view: ViewType
+  loading: boolean
   setView: (v: ViewType) => void
   setCurrentApp: (id: number) => void
-  addApp: (app: AppData) => void
-  updateApp: (id: number, updates: Partial<AppData>) => void
-  removeApp: (id: number) => void
+  addApp: (app: AppData) => Promise<void>
+  updateApp: (id: number, updates: Partial<AppData>) => Promise<void>
+  removeApp: (id: number) => Promise<void>
 }
 
 const StoreContext = createContext<AppStore | null>(null)
 
-export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [apps, setApps] = useState<AppData[]>(SEEDED_APPS)
-  const [currentAppId, setCurrentAppId] = useState<number>(SEEDED_APPS[0].id)
-  const [view, setView] = useState<ViewType>('overview')
+const FALLBACK_APP: AppData = {
+  id: 0, name: 'My App', platform: 'Web', color: '#7c6ff7',
+  stage: 'Launch', category: 'Productivity', url: '', desc: '',
+  brand: '', pillars: [], features: []
+}
 
-  const currentApp = apps.find(a => a.id === currentAppId) ?? apps[0]
+export function StoreProvider({ children, userId }: { children: React.ReactNode; userId: string }) {
+  const [apps,         setApps]         = useState<AppData[]>([])
+  const [currentAppId, setCurrentAppId] = useState<number>(0)
+  const [view,         setView]         = useState<ViewType>('overview')
+  const [loading,      setLoading]      = useState(true)
 
-  const setCurrentApp = useCallback((id: number) => {
-    setCurrentAppId(id)
-  }, [])
+  // ── Load apps from Supabase on mount ──────────────────────────────────────
+  useEffect(() => {
+    loadApps()
+  }, [userId])
 
-  const addApp = useCallback((app: AppData) => {
-    setApps(prev => {
-      const color = COLORS[prev.length % COLORS.length]
-      return [...prev, { ...app, color }]
-    })
-    setCurrentAppId(app.id)
-  }, [])
+  async function loadApps() {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('markr_apps')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
 
-  const updateApp = useCallback((id: number, updates: Partial<AppData>) => {
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        const loaded: AppData[] = data.map(row => ({
+          id:          row.id,
+          name:        row.name,
+          platform:    row.platform,
+          color:       row.color,
+          stage:       row.stage,
+          category:    row.category,
+          url:         row.url ?? '',
+          desc:        row.description ?? '',
+          brand:       row.brand_voice ?? '',
+          pillars:     row.pillars ?? [],
+          features:    row.features ?? [],
+          audience:    row.audience ?? '',
+          problem:     row.problem ?? '',
+          diff:        row.differentiator ?? '',
+          testCreds:   row.test_creds ?? null,
+          productTest: row.product_test ?? null,
+          analyzed:    row.analyzed ?? false,
+        }))
+        setApps(loaded)
+        setCurrentAppId(loaded[0].id)
+      }
+    } catch (e) {
+      console.error('Failed to load apps:', e)
+    }
+    setLoading(false)
+  }
+
+  const currentApp = apps.find(a => a.id === currentAppId) ?? apps[0] ?? FALLBACK_APP
+
+  const setCurrentApp = useCallback((id: number) => setCurrentAppId(id), [])
+
+  // ── Add app ───────────────────────────────────────────────────────────────
+  const addApp = useCallback(async (app: AppData) => {
+    const color = COLORS[apps.length % COLORS.length]
+    const newApp = { ...app, color }
+
+    const { data, error } = await supabase
+      .from('markr_apps')
+      .insert({
+        user_id:       userId,
+        name:          newApp.name,
+        platform:      newApp.platform,
+        color:         newApp.color,
+        stage:         newApp.stage,
+        category:      newApp.category,
+        url:           newApp.url,
+        description:   newApp.desc,
+        brand_voice:   newApp.brand,
+        pillars:       newApp.pillars,
+        features:      newApp.features,
+        audience:      newApp.audience ?? '',
+        problem:       newApp.problem ?? '',
+        differentiator:newApp.diff ?? '',
+        test_creds:    newApp.testCreds ?? null,
+        product_test:  newApp.productTest ?? null,
+        analyzed:      newApp.analyzed ?? false,
+      })
+      .select()
+      .single()
+
+    if (error) { console.error('addApp error:', error); return }
+    if (data) {
+      const saved: AppData = { ...newApp, id: data.id }
+      setApps(prev => [...prev, saved])
+      setCurrentAppId(data.id)
+    }
+  }, [apps, userId])
+
+  // ── Update app ────────────────────────────────────────────────────────────
+  const updateApp = useCallback(async (id: number, updates: Partial<AppData>) => {
+    // Optimistic update
     setApps(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a))
-  }, [])
 
-  const removeApp = useCallback((id: number) => {
+    const { error } = await supabase
+      .from('markr_apps')
+      .update({
+        ...(updates.name        !== undefined && { name:           updates.name }),
+        ...(updates.platform    !== undefined && { platform:       updates.platform }),
+        ...(updates.stage       !== undefined && { stage:          updates.stage }),
+        ...(updates.category    !== undefined && { category:       updates.category }),
+        ...(updates.url         !== undefined && { url:            updates.url }),
+        ...(updates.desc        !== undefined && { description:    updates.desc }),
+        ...(updates.brand       !== undefined && { brand_voice:    updates.brand }),
+        ...(updates.pillars     !== undefined && { pillars:        updates.pillars }),
+        ...(updates.features    !== undefined && { features:       updates.features }),
+        ...(updates.audience    !== undefined && { audience:       updates.audience }),
+        ...(updates.problem     !== undefined && { problem:        updates.problem }),
+        ...(updates.diff        !== undefined && { differentiator: updates.diff }),
+        ...(updates.testCreds   !== undefined && { test_creds:     updates.testCreds }),
+        ...(updates.productTest !== undefined && { product_test:   updates.productTest }),
+        ...(updates.analyzed    !== undefined && { analyzed:       updates.analyzed }),
+        ...(updates.color       !== undefined && { color:          updates.color }),
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) console.error('updateApp error:', error)
+  }, [userId])
+
+  // ── Remove app ────────────────────────────────────────────────────────────
+  const removeApp = useCallback(async (id: number) => {
     setApps(prev => {
       const next = prev.filter(a => a.id !== id)
       if (currentAppId === id && next.length > 0) setCurrentAppId(next[0].id)
       return next
     })
-  }, [currentAppId])
+    const { error } = await supabase
+      .from('markr_apps')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+    if (error) console.error('removeApp error:', error)
+  }, [currentAppId, userId])
 
   return (
     <StoreContext.Provider value={{
-      apps, currentApp, view, setView,
-      setCurrentApp, addApp, updateApp, removeApp
+      apps, currentApp, view, loading,
+      setView, setCurrentApp, addApp, updateApp, removeApp
     }}>
       {children}
     </StoreContext.Provider>
