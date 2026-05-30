@@ -10,6 +10,7 @@ import Strategy from './views/Strategy'
 import Calendar from './views/Calendar'
 import Insights from './views/Insights'
 import Auth from './views/Auth'
+import Landing from './views/Landing'
 import AddAppModal from './components/AddAppModal'
 import EditAppModal from './components/EditAppModal'
 import Toast from './components/Toast'
@@ -19,16 +20,12 @@ function AppInner({ session }: { session: Session }) {
   const [showAddApp, setShowAddApp] = useState(false)
   const [editAppId, setEditAppId] = useState<number | null>(null)
 
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-  }
-
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
       <Sidebar
         onAddApp={() => setShowAddApp(true)}
         onEditApp={setEditAppId}
-        onSignOut={handleSignOut}
+        onSignOut={() => supabase.auth.signOut()}
         userEmail={session.user.email ?? ''}
       />
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -51,36 +48,54 @@ function AppInner({ session }: { session: Session }) {
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const path = window.location.pathname
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
       setLoading(false)
     })
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      // After login redirect to /app
+      if (session && window.location.pathname === '/login') {
+        window.location.href = '/app'
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
 
+  // Loading spinner
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', background: '#0a0a0c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,var(--accent),var(--pink))', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Syne,sans-serif', fontSize: 20, fontWeight: 800, color: '#fff' }}>M</div>
-          <span className="spinner" style={{ color: 'var(--accent2)' }} />
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#7c6ff7,#e26faf)', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Syne,sans-serif', fontSize: 20, fontWeight: 800, color: '#fff' }}>M</div>
+          <span className="spinner" style={{ color: '#7c6ff7' }} />
         </div>
       </div>
     )
   }
 
-  if (!session) return <Auth />
+  // Landing page
+  if (path === '/' || path === '') return <Landing />
 
-  return (
-    <StoreProvider userId={session.user.id}>
-      <AppInner session={session} />
-    </StoreProvider>
-  )
+  // Login page
+  if (path === '/login') return <Auth />
+
+  // App — requires auth
+  if (path.startsWith('/app')) {
+    if (!session) {
+      window.location.href = '/login'
+      return null
+    }
+    return (
+      <StoreProvider userId={session.user.id}>
+        <AppInner session={session} />
+      </StoreProvider>
+    )
+  }
+
+  // Default fallback
+  return <Landing />
 }
