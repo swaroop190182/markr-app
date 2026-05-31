@@ -3,7 +3,7 @@ import { useStore } from '../lib/store'
 import { Card, CardHeader } from '../components/ui'
 import { callClaude } from '../lib/claude'
 
-export default function Overview() {
+export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const { apps, currentApp, setView, plan } = useStore()
   const [insight, setInsight] = useState<string | null>(null)
   const [loading, setLoading]  = useState(false)
@@ -57,7 +57,7 @@ export default function Overview() {
         <button
           className="gen-btn"
           style={{ fontSize:15, padding:'13px 32px', boxShadow:'0 0 32px rgba(124,111,247,.3)', animation:'glow 2s infinite alternate' }}
-          onClick={() => document.getElementById('add-app-btn')?.click()}
+          onClick={() => onAddApp ? onAddApp() : document.getElementById('add-app-btn')?.click()}
         >
           <i className="ti ti-plus" style={{ fontSize:15 }} />
           Add your first app
