@@ -4,7 +4,7 @@ const RATE_LIMITS = { pro: 200, free: 5 }
 const usageMap    = new Map<string, { count: number; date: string }>()
 
 function getPlan(email: string): 'pro' | 'free' {
-  const PRO = (process.env.PRO_EMAILS ?? 'swaroop.raghu@gmail.com')
+  const PRO = (process.env.PRO_EMAILS ?? 'swaroop.raghu@gmail.com,swaroop.82@gmail.com')
     .split(',').map(e => e.trim().toLowerCase())
   return PRO.includes(email.toLowerCase()) ? 'pro' : 'free'
 }
