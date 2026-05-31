@@ -783,24 +783,43 @@ export function downloadAnalysisPDF(appName: string, tabLabel: string, data: str
         </div>`
 
     } else if (tab === 'competitive') {
+      const tColor: Record<string,string> = { High:'#dc2626', Medium:'#d48a0a', Low:'#16a870' }
       body = `
-        ${d.summary ? `<div class="card" style="margin-bottom:16px;border-left:3px solid #7c6ff7"><div class="card-sub" style="color:#333;font-style:italic">${d.summary}</div></div>` : ''}
-        <div class="section-title">🔍 Competitors</div>
-        <div class="competitor-grid">
-          ${(d.comps || d.competitors || []).map((c: any) => `
-            <div class="competitor-card">
-              <div class="card-title">${c.name}</div>
-              <div style="font-size:10px;color:#666;margin-bottom:2px">Pricing: <strong>${c.pricing || '-'}</strong></div>
-              <div style="font-size:10px;color:#666;margin-bottom:6px">${c.target_audience || ''}</div>
-              ${c.weakness ? `<div style="font-size:10px;color:#dc2626">Gap: ${c.weakness}</div>` : ''}
-              ${c.differentiation ? `<div style="font-size:10px;color:#16a870;margin-top:2px">Your edge: ${c.differentiation}</div>` : ''}
-            </div>`).join('')}
-        </div>
-        ${d.positioning_opportunity ? `
-          <div class="card" style="border-left:3px solid #7c6ff7">
-            <div class="section-title" style="margin-top:0">💡 Positioning Opportunity</div>
-            <div class="card-sub" style="color:#333">${d.positioning_opportunity}</div>
-          </div>` : ''}`
+        ${(d.mktPos || d.wspace || d.winCond) ? `
+        <div style="background:#f0effe;border:1px solid rgba(124,111,247,.3);border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:13px;line-height:1.7">
+          ${d.mktPos ? `<div><strong style="color:#5a4fd4">Market Position:</strong> ${d.mktPos}</div>` : ''}
+          ${d.wspace ? `<div style="margin-top:6px"><strong style="color:#16a870">Whitespace:</strong> ${d.wspace}</div>` : ''}
+          ${d.winCond ? `<div style="margin-top:6px"><strong style="color:#d48a0a">Win Condition:</strong> ${d.winCond}</div>` : ''}
+        </div>` : ''}
+        <div class="section-title">🔍 Competitor Matrix</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px">
+          <thead>
+            <tr style="border-bottom:2px solid #e4e4f0">
+              <th style="text-align:left;padding:8px 10px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.06em">Competitor</th>
+              <th style="text-align:left;padding:8px 10px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.06em">Type</th>
+              <th style="text-align:left;padding:8px 10px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.06em">Pricing</th>
+              <th style="text-align:left;padding:8px 10px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.06em">Threat</th>
+              <th style="text-align:left;padding:8px 10px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.06em">Strengths</th>
+              <th style="text-align:left;padding:8px 10px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.06em">Weaknesses</th>
+              <th style="text-align:left;padding:8px 10px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.06em">How ${appName} Wins</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(d.comps || []).map((c: any) => `
+              <tr style="border-bottom:1px solid #f0f0f7">
+                <td style="padding:9px 10px;font-weight:600;color:#111">${c.name}</td>
+                <td style="padding:9px 10px;color:#888;font-size:11px">${c.cat || ''}</td>
+                <td style="padding:9px 10px;color:#16a870;font-weight:600">${c.price || '-'}</td>
+                <td style="padding:9px 10px">
+                  <span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:${(tColor[c.threat]||'#888')}18;color:${tColor[c.threat]||'#888'}">${c.threat || '-'}</span>
+                  <div style="font-size:10px;color:#888;margin-top:3px">${c.score || ''}/10</div>
+                </td>
+                <td style="padding:9px 10px">${(c.strengths||[]).map((s: string)=>`<div style="font-size:11px;color:#444;margin-bottom:2px">• ${s}</div>`).join('')}</td>
+                <td style="padding:9px 10px">${(c.weaknesses||[]).map((w: string)=>`<div style="font-size:11px;color:#666;margin-bottom:2px">• ${w}</div>`).join('')}</td>
+                <td style="padding:9px 10px;font-size:11px;color:#5a4fd4;line-height:1.5">${c.diff || ''}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`
 
     } else if (tab === 'business model canvas') {
       const blocks = ['value_propositions','customer_segments','channels','customer_relationships','revenue_streams','key_resources','key_activities','key_partners','cost_structure']
