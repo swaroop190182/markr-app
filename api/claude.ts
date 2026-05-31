@@ -46,17 +46,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { model: reqModel, prompt, system, maxTokens, stream: doStream } = req.body
 
-  // Feature gate: Sonnet (product test) is Pro only
-  if (reqModel === 'sonnet' && !isCronJob) {
-    const plan = getPlan(userEmail)
-    if (plan !== 'pro') {
-      return res.status(403).json({
-        error: 'Product Test is a Pro feature. Upgrade to unlock.',
-        feature: 'product_test',
-      })
-    }
-  }
-
   // Rate limiting (skip for cron)
   if (!isCronJob) {
     const plan = getPlan(userEmail)
@@ -73,10 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('X-Plan', plan)
   }
 
-  // Model routing: Haiku for everything, Sonnet for product test
-  const model = reqModel === 'sonnet'
-    ? 'claude-sonnet-4-5'
-    : 'claude-haiku-4-5-20251001'
+  // Model routing: Haiku for everything (cost-effective, fast)
+  const model = 'claude-haiku-4-5-20251001'
 
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY!
   const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
