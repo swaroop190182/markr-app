@@ -53,12 +53,24 @@ export default function Insights() {
 
   const pt = currentApp.productTest
 
+  // Build recent context string injected into all prompts
+  function getRecentContext(): string {
+    const rc = currentApp.recent_context
+    if (!rc || !rc.trim()) return ''
+    return `
+
+━━━ RECENT REAL-WORLD DATA (use this to make analysis current and specific) ━━━
+${rc.trim()}
+━━━ This data is more recent than the landing page — weight it heavily ━━━`
+  }
+
   // ── COMPETITIVE ─────────────────────────────────────────────────────────────
   async function genCompetitive() {
     setLoad('competitive', true)
     const ptCtx = getTestContext(currentApp)
+    const rcCtx = getRecentContext()
     try {
-      const prompt = `Identify 5 real competitors for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${currentApp.url ? ' URL: '+currentApp.url : ''}${ptCtx ? '\n'+ptCtx+'\nUse product test findings to sharpen the differentiation column.' : ''}
+      const prompt = `Identify 5 real competitors for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${currentApp.url ? ' URL: '+currentApp.url : ''}${ptCtx ? '\n'+ptCtx+'\nUse product test findings to sharpen the differentiation column.' : ''}${rcCtx}
 
 For each output exactly:
 COMPETITOR: [name]
@@ -119,6 +131,7 @@ Output ONLY valid JSON:
   async function genSWOT() {
     setLoad('swot', true)
     const ptCtx = getTestContext(currentApp)
+    const rcCtx = getRecentContext()
     try {
       const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}
 
@@ -173,6 +186,7 @@ Output ONLY valid JSON, no markdown:
   async function genGrowth() {
     setLoad('growth', true)
     const ptCtx = getTestContext(currentApp)
+    const rcCtx = getRecentContext()
     try {
       const prompt = `AARRR growth strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nReference specific real features by name in Activation/Retention.' : ''}
 
@@ -191,6 +205,7 @@ Output ONLY valid JSON — no markdown, no trailing commas:
   async function genPricing() {
     setLoad('pricing', true)
     const ptCtx = getTestContext(currentApp)
+    const rcCtx = getRecentContext()
     try {
       const prompt = `Complete pricing strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nPricing must reflect real product quality from testing.' : ''}
 Output ONLY valid JSON:
