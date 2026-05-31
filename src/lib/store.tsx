@@ -142,6 +142,14 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           testCreds:   row.test_creds ?? null,
           productTest: row.product_test ?? null,
           analyzed:    row.analyzed ?? false,
+          // Analysis cache
+          competitive_analysis: row.competitive_analysis ?? null,
+          bmc_analysis:         row.bmc_analysis ?? null,
+          swot_analysis:        row.swot_analysis ?? null,
+          growth_analysis:      row.growth_analysis ?? null,
+          pricing_analysis:     row.pricing_analysis ?? null,
+          content_studio_cache: row.content_studio_cache ?? null,
+          strategy_cache:       row.strategy_cache ?? null,
         }))
         setApps(loaded)
         setCurrentAppId(loaded[0].id)
@@ -218,6 +226,14 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.productTest !== undefined && { product_test:   updates.productTest }),
         ...(updates.analyzed    !== undefined && { analyzed:       updates.analyzed }),
         ...(updates.color       !== undefined && { color:          updates.color }),
+        // Analysis cache
+        ...(updates.competitive_analysis !== undefined && { competitive_analysis: updates.competitive_analysis }),
+        ...(updates.bmc_analysis         !== undefined && { bmc_analysis:         updates.bmc_analysis }),
+        ...(updates.swot_analysis        !== undefined && { swot_analysis:        updates.swot_analysis }),
+        ...(updates.growth_analysis      !== undefined && { growth_analysis:      updates.growth_analysis }),
+        ...(updates.pricing_analysis     !== undefined && { pricing_analysis:     updates.pricing_analysis }),
+        ...(updates.content_studio_cache !== undefined && { content_studio_cache: updates.content_studio_cache }),
+        ...(updates.strategy_cache       !== undefined && { strategy_cache:       updates.strategy_cache }),
       })
       .eq('id', id)
       .eq('user_id', userId)
