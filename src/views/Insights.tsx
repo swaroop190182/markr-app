@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, safeParseJSON } from '../lib/claude'
@@ -24,9 +24,32 @@ export default function Insights() {
   const [runningFull, setRunningFull] = useState(false)
   const [fullSteps, setFullSteps] = useState<Record<string,string>>({})
 
+  // Load persisted analysis from app on mount / app change
+  useEffect(() => {
+    const saved: Record<string,string> = {}
+    if (currentApp.competitive_analysis) saved['competitive'] = currentApp.competitive_analysis
+    if (currentApp.bmc_analysis)         saved['bmc']         = currentApp.bmc_analysis
+    if (currentApp.swot_analysis)        saved['swot']        = currentApp.swot_analysis
+    if (currentApp.growth_analysis)      saved['growth']      = currentApp.growth_analysis
+    if (currentApp.pricing_analysis)     saved['pricing']     = currentApp.pricing_analysis
+    setCache(saved)
+  }, [currentApp.id])
+
   const setLoad = (k: string, v: boolean) => setLoading(p => ({ ...p, [k]: v }))
   const setFStep = (k: string, s: string) => setFullSteps(p => ({ ...p, [k]: s }))
-  const setTabCache = (k: string, html: string) => setCache(p => ({ ...p, [k]: html }))
+  const setTabCache = (k: string, data: string) => {
+    setCache(p => ({ ...p, [k]: data }))
+    // Persist to Supabase via updateApp
+    const fieldMap: Record<string, string> = {
+      competitive: 'competitive_analysis',
+      bmc:         'bmc_analysis',
+      swot:        'swot_analysis',
+      growth:      'growth_analysis',
+      pricing:     'pricing_analysis',
+    }
+    const field = fieldMap[k]
+    if (field) updateApp(currentApp.id, { [field]: data } as any)
+  }
 
   const pt = currentApp.productTest
 
@@ -272,24 +295,44 @@ Output ONLY valid JSON:
       </div>
 
       {/* Tab content */}
-      {activeTab === 'competitive' && (
-        <CompetitiveTab data={cache.competitive} loading={loading.competitive} onGenerate={genCompetitive} appName={currentApp.name} />
-      )}
-      {activeTab === 'bmc' && (
-        <BMCTab data={cache.bmc} loading={loading.bmc} onGenerate={genBMC} appName={currentApp.name} />
-      )}
-      {activeTab === 'swot' && (
-        <SWOTTab data={cache.swot} loading={loading.swot} onGenerate={genSWOT} />
-      )}
-      {activeTab === 'growth' && (
-        <GrowthTab data={cache.growth} loading={loading.growth} onGenerate={genGrowth} />
-      )}
-      {activeTab === 'pricing' && (
-        <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
-      )}
-      {activeTab === 'product' && (
-        <ProductTest />
-      )}
+      <div style={{ position:'relative' }}>
+        {/* Download button — shows when analysis is available */}
+        {cache[activeTab] && activeTab !== 'product' && (
+          <div style={{ position:'absolute', top:-40, right:0, zIndex:10 }}>
+            <button
+              onClick={() => downloadAnalysisPDF(
+                currentApp.name,
+                TABS.find(t=>t.id===activeTab)?.label ?? activeTab,
+                cache[activeTab]
+              )}
+              className="vbtn"
+              style={{ display:'flex', alignItems:'center', gap:5, fontSize:11 }}
+            >
+              <i className="ti ti-download" style={{ fontSize:12 }} />
+              Download report
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'competitive' && (
+          <CompetitiveTab data={cache.competitive} loading={loading.competitive} onGenerate={genCompetitive} appName={currentApp.name} />
+        )}
+        {activeTab === 'bmc' && (
+          <BMCTab data={cache.bmc} loading={loading.bmc} onGenerate={genBMC} appName={currentApp.name} />
+        )}
+        {activeTab === 'swot' && (
+          <SWOTTab data={cache.swot} loading={loading.swot} onGenerate={genSWOT} />
+        )}
+        {activeTab === 'growth' && (
+          <GrowthTab data={cache.growth} loading={loading.growth} onGenerate={genGrowth} />
+        )}
+        {activeTab === 'pricing' && (
+          <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
+        )}
+        {activeTab === 'product' && (
+          <ProductTest />
+        )}
+      </div>
     </div>
   )
 }
@@ -644,4 +687,53 @@ function EmptyTab({ emoji, title, desc, onGenerate, btnLabel }: { emoji:string; 
       </button>
     </div>
   )
+}
+
+// ── PDF DOWNLOAD ──────────────────────────────────────────────────────────────
+export function downloadAnalysisPDF(appName: string, tabLabel: string, data: string) {
+  try {
+    const parsed = JSON.parse(data)
+    const date   = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })
+
+    // Build plain text content for PDF
+    let content = `MARKR ANALYSIS REPORT\n`
+    content += `${'='.repeat(50)}\n`
+    content += `App: ${appName}\n`
+    content += `Analysis: ${tabLabel}\n`
+    content += `Generated: ${date}\n`
+    content += `${'='.repeat(50)}\n\n`
+
+    function flatten(obj: any, indent = 0): string {
+      if (typeof obj === 'string') return '  '.repeat(indent) + obj + '\n'
+      if (Array.isArray(obj)) return obj.map(i => flatten(i, indent)).join('')
+      if (typeof obj === 'object' && obj !== null) {
+        return Object.entries(obj).map(([k, v]) => {
+          const label = k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())
+          if (typeof v === 'object') return '  '.repeat(indent) + label + ':\n' + flatten(v, indent+1)
+          return '  '.repeat(indent) + label + ': ' + v + '\n'
+        }).join('')
+      }
+      return String(obj) + '\n'
+    }
+
+    content += flatten(parsed)
+
+    // Create downloadable blob
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `${appName}-${tabLabel.replace(/\s+/g,'-').toLowerCase()}-${date.replace(/\s+/g,'-')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    // Fallback: download raw JSON
+    const blob = new Blob([data], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `${appName}-${tabLabel}-analysis.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 }
