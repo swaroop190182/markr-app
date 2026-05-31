@@ -4,7 +4,7 @@ import { COLORS } from './data'
 import { supabase } from './supabase'
 
 // ── Plan config ────────────────────────────────────────────────────────────────
-const PRO_EMAILS = ['swaroop.raghu@gmail.com']
+const PRO_EMAILS = ['swaroop.raghu@gmail.com', 'swaroop.82@gmail.com']
 
 export const PLAN_CONFIG = {
   pro: {
