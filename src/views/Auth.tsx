@@ -11,14 +11,23 @@ export default function Auth() {
   const [error,    setError]    = useState('')
   const [message,  setMessage]  = useState('')
 
+  // Preserve URL param from landing page
+  const urlParam = new URLSearchParams(window.location.search).get('url') ?? ''
+  const appTarget = urlParam ? `/app?url=${encodeURIComponent(urlParam)}` : '/app'
+
   async function handleSubmit() {
     setLoading(true); setError(''); setMessage('')
     try {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
+        // Redirect preserving URL param
+        window.location.href = appTarget
       } else if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password })
+        const { error } = await supabase.auth.signUp({
+          email, password,
+          options: { emailRedirectTo: `${window.location.origin}${appTarget}` }
+        })
         if (error) throw error
         setMessage('Check your email for a confirmation link!')
       } else {
@@ -36,7 +45,7 @@ export default function Auth() {
     setLoading(true); setError('')
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin }
+      options: { redirectTo: `${window.location.origin}${appTarget}` }
     })
     if (error) { setError(error.message); setLoading(false) }
   }
@@ -58,7 +67,13 @@ export default function Auth() {
             fontFamily: 'Syne, sans-serif', fontSize: 24, fontWeight: 800, color: '#fff'
           }}>M</div>
           <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>Markr</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>AI Marketing Manager for App Makers</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>AI Co-founder for app founders</div>
+          {urlParam && (
+            <div style={{ marginTop: 12, padding: '7px 14px', borderRadius: 8, background: 'rgba(124,111,247,.08)', border: '1px solid rgba(124,111,247,.2)', fontSize: 12, color: '#a599ff', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>⚡</span>
+              <span>Ready to analyze <strong>{urlParam.replace(/^https?:\/\//, '')}</strong></span>
+            </div>
+          )}
         </div>
 
         {/* Card */}
