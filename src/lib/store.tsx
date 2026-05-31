@@ -68,26 +68,44 @@ const FALLBACK_APP: AppData = {
 }
 
 export function StoreProvider({ children, userId, userEmail }: { children: React.ReactNode; userId: string; userEmail: string }) {
-  const [apps,         setApps]         = useState<AppData[]>([])
-  const [currentAppId, setCurrentAppId] = useState<number>(0)
-  const [view,         setView]         = useState<ViewType>('overview')
-  const [loading,      setLoading]      = useState(true)
+  const [apps,          setApps]          = useState<AppData[]>([])
+  const [currentAppId,  setCurrentAppId]  = useState<number>(0)
+  const [view,          setView]          = useState<ViewType>('overview')
+  const [loading,       setLoading]       = useState(true)
   const [userCreatedAt, setUserCreatedAt] = useState<string>(new Date().toISOString())
+  const [dbPlan,        setDbPlan]        = useState<'pro'|'free'|null>(null)
 
-  const plan             = getUserPlan(userEmail)
-  const appLimit         = getAppLimit(plan)
-  const canAddApp        = apps.length < appLimit
-  const canUseProductTest= PLAN_CONFIG[plan].productTest
-  const trialExpired     = isTrialExpired(userCreatedAt, plan)
-  const daysLeftInTrial  = plan === 'free'
+  // Plan: hardcoded pro emails always win, otherwise read from DB
+  const emailPlan = getUserPlan(userEmail)
+  const plan: 'pro'|'free' = emailPlan === 'pro' ? 'pro' : (dbPlan ?? 'free')
+
+  const appLimit          = getAppLimit(plan)
+  const canAddApp         = apps.length < appLimit
+  const canUseProductTest = PLAN_CONFIG[plan].productTest
+  const trialExpired      = isTrialExpired(userCreatedAt, plan)
+  const daysLeftInTrial   = plan === 'free'
     ? Math.max(0, Math.ceil((PLAN_CONFIG.free.trialDays! - (Date.now() - new Date(userCreatedAt).getTime()) / (1000*60*60*24))))
     : 999
 
-  // Load user metadata to get created_at for trial calculation
+  // Load user metadata + subscription
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.created_at) setUserCreatedAt(data.user.created_at)
     })
+    // Load subscription plan from DB
+    supabase.from('markr_subscriptions')
+      .select('plan, status, current_period_end')
+      .eq('user_id', userId)
+      .single()
+      .then(({ data }) => {
+        if (data?.plan === 'pro' && data?.status === 'active') {
+          // Check if subscription is still valid
+          const periodEnd = data.current_period_end
+          if (!periodEnd || new Date(periodEnd) > new Date()) {
+            setDbPlan('pro')
+          }
+        }
+      })
   }, [userId])
 
   useEffect(() => {
