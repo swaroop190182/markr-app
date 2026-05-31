@@ -55,17 +55,21 @@ export default function DeliverySettings() {
     setTesting(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { toast('Not logged in'); setTesting(false); return }
+
       const res = await fetch('/api/cron/deliver', {
         method: 'POST',
         headers: {
-          'Content-Type':       'application/json',
-          'x-manual-trigger':   import.meta.env.VITE_CRON_SECRET ?? '',
-          'Authorization':      `Bearer ${session?.access_token}`,
+          'Content-Type':     'application/json',
+          'Authorization':    `Bearer ${process.env.CRON_SECRET ?? 'markr_cron_2026'}`,
+          'x-manual-trigger': import.meta.env.VITE_CRON_SECRET ?? 'markr_cron_2026',
+          'x-user-token':     session.access_token,
         },
       })
       const data = await res.json()
       if (data.sent > 0) toast('📧 Test email sent! Check your inbox.', 4000)
-      else toast('No delivery prefs found — save your settings first.')
+      else if (data.error) toast('Error: ' + data.error)
+      else toast('No delivery prefs found — make sure you clicked Save first, then try again.')
     } catch (e) {
       toast('Failed: ' + (e as Error).message)
     }
