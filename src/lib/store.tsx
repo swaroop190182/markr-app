@@ -85,6 +85,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         setApps(loaded)
         setCurrentAppId(loaded[0].id)
       }
+      // No seeded apps for regular users — they start with empty state
     } catch (e) {
       console.error('Failed to load apps:', e)
     }
