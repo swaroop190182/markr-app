@@ -221,12 +221,14 @@ Output ONLY valid JSON:
       { key:'pricing',     fn:genPricing     },
     ]
     for (const { key, fn } of fns) {
+      // Skip if already cached — don't waste tokens
+      if (cache[key]) { setFStep(key, 'done'); continue }
       setFStep(key, 'active')
       await fn()
       setFStep(key, 'done')
     }
     setRunningFull(false)
-    toast('Full analysis complete! 🎉', 4000)
+    toast('Deep analysis complete! All 5 insights ready. 🎉', 5000)
     setActiveTab('competitive')
   }
 
@@ -251,27 +253,33 @@ Output ONLY valid JSON:
         </div>
 
         <button
+          id="run-full-analysis-btn"
           onClick={runFullAnalysis}
           disabled={runningFull}
-          style={{ width:'100%', padding:14, background:'linear-gradient(135deg,rgba(124,111,247,.15),rgba(226,111,175,.1))', border:'1px solid rgba(124,111,247,.3)', borderRadius:'var(--r2)', fontFamily:'DM Sans,sans-serif', fontSize:14, fontWeight:700, color:'var(--accent2)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, transition:'all .2s' }}
+          style={{ width:'100%', padding:14, background: runningFull ? 'linear-gradient(135deg,rgba(124,111,247,.2),rgba(226,111,175,.15))' : 'linear-gradient(135deg,rgba(124,111,247,.15),rgba(226,111,175,.1))', border:'1px solid rgba(124,111,247,.3)', borderRadius:'var(--r2)', fontFamily:'DM Sans,sans-serif', fontSize:14, fontWeight:700, color:'var(--accent2)', cursor: runningFull ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, transition:'all .2s', opacity: runningFull ? .8 : 1 }}
         >
           {runningFull
-            ? <><span className="spinner" style={{ color:'var(--accent2)' }} /> Running full analysis…</>
+            ? <><span className="spinner" style={{ color:'var(--accent2)' }} /> Running deep analysis…</>
             : <><i className="ti ti-telescope" style={{ fontSize:16 }} /> ✦ Run Deep AI Analysis — Competitive · BMC · SWOT · Growth · Pricing</>
           }
         </button>
 
-        {/* Progress when running */}
+        {/* Progress steps */}
         {runningFull && (
-          <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:3 }}>
+          <div style={{ marginTop:14, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r)', padding:'12px 16px', display:'flex', flexDirection:'column', gap:6 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', letterSpacing:'.06em', textTransform:'uppercase' as const, marginBottom:4 }}>Running all 5 analyses…</div>
             {Object.entries(stepLabels).map(([k, label]) => {
               const s = fullSteps[k] ?? 'pending'
+              const isCached = !!cache[k]
               return (
-                <div key={k} className={`ap-step ${s}`}>
-                  <span style={{ fontSize:14, width:18, textAlign:'center' }}>
-                    {s==='done' ? '✓' : s==='active' ? '●' : '○'}
+                <div key={k} style={{ display:'flex', alignItems:'center', gap:10, fontSize:12, color: s==='done'?'var(--green)': s==='active'?'var(--accent2)':'var(--text3)', transition:'color .3s' }}>
+                  <span style={{ fontSize:13, width:16, textAlign:'center' as const, flexShrink:0 }}>
+                    {s==='done' ? '✓' : s==='active' ? '◉' : '○'}
                   </span>
-                  {label}
+                  <span style={{ flex:1 }}>{label}</span>
+                  {s==='active' && <span style={{ fontSize:10, color:'var(--accent2)' }}>Generating…</span>}
+                  {s==='done' && isCached && <span style={{ fontSize:10, color:'var(--text3)' }}>Loaded from cache</span>}
+                  {s==='done' && !isCached && <span style={{ fontSize:10, color:'var(--green)' }}>Done</span>}
                 </div>
               )
             })}
