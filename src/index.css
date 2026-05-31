@@ -57,9 +57,7 @@
     width: 100%;
     transition: border-color 0.2s;
   }
-  input:focus, textarea:focus, select:focus {
-    border-color: var(--accent);
-  }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
   select option { background: var(--surface2); }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -89,6 +87,7 @@
     gap: 6px;
     transition: all .15s;
     font-family: 'DM Sans', sans-serif;
+    white-space: nowrap;
   }
   .gen-btn:hover { background: var(--accent2); }
   .gen-btn:disabled { opacity: .5; cursor: not-allowed; }
@@ -103,6 +102,7 @@
     cursor: pointer;
     transition: all .15s;
     font-family: 'DM Sans', sans-serif;
+    white-space: nowrap;
   }
   .vbtn:hover { border-color: var(--accent); color: var(--accent); }
 
@@ -128,7 +128,7 @@
     border-radius: var(--r);
     transition: all .3s;
   }
-  .ap-step.done { background: rgba(52,201,138,.08); color: var(--green); }
+  .ap-step.done   { background: rgba(52,201,138,.08); color: var(--green); }
   .ap-step.active { background: rgba(124,111,247,.08); color: var(--accent2); }
   .ap-step.pending { color: var(--text3); }
 
@@ -147,8 +147,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     display: inline-block;
-    width: 14px;
-    height: 14px;
+    width: 14px; height: 14px;
     border: 2px solid rgba(255,255,255,.2);
     border-top-color: currentColor;
     border-radius: 50%;
@@ -161,4 +160,176 @@
     to   { opacity: 1; transform: translateY(0); }
   }
   .fade-up { animation: fadeUp .3s ease; }
+
+  /* ── APP LAYOUT RESPONSIVE ──────────────────────────────────────────────── */
+  .app-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .app-sidebar {
+    width: 220px;
+    min-width: 220px;
+    flex-shrink: 0;
+    transition: transform .25s ease, width .25s ease;
+  }
+
+  .app-main {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .app-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  /* Mobile sidebar overlay */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 49;
+  }
+
+  /* ── RESPONSIVE BREAKPOINTS ─────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    /* App layout — sidebar becomes overlay */
+    .app-sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 50;
+      transform: translateX(-100%);
+      width: 260px !important;
+      min-width: 260px !important;
+    }
+    .app-sidebar.open {
+      transform: translateX(0);
+    }
+    .sidebar-overlay.open {
+      display: block;
+    }
+    .app-content {
+      padding: 16px;
+    }
+
+    /* Topbar */
+    .topbar-actions .gen-btn span { display: none; }
+
+    /* Overview grid — stack on mobile */
+    .overview-metrics {
+      grid-template-columns: 1fr 1fr !important;
+    }
+    .overview-cards {
+      grid-template-columns: 1fr !important;
+    }
+    .quick-actions {
+      grid-template-columns: 1fr 1fr !important;
+    }
+
+    /* Content studio — stack cards */
+    .studio-cards {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* Insights tabs — scroll horizontally */
+    .ins-tabs {
+      overflow-x: auto;
+      flex-wrap: nowrap !important;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 4px;
+    }
+
+    /* Modal — full screen on mobile */
+    .modal-box {
+      width: 100% !important;
+      max-width: 100% !important;
+      max-height: 100vh !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* Two-col grids → single col */
+    .two-col { grid-template-columns: 1fr !important; }
+  }
+
+  @media (max-width: 480px) {
+    .overview-metrics {
+      grid-template-columns: 1fr !important;
+    }
+    .app-content { padding: 12px; }
+  }
+}
+
+/* ── LANDING PAGE RESPONSIVE ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Nav */
+  .landing-nav-links { display: none !important; }
+  .landing-nav-cta .signin-btn { display: none !important; }
+
+  /* Hero */
+  .hero-badges { flex-direction: column; align-items: center; }
+  .hero-mockup { display: none !important; }
+
+  /* How it works — stack steps */
+  .how-steps {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+  }
+
+  /* Features — stack buckets */
+  .feature-buckets {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Before/after — stack */
+  .before-after {
+    grid-template-columns: 1fr !important;
+  }
+  .before-after-header {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Real examples */
+  .real-examples {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Pricing — stack */
+  .pricing-cards {
+    grid-template-columns: 1fr !important;
+    max-width: 400px !important;
+  }
+
+  /* Social proof stats */
+  .social-stats {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Testimonials */
+  .testimonials {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-ctas {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .hero-ctas a {
+    text-align: center !important;
+    justify-content: center !important;
+  }
+  .trust-badges {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
 }
