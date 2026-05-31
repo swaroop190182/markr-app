@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
-const D = "'Syne', sans-serif"
-const B = "'DM Sans', sans-serif"
+const D = "'Inter', sans-serif"   // headlines — Inter 700
+const B = "'Inter', sans-serif"   // body — Inter 400/500
 
 function VideoEmbed() {
   const [playing, setPlaying] = useState(false)
@@ -49,7 +49,7 @@ export default function Landing() {
       <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:100, display:'flex', alignItems:'center', height:56, padding:'0 5%', background: scrolled?'rgba(8,8,10,.96)':'transparent', backdropFilter: scrolled?'blur(20px)':'none', borderBottom: scrolled?'1px solid rgba(255,255,255,.06)':'none', transition:'all .25s' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8, flex:1 }}>
           <div style={{ width:28, height:28, borderRadius:7, background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff' }}>M</div>
-          <span style={{ fontFamily:D, fontSize:14, fontWeight:700 }}>Markr</span>
+          <span style={{ fontFamily:D, fontSize:14, fontWeight:600 }}>Markr</span>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:24, fontSize:13, color:'rgba(255,255,255,.5)' }} className="landing-nav-links">
           {[['Features','#features'],['How it works','#how'],['Pricing','#pricing']].map(([l,h])=>(
@@ -70,19 +70,21 @@ export default function Landing() {
         <div style={{ position:'absolute', top:'20%', left:'50%', transform:'translateX(-50%)', width:700, height:400, borderRadius:'50%', background:'radial-gradient(ellipse, rgba(124,111,247,.1) 0%, transparent 65%)', pointerEvents:'none' }} />
 
         {/* Badge */}
-        <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 12px', borderRadius:20, border:'1px solid rgba(124,111,247,.3)', background:'rgba(124,111,247,.08)', fontSize:11, fontWeight:600, color:'#a599ff', marginBottom:20, letterSpacing:'.02em' }}>
+        <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'5px 14px', borderRadius:20, border:'1px solid rgba(124,111,247,.3)', background:'rgba(124,111,247,.08)', fontSize:12, fontWeight:500, color:'#a599ff', marginBottom:28, letterSpacing:'.01em', fontFamily:D }}>
           ✦ AI Co-founder for App Founders
         </div>
 
-        {/* Headline — refined size */}
-        <h1 style={{ fontFamily:D, fontSize:'clamp(28px,3.8vw,52px)', fontWeight:800, lineHeight:1.12, margin:'0 0 6px', letterSpacing:'-0.025em', color:'#f5f5f7', maxWidth:720 }}>
+        {/* Headline — Inter 700, 58px, tight */}
+        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:700, lineHeight:1.07, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:740 }}>
           Your app already knows how to grow.
         </h1>
-        <h1 style={{ fontFamily:D, fontSize:'clamp(28px,3.8vw,52px)', fontWeight:800, lineHeight:1.12, margin:'0 0 20px', letterSpacing:'-0.025em', maxWidth:720, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
+        {/* Subheadline — Inter 600, slightly lighter */}
+        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 28px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
           We just make it obvious.
         </h1>
 
-        <p style={{ fontSize:15, color:'rgba(255,255,255,.5)', maxWidth:480, lineHeight:1.75, margin:'0 0 16px' }}>
+        {/* Body — Inter 400, 17px, generous line height */}
+        <p style={{ fontFamily:D, fontSize:17, fontWeight:400, color:'rgba(255,255,255,.5)', maxWidth:480, lineHeight:1.65, margin:'0 0 18px' }}>
           Paste your app URL. Markr analyzes it like a real user, generates 3 posts daily, and delivers them to your inbox — automatically.
         </p>
 
@@ -95,20 +97,20 @@ export default function Landing() {
         </div>
 
         {/* URL input */}
-        <div style={{ display:'flex', gap:0, maxWidth:500, width:'100%', marginBottom:14, borderRadius:9, overflow:'hidden', border:'1.5px solid rgba(124,111,247,.4)', background:'rgba(255,255,255,.04)' }}>
+        <div style={{ display:'flex', gap:0, maxWidth:520, width:'100%', marginBottom:14, borderRadius:10, overflow:'hidden', border:'1.5px solid rgba(124,111,247,.4)', background:'rgba(255,255,255,.04)', boxShadow:'0 0 0 4px rgba(124,111,247,.06)' }}>
           <input ref={inputRef} value={url} onChange={e=>setUrl(e.target.value)}
             onKeyDown={e=>e.key==='Enter'&&handleAnalyze()}
             placeholder="https://yourapp.com"
-            style={{ flex:1, background:'transparent', border:'none', padding:'12px 14px', fontSize:13, color:'#fff', outline:'none', borderRadius:0 }} />
+            style={{ flex:1, background:'transparent', border:'none', padding:'14px 16px', fontSize:14, color:'#fff', outline:'none', borderRadius:0, fontFamily:D }} />
           <button onClick={handleAnalyze}
-            style={{ padding:'12px 20px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:B, whiteSpace:'nowrap' }}
-            onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.85'}
+            style={{ padding:'14px 24px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:D, whiteSpace:'nowrap', letterSpacing:'-0.01em' }}
+            onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.88'}
             onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
             Analyze my app →
           </button>
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:16, fontSize:11, color:'rgba(255,255,255,.3)', flexWrap:'wrap', justifyContent:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:18, fontSize:12, color:'rgba(255,255,255,.3)', flexWrap:'wrap', justifyContent:'center', fontFamily:D, fontWeight:400 }}>
           {['No sign-up required','No credit card','2 min setup','Real insights'].map(t=>(
             <span key={t} style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ color:'#7c6ff7' }}>✓</span>{t}</span>
           ))}
@@ -170,12 +172,12 @@ export default function Landing() {
       <section style={{ padding:'72px 6%', borderTop:'1px solid rgba(255,255,255,.06)' }}>
         <div style={{ maxWidth:900, margin:'0 auto', display:'grid', gridTemplateColumns:'1fr 1fr', gap:56, alignItems:'center' }} className="two-col">
           <div>
-            <div style={{ fontSize:11, fontWeight:700, color:'#7c6ff7', letterSpacing:'.1em', textTransform:'uppercase' as const, marginBottom:12 }}>The problem</div>
-            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:800, letterSpacing:'-0.025em', margin:'0 0 14px', lineHeight:1.15, color:'#f5f5f7' }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:12, fontFamily:D }}>The problem</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:700, letterSpacing:'-0.02em', margin:'0 0 14px', lineHeight:1.1, color:'#f5f5f7' }}>
               Your app isn't the problem.<br />
               <span style={{ background:'linear-gradient(135deg,#7c6ff7,#e26faf)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>Your marketing is guesswork.</span>
             </h2>
-            <p style={{ fontSize:14, color:'rgba(255,255,255,.45)', lineHeight:1.8, marginBottom:24 }}>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,.45)', lineHeight:1.7, marginBottom:24 }}>
               Most app founders spend hours trying to figure out what to post — then give up. Markr reads your app, understands it deeply, and tells you exactly what to say and who to say it to.
             </p>
             <a href="/app" style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'10px 20px', borderRadius:7, background:'#7c6ff7', color:'#fff', fontSize:13, fontWeight:600, textDecoration:'none', fontFamily:B }}>
@@ -209,10 +211,10 @@ export default function Landing() {
             <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'3px 10px', borderRadius:20, background:'rgba(52,201,138,.1)', border:'1px solid rgba(52,201,138,.25)', fontSize:11, fontWeight:700, color:'#34c98a', marginBottom:14, letterSpacing:'.04em', textTransform:'uppercase' as const }}>
               ✦ Agentic AI
             </div>
-            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:800, margin:'0 0 14px', letterSpacing:'-0.025em', color:'#f5f5f7', lineHeight:1.15 }}>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:700, margin:'0 0 14px', letterSpacing:'-0.02em', color:'#f5f5f7', lineHeight:1.1 }}>
               Content plan in your inbox.<br /><span style={{ color:'#34c98a' }}>Every morning. Automatically.</span>
             </h2>
-            <p style={{ fontSize:14, color:'rgba(255,255,255,.45)', lineHeight:1.8, marginBottom:20 }}>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,.45)', lineHeight:1.7, marginBottom:20 }}>
               Enable daily delivery and Markr's AI agent generates 3 Instagram posts overnight — captions, hashtags, hooks, image prompts — and delivers them before you wake up.
             </p>
             <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:24 }}>
@@ -268,8 +270,8 @@ export default function Landing() {
       <section id="features" style={{ padding:'72px 6%' }}>
         <div style={{ maxWidth:900, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:40 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#7c6ff7', letterSpacing:'.1em', textTransform:'uppercase' as const, marginBottom:10 }}>What Markr does</div>
-            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,36px)', fontWeight:800, margin:0, letterSpacing:'-0.025em', color:'#f5f5f7' }}>Three things. Done properly.</h2>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>What Markr does</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,36px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>Three things. Done properly.</h2>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }} className="feature-buckets">
             {[
@@ -282,7 +284,7 @@ export default function Landing() {
                 onMouseLeave={e=>(e.currentTarget as HTMLElement).style.transform='none'}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
                   <span style={{ fontSize:20 }}>{b.icon}</span>
-                  <div style={{ fontFamily:D, fontSize:14, fontWeight:700, color:b.color }}>{b.title}</div>
+                  <div style={{ fontFamily:D, fontSize:14, fontWeight:600, color:b.color }}>{b.title}</div>
                 </div>
                 {b.items.map((item,i)=>(
                   <div key={i} style={{ display:'flex', gap:7, alignItems:'flex-start', marginBottom:7, fontSize:12, lineHeight:1.5 }}>
@@ -300,8 +302,8 @@ export default function Landing() {
       <section id="video" style={{ padding:'72px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth:780, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:28 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#7c6ff7', letterSpacing:'.1em', textTransform:'uppercase' as const, marginBottom:10 }}>See it in action</div>
-            <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.5vw,32px)', fontWeight:800, margin:'0 0 8px', letterSpacing:'-0.025em', color:'#f5f5f7' }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>See it in action</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.5vw,32px)', fontWeight:700, margin:'0 0 8px', letterSpacing:'-0.02em', color:'#f5f5f7' }}>
               Watch Markr break down a real app in <span style={{ color:'#7c6ff7' }}>6 minutes</span>
             </h2>
           </div>
@@ -313,8 +315,8 @@ export default function Landing() {
       <section id="pricing" style={{ padding:'72px 6%' }}>
         <div style={{ maxWidth:700, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:40 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#7c6ff7', letterSpacing:'.1em', textTransform:'uppercase' as const, marginBottom:10 }}>Simple pricing</div>
-            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,36px)', fontWeight:800, margin:0, letterSpacing:'-0.025em', color:'#f5f5f7' }}>Start free. Upgrade when ready.</h2>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Simple pricing</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,36px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>Start free. Upgrade when ready.</h2>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }} className="pricing-grid">
             {[
@@ -345,13 +347,13 @@ export default function Landing() {
       {/* ── FINAL CTA ── */}
       <section style={{ padding:'72px 6%', textAlign:'center', background:'rgba(124,111,247,.06)', borderTop:'1px solid rgba(124,111,247,.15)' }}>
         <div style={{ maxWidth:560, margin:'0 auto' }}>
-          <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:800, letterSpacing:'-0.025em', margin:'0 0 12px', color:'#f5f5f7' }}>
+          <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:700, letterSpacing:'-0.02em', margin:'0 0 12px', color:'#f5f5f7' }}>
             Ready to stop guessing?
           </h2>
-          <p style={{ fontSize:14, color:'rgba(255,255,255,.45)', marginBottom:24, lineHeight:1.7 }}>
+          <p style={{ fontSize:16, color:'rgba(255,255,255,.45)', marginBottom:28, lineHeight:1.65 }}>
             Wake up to 3 ready-to-post captions every morning. Paste your URL and get your first insights in 2 minutes — free.
           </p>
-          <a href="/app" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'12px 28px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:700, textDecoration:'none', fontFamily:B, boxShadow:'0 4px 20px rgba(124,111,247,.3)', transition:'opacity .15s' }}
+          <a href="/app" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'14px 32px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:15, fontWeight:600, textDecoration:'none', fontFamily:B, boxShadow:'0 4px 20px rgba(124,111,247,.3)', transition:'opacity .15s' }}
             onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.85'}
             onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
             Analyze my app free →
