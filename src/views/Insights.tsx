@@ -70,22 +70,17 @@ ${rc.trim()}
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
     try {
-            const prompt = `Identify 5 real named competitors for "${currentApp.name}" (${currentApp.category}, ${currentApp.stage}).${currentApp.desc ? ' ' + currentApp.desc : ''}${currentApp.url ? ' URL: ' + currentApp.url : ''}${ptCtx ? '\n' + ptCtx : ''}${rcCtx}
+                  const prompt = `List 3 real competitors for "${currentApp.name}" (${currentApp.category}).${currentApp.desc ? ' '+currentApp.desc : ''}${rcCtx}
 
-Return ONLY a JSON object. No text before or after. No markdown. No code fences:
-{"comps":[{"name":"Competitor Name","cat":"direct|indirect|emerging","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High|Medium|Low","score":7,"diff":"One sentence on how ${currentApp.name} wins"}],"mktPos":"2 sentences","wspace":"2 sentences","winCond":"1 sentence"}`
+JSON only, no markdown:
+{"comps":[{"name":"X","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins"}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
 
-const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown. No explanation. Name real companies.', 3000)
-      // Aggressively clean — handle all possible wrapping formats
-      const cleaned = raw
-        .replace(/```json\s*/gi, '')
-        .replace(/```\s*/g, '')
-        .replace(/^[^{]*/,'')   // strip any text before first {
-        .replace(/[^}]*$/,'')   // strip any text after last }
-        .trim()
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2000)
+      const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/}[^}]*$/,'}').trim()
+      if (!cleaned) throw new Error('Empty response')
       const parsed = JSON.parse(cleaned)
       if (!parsed.comps || !Array.isArray(parsed.comps) || parsed.comps.length === 0) {
-        throw new Error('Empty competitors list')
+        throw new Error('No competitors — keys: ' + Object.keys(parsed).join(', '))
       }
       setTabCache('competitive', JSON.stringify(parsed))
       toast('Competitive analysis ready!')
