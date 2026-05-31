@@ -279,8 +279,8 @@ export default function ProductTest() {
               <div style={{ fontSize:12, lineHeight:1.65 }}>{c}</div>
             </div>
           ))}
-          {pt.competitive_edge_from_test && <div style={{ marginTop:10, padding:'9px 12px', background:'rgba(255,255,255,.03)', borderRadius:'var(--r)', fontSize:12, color:'var(--text2)' }}><strong style={{ color:'var(--text)' }}>🏆 Real competitive edge:</strong> {pt.competitive_edge_from_test}</div>}
-          {pt.onboarding_verdict && <div style={{ marginTop:8, padding:'9px 12px', background:'rgba(255,255,255,.03)', borderRadius:'var(--r)', fontSize:12, color:'var(--text2)' }}><strong style={{ color:'var(--text)' }}>⚡ Onboarding:</strong> {pt.onboarding_verdict}</div>}
+          {pt.competitive_edge_from_test && <div style={{ marginTop:10, padding:'9px 12px', background:'var(--surface2)', borderRadius:'var(--r)', fontSize:12, color:'var(--text2)' }}><strong style={{ color:'var(--text)' }}>🏆 Real competitive edge:</strong> {pt.competitive_edge_from_test}</div>}
+          {pt.onboarding_verdict && <div style={{ marginTop:8, padding:'9px 12px', background:'var(--surface2)', borderRadius:'var(--r)', fontSize:12, color:'var(--text2)' }}><strong style={{ color:'var(--text)' }}>⚡ Onboarding:</strong> {pt.onboarding_verdict}</div>}
         </div>
       )}
     </>
