@@ -142,6 +142,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           testCreds:   row.test_creds ?? null,
           productTest: row.product_test ?? null,
           analyzed:    row.analyzed ?? false,
+          recent_context: row.recent_context ?? null,
           // Analysis cache
           competitive_analysis: row.competitive_analysis ?? null,
           bmc_analysis:         row.bmc_analysis ?? null,
@@ -224,8 +225,9 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.diff        !== undefined && { differentiator: updates.diff }),
         ...(updates.testCreds   !== undefined && { test_creds:     updates.testCreds }),
         ...(updates.productTest !== undefined && { product_test:   updates.productTest }),
-        ...(updates.analyzed    !== undefined && { analyzed:       updates.analyzed }),
-        ...(updates.color       !== undefined && { color:          updates.color }),
+        ...(updates.analyzed    !== undefined && { analyzed:        updates.analyzed }),
+        ...(updates.color       !== undefined && { color:           updates.color }),
+        ...(updates.recent_context !== undefined && { recent_context: updates.recent_context }),
         // Analysis cache
         ...(updates.competitive_analysis !== undefined && { competitive_analysis: updates.competitive_analysis }),
         ...(updates.bmc_analysis         !== undefined && { bmc_analysis:         updates.bmc_analysis }),
