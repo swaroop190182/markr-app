@@ -70,42 +70,16 @@ ${rc.trim()}
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
     try {
-      const prompt = `Identify 5 real competitors for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${currentApp.url ? ' URL: '+currentApp.url : ''}${ptCtx ? '\n'+ptCtx+'\nUse product test findings to sharpen the differentiation column.' : ''}${rcCtx}
+      const prompt = `You are a sharp startup analyst. Identify 5 real named competitors for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${currentApp.url ? ' URL: '+currentApp.url : ''}${ptCtx ? '\n'+ptCtx+'\nUse product test findings to sharpen the diff field.' : ''}${rcCtx}
 
-For each output exactly:
-COMPETITOR: [name]
-CATEGORY: [direct/indirect/emerging]
-PRICING: [actual pricing]
-STRENGTHS: [s1 | s2 | s3]
-WEAKNESSES: [w1 | w2]
-THREAT_LEVEL: [High/Medium/Low]
-THREAT_SCORE: [1-10]
-DIFFERENTIATION: [1 sentence how ${currentApp.name} wins]
----
-After all 5:
-MARKET_POSITIONING: [2 sentences]
-WHITESPACE: [2 sentences]
-WIN_CONDITION: [1 sentence]`
+Output ONLY valid JSON — no markdown, no explanation:
+{"comps":[{"name":"Real competitor name","cat":"direct|indirect|emerging","price":"actual pricing","strengths":["s1","s2","s3"],"weaknesses":["w1","w2"],"threat":"High|Medium|Low","score":7,"diff":"One sentence how ${currentApp.name} wins vs this competitor"}],"mktPos":"2 sentences on market position","wspace":"2 sentences on whitespace opportunity","winCond":"1 sentence win condition"}`
 
-      const raw = await callClaude(prompt, 'You are a sharp startup analyst. Name real companies.', 2500)
-      const parts = raw.split('---')
-      const blocks = parts.slice(0, -1)
-      const summary = parts[parts.length - 1] ?? ''
-      const get = (b: string, k: string) => (b.match(new RegExp(k + ':\\s*([^\\n]+)')) ?? [])[1]?.trim() ?? ''
-      const getML = (b: string, k: string) => get(b,k).split('|').map(s=>s.trim()).filter(Boolean)
-      const comps = blocks.filter(b=>b.trim()).map(b => ({
-        name: get(b,'COMPETITOR'), cat: get(b,'CATEGORY'), price: get(b,'PRICING'),
-        strengths: getML(b,'STRENGTHS'), weaknesses: getML(b,'WEAKNESSES'),
-        threat: get(b,'THREAT_LEVEL'), score: parseInt(get(b,'THREAT_SCORE')) || 5,
-        diff: get(b,'DIFFERENTIATION')
-      })).filter(c=>c.name)
-      const mktPos  = get(summary,'MARKET_POSITIONING')
-      const wspace  = get(summary,'WHITESPACE')
-      const winCond = get(summary,'WIN_CONDITION')
-      const tC  = { High:'var(--red)', Medium:'var(--amber)', Low:'var(--green)' } as Record<string,string>
-      const tBg = { High:'rgba(229,85,85,.12)', Medium:'rgba(245,166,35,.12)', Low:'rgba(52,201,138,.12)' } as Record<string,string>
-
-      setTabCache('competitive', JSON.stringify({ comps, mktPos, wspace, winCond }))
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown. No explanation. Name real companies.', 3000)
+      const cleaned = raw.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(cleaned)
+      if (!parsed.comps || !Array.isArray(parsed.comps) || parsed.comps.length === 0) throw new Error('No competitors returned')
+      setTabCache('competitive', JSON.stringify(parsed))
       toast('Competitive analysis ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('competitive', false)
