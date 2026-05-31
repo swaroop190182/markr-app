@@ -16,18 +16,10 @@ import EditAppModal from './components/EditAppModal'
 import Toast from './components/Toast'
 
 function AppInner({ session }: { session: Session }) {
-  const { view, apps } = useStore()
+  const { view } = useStore()
   const [showAddApp,  setShowAddApp]  = useState(false)
   const [editAppId,   setEditAppId]   = useState<number | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  // Auto-open Add App modal for brand new users
-  useEffect(() => {
-    if (apps.length === 0) {
-      const t = setTimeout(() => setShowAddApp(true), 600)
-      return () => clearTimeout(t)
-    }
-  }, []) // only on mount
 
   return (
     <div className="app-layout" style={{ background: 'var(--bg)' }}>
