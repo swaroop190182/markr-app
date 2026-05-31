@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader } from '../components/ui'
 import { callClaude } from '../lib/claude'
+import DeliverySettings from './DeliverySettings'
 
 export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const { apps, currentApp, setView, plan } = useStore()
@@ -186,6 +187,11 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             </button>
           ))}
         </div>
+      </Card>
+
+      {/* Delivery settings */}
+      <Card style={{ marginTop:16 }}>
+        <DeliverySettings />
       </Card>
     </div>
   )
