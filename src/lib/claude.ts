@@ -133,7 +133,7 @@ Keep ALL string values under 20 words. Output ONLY valid JSON, no markdown, no t
     'You are a senior QA engineer. Output ONLY valid JSON. Keep string values under 20 words. No markdown.',
     4000,
     undefined,
-    'sonnet'  // ← Sonnet for product test — complex reasoning needed
+    'haiku'  // Haiku is fast and cheap — JSON output quality is fine
   )
   return safeParseJSON<ProductTest>(raw)
 }
