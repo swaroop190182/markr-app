@@ -145,12 +145,10 @@ function buildEmail(appName: string, posts: any[], userEmail: string): string {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Allow cron (via Authorization header with cron secret) or manual trigger
-  const authHeader = req.headers.authorization
-  const cronSecret = process.env.CRON_SECRET
-
-  const isCron   = authHeader === `Bearer ${cronSecret}`
-  const isManual = req.headers['x-manual-trigger'] === cronSecret
+  const authHeader  = req.headers.authorization
+  const cronSecret  = process.env.CRON_SECRET ?? 'markr_cron_2026'
+  const isCron      = authHeader === `Bearer ${cronSecret}`
+  const isManual    = req.headers['x-manual-trigger'] === cronSecret
 
   if (!isCron && !isManual) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -161,11 +159,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     process.env.SUPABASE_SERVICE_KEY!
   )
 
-  // Get all users with delivery enabled
-  const { data: prefs, error } = await supabase
+  // For manual test — only send to the requesting user
+  const userToken = req.headers['x-user-token'] as string
+  let filterUserId: string | null = null
+  if (isManual && userToken) {
+    const { data: { user } } = await supabase.auth.getUser(userToken)
+    if (user) filterUserId = user.id
+  }
+
+  // Get delivery prefs — filter to specific user for manual tests
+  let query = supabase
     .from('markr_delivery_prefs')
     .select('user_id, email, app_id, frequency')
     .eq('enabled', true)
+
+  if (filterUserId) query = query.eq('user_id', filterUserId)
+
+  const { data: prefs, error } = await query
 
   if (error) return res.status(500).json({ error: error.message })
   if (!prefs || prefs.length === 0) return res.status(200).json({ sent: 0 })
