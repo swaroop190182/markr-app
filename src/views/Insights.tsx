@@ -70,7 +70,7 @@ ${rc.trim()}
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
     try {
-                  const prompt = `List 3 real competitors for "${currentApp.name}" (${currentApp.category}).${currentApp.desc ? ' '+currentApp.desc : ''}${rcCtx}
+                  const prompt = `List 5 real competitors for "${currentApp.name}" (${currentApp.category}).${currentApp.desc ? ' '+currentApp.desc : ''}${rcCtx}
 
 JSON only, no markdown:
 {"comps":[{"name":"X","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins"}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
@@ -787,7 +787,7 @@ export function downloadAnalysisPDF(appName: string, tabLabel: string, data: str
         ${d.summary ? `<div class="card" style="margin-bottom:16px;border-left:3px solid #7c6ff7"><div class="card-sub" style="color:#333;font-style:italic">${d.summary}</div></div>` : ''}
         <div class="section-title">🔍 Competitors</div>
         <div class="competitor-grid">
-          ${(d.competitors || []).map((c: any) => `
+          ${(d.comps || d.competitors || []).map((c: any) => `
             <div class="competitor-card">
               <div class="card-title">${c.name}</div>
               <div style="font-size:10px;color:#666;margin-bottom:2px">Pricing: <strong>${c.pricing || '-'}</strong></div>
