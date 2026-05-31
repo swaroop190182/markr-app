@@ -1,13 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-// Rate limits per plan (calls per day)
-const RATE_LIMITS = { pro: 200, free: 5 }  // free reduced from 20 to 5
-
-// Pro-only features
-const PRO_ONLY_MODELS = ['sonnet']  // product test uses sonnet — Pro only
-
-// In-memory rate limiter (resets on cold start — good enough for launch)
-const usageMap = new Map<string, { count: number; date: string }>()
+const RATE_LIMITS = { pro: 200, free: 5 }
+const usageMap    = new Map<string, { count: number; date: string }>()
 
 function getPlan(email: string): 'pro' | 'free' {
   const PRO = (process.env.PRO_EMAILS ?? 'swaroop.raghu@gmail.com')
@@ -20,10 +14,8 @@ function checkAndIncrement(userId: string, plan: 'pro' | 'free'): { allowed: boo
   const key   = `${userId}:${today}`
   const limit = RATE_LIMITS[plan]
   const cur   = usageMap.get(key)
-
   const count = (cur?.date === today ? cur.count : 0)
   if (count >= limit) return { allowed: false, remaining: 0 }
-
   usageMap.set(key, { count: count + 1, date: today })
   return { allowed: true, remaining: limit - count - 1 }
 }
@@ -31,45 +23,57 @@ function checkAndIncrement(userId: string, plan: 'pro' | 'free'): { allowed: boo
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // ── Auth ─────────────────────────────────────────────────────────────────
-  const token = req.headers.authorization?.slice(7)
+  const token     = req.headers.authorization?.slice(7)
+  const isCronJob = req.headers['x-cron-job'] === 'true' &&
+                    req.headers.authorization === `Bearer ${process.env.CRON_SECRET}`
+
   if (!token) return res.status(401).json({ error: 'No token' })
 
-  const { createClient } = await import('@supabase/supabase-js')
-  const supabase = createClient(
-    process.env.VITE_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!
-  )
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  if (error || !user) return res.status(401).json({ error: 'Invalid session' })
+  let userId    = 'cron'
+  let userEmail = 'cron@markr.internal'
 
-  // ── Feature gate: Product Test is Pro only ────────────────────────────────
-  const { model: reqModel } = req.body
-  if (reqModel === 'sonnet' && plan !== 'pro') {
-    return res.status(403).json({
-      error: 'Product Test is a Pro feature. Upgrade to run QA simulations on your app.',
-      feature: 'product_test',
-      plan,
-    })
+  if (!isCronJob) {
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabase = createClient(
+      process.env.VITE_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!
+    )
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    if (error || !user) return res.status(401).json({ error: 'Invalid session' })
+    userId    = user.id
+    userEmail = user.email ?? ''
   }
 
-  // ── Rate limit ───────────────────────────────────────────────────────────
-  const plan = getPlan(user.email ?? '')
-  const { allowed, remaining } = checkAndIncrement(user.id, plan)
+  const { model: reqModel, prompt, system, maxTokens, stream: doStream } = req.body
 
-  if (!allowed) {
-    return res.status(429).json({
-      error: plan === 'free'
-        ? `Free plan limit: ${RATE_LIMITS.free} AI calls/day. Upgrade to Pro for ${RATE_LIMITS.pro}/day.`
-        : `Pro plan limit: ${RATE_LIMITS.pro} calls/day. Resets at midnight.`,
-      remaining: 0, plan,
-    })
+  // Feature gate: Sonnet (product test) is Pro only
+  if (reqModel === 'sonnet' && !isCronJob) {
+    const plan = getPlan(userEmail)
+    if (plan !== 'pro') {
+      return res.status(403).json({
+        error: 'Product Test is a Pro feature. Upgrade to unlock.',
+        feature: 'product_test',
+      })
+    }
   }
 
-  // ── Call Claude ──────────────────────────────────────────────────────────
-  const { prompt, system, maxTokens, model: reqModel, stream: doStream } = req.body
+  // Rate limiting (skip for cron)
+  if (!isCronJob) {
+    const plan = getPlan(userEmail)
+    const { allowed, remaining } = checkAndIncrement(userId, plan)
+    if (!allowed) {
+      return res.status(429).json({
+        error: plan === 'free'
+          ? `Free plan limit: ${RATE_LIMITS.free} AI calls/day. Upgrade to Pro for ${RATE_LIMITS.pro}/day.`
+          : `Pro plan limit: ${RATE_LIMITS.pro} calls/day. Resets at midnight.`,
+        remaining: 0, plan,
+      })
+    }
+    res.setHeader('X-Remaining-Calls', String(remaining))
+    res.setHeader('X-Plan', plan)
+  }
 
-  // Haiku for everything — Sonnet only for product test (complex reasoning)
+  // Model routing: Haiku for everything, Sonnet for product test
   const model = reqModel === 'sonnet'
     ? 'claude-sonnet-4-5'
     : 'claude-haiku-4-5-20251001'
@@ -88,9 +92,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     system: system ?? 'You are a world-class marketing strategist. Be specific, creative, and actionable. No preamble.',
     messages: [{ role: 'user', content: prompt }],
   })
-
-  res.setHeader('X-Remaining-Calls', String(remaining))
-  res.setHeader('X-Plan', plan)
 
   if (doStream) {
     res.setHeader('Content-Type', 'text/event-stream')
@@ -124,6 +125,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const resp = await fetch(ANTHROPIC_URL, { method: 'POST', headers, body })
     const data = await resp.json()
     if (data.error) return res.status(500).json({ error: data.error.message })
-    res.status(200).json({ content: data.content, remaining, plan })
+    res.status(200).json({ content: data.content, remaining: 0 })
   }
 }
