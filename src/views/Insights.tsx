@@ -513,8 +513,8 @@ function SWOTTab({ data, loading, onGenerate }: { data?:string; loading?:boolean
                   <div style={{ fontSize:13, fontWeight:600, marginBottom:3 }}>{a.action}</div>
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                     <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:ratingBg[a.impact]??ratingBg.Medium, color:ratingColor[a.impact]??ratingColor.Medium, fontWeight:600 }}>{a.impact} impact</span>
-                    <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'rgba(255,255,255,.05)', color:'var(--text3)' }}>⏱ {a.timeframe}</span>
-                    {a.category && <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'rgba(255,255,255,.05)', color:'var(--text3)' }}>{a.category}</span>}
+                    <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'var(--surface2)', color:'var(--text3)' }}>⏱ {a.timeframe}</span>
+                    {a.category && <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'var(--surface2)', color:'var(--text3)' }}>{a.category}</span>}
                   </div>
                 </div>
               </div>
@@ -530,7 +530,7 @@ function SWOTTab({ data, loading, onGenerate }: { data?:string; loading?:boolean
                 <span>{q.emoji}</span>{q.label}
               </div>
               {(d[q.key] ?? []).map((item: any, i: number) => (
-                <div key={i} style={{ background:'rgba(255,255,255,.025)', borderRadius:'var(--r)', padding:'10px 12px', marginBottom:8, border:'1px solid rgba(255,255,255,.05)' }}>
+                <div key={i} style={{ background:'var(--surface2)', borderRadius:'var(--r)', padding:'10px 12px', marginBottom:8, border:'1px solid rgba(255,255,255,.05)' }}>
                   {/* Point + rating */}
                   <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8, marginBottom:6 }}>
                     <div style={{ fontSize:13, fontWeight:600, lineHeight:1.4, flex:1 }}>{item.point}</div>
@@ -541,19 +541,19 @@ function SWOTTab({ data, loading, onGenerate }: { data?:string; loading?:boolean
                     <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, marginBottom:8, fontStyle:'italic' }}>{item.evidence}</div>
                   )}
                   {/* Action */}
-                  <div style={{ display:'flex', gap:6, alignItems:'flex-start', padding:'7px 9px', background:'rgba(255,255,255,.04)', borderRadius:6, borderLeft:`2px solid ${q.color}` }}>
+                  <div style={{ display:'flex', gap:6, alignItems:'flex-start', padding:'7px 9px', background:'var(--surface2)', borderRadius:6, borderLeft:`2px solid ${q.color}` }}>
                     <span style={{ fontSize:10, fontWeight:700, color:q.color, flexShrink:0, marginTop:1 }}>→ {q.actionLabel}:</span>
-                    <span style={{ fontSize:11, color:'rgba(255,255,255,.75)', lineHeight:1.5 }}>{item.action}</span>
+                    <span style={{ fontSize:11, color:'var(--text)', lineHeight:1.5 }}>{item.action}</span>
                   </div>
                   {/* Owner + timeframe */}
                   <div style={{ display:'flex', gap:6, marginTop:6, flexWrap:'wrap' as const }}>
                     {item.owner && (
-                      <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'rgba(255,255,255,.06)', color:ownerColor[item.owner]??'var(--text3)', fontWeight:600 }}>
+                      <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'var(--surface2)', color:ownerColor[item.owner]??'var(--text3)', fontWeight:600 }}>
                         👤 {item.owner}
                       </span>
                     )}
                     {item.timeframe && (
-                      <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'rgba(255,255,255,.04)', color:'var(--text3)' }}>
+                      <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'var(--surface2)', color:'var(--text3)' }}>
                         ⏱ {item.timeframe}
                       </span>
                     )}
@@ -706,49 +706,59 @@ function EmptyTab({ emoji, title, desc, onGenerate, btnLabel }: { emoji:string; 
 
 // ── PDF DOWNLOAD ──────────────────────────────────────────────────────────────
 export function downloadAnalysisPDF(appName: string, tabLabel: string, data: string) {
+  const date = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })
+
+  function flatten(obj: any, depth = 0): string {
+    if (typeof obj === 'string') return `<p style="margin:2px 0 6px ${depth*16}px;color:#333">${obj}</p>`
+    if (typeof obj === 'number' || typeof obj === 'boolean') return `<span style="color:#333">${obj}</span>`
+    if (Array.isArray(obj)) return obj.map(i => flatten(i, depth)).join('')
+    if (typeof obj === 'object' && obj !== null) {
+      return Object.entries(obj).map(([k, v]) => {
+        const label = k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())
+        if (typeof v === 'object') {
+          return `<div style="margin:8px 0 4px ${depth*16}px"><strong style="color:#7c6ff7;font-size:12px;text-transform:uppercase;letter-spacing:.05em">${label}</strong>${flatten(v, depth+1)}</div>`
+        }
+        return `<div style="margin:4px 0 4px ${depth*16}px;font-size:13px"><span style="color:#666;min-width:140px;display:inline-block">${label}:</span> <span style="color:#111">${v}</span></div>`
+      }).join('')
+    }
+    return String(obj)
+  }
+
+  let body = ''
   try {
     const parsed = JSON.parse(data)
-    const date   = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })
-
-    // Build plain text content for PDF
-    let content = `MARKR ANALYSIS REPORT\n`
-    content += `${'='.repeat(50)}\n`
-    content += `App: ${appName}\n`
-    content += `Analysis: ${tabLabel}\n`
-    content += `Generated: ${date}\n`
-    content += `${'='.repeat(50)}\n\n`
-
-    function flatten(obj: any, indent = 0): string {
-      if (typeof obj === 'string') return '  '.repeat(indent) + obj + '\n'
-      if (Array.isArray(obj)) return obj.map(i => flatten(i, indent)).join('')
-      if (typeof obj === 'object' && obj !== null) {
-        return Object.entries(obj).map(([k, v]) => {
-          const label = k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())
-          if (typeof v === 'object') return '  '.repeat(indent) + label + ':\n' + flatten(v, indent+1)
-          return '  '.repeat(indent) + label + ': ' + v + '\n'
-        }).join('')
-      }
-      return String(obj) + '\n'
-    }
-
-    content += flatten(parsed)
-
-    // Create downloadable blob
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `${appName}-${tabLabel.replace(/\s+/g,'-').toLowerCase()}-${date.replace(/\s+/g,'-')}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
+    body = flatten(parsed)
   } catch {
-    // Fallback: download raw JSON
-    const blob = new Blob([data], { type: 'application/json' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `${appName}-${tabLabel}-analysis.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    body = `<pre style="font-size:12px;color:#333">${data}</pre>`
   }
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${appName} — ${tabLabel}</title>
+  <style>
+    body { font-family: 'DM Sans', Arial, sans-serif; margin: 40px; color: #111; background: #fff; }
+    h1 { font-size: 22px; color: #7c6ff7; margin-bottom: 4px; }
+    .meta { font-size: 12px; color: #888; margin-bottom: 24px; border-bottom: 2px solid #7c6ff7; padding-bottom: 12px; }
+    @media print { body { margin: 20px; } }
+  </style>
+</head>
+<body>
+  <h1>Markr — ${appName}</h1>
+  <div class="meta">${tabLabel} Analysis &nbsp;·&nbsp; ${date}</div>
+  ${body}
+  <script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`
+
+  const blob = new Blob([html], { type: 'text/html' })
+  const url  = URL.createObjectURL(blob)
+  const win  = window.open(url, '_blank')
+  if (!win) {
+    // Fallback if popup blocked
+    const a = document.createElement('a')
+    a.href = url; a.download = `${appName}-${tabLabel}.html`; a.click()
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
