@@ -23,7 +23,7 @@ export default function Landing() {
           <div style={{ width:30, height:30, borderRadius:8, background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:16, fontWeight:800, color:'#fff' }}>M</div>
           <span style={{ fontFamily:D, fontSize:15, fontWeight:700, letterSpacing:'-.01em' }}>Markr</span>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:32, fontSize:13, color:'rgba(255,255,255,.5)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:32, fontSize:13, color:'rgba(255,255,255,.5)' }} className='landing-nav-links'>
           {[['Features','#features'],['How it works','#how'],['Pricing','#pricing']].map(([l,h])=>(
             <a key={l} href={h} style={{ color:'inherit', textDecoration:'none', transition:'color .15s' }} onMouseEnter={e=>(e.currentTarget.style.color='#fff')} onMouseLeave={e=>(e.currentTarget.style.color='rgba(255,255,255,.5)')}>{l}</a>
           ))}
@@ -60,7 +60,7 @@ export default function Landing() {
           </p>
         </div>
 
-        <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', marginBottom:52 }}>
+        <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', marginBottom:52 }} className='hero-ctas'>
           <a href="/app" style={{ padding:'13px 30px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:700, textDecoration:'none', boxShadow:'0 0 32px rgba(124,111,247,.28)', transition:'all .2s', fontFamily:B, letterSpacing:'-.01em' }} onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform='translateY(-2px)';(e.currentTarget as HTMLElement).style.boxShadow='0 8px 40px rgba(124,111,247,.4)'}} onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='none';(e.currentTarget as HTMLElement).style.boxShadow='0 0 32px rgba(124,111,247,.28)'}}>
             Get your first insights in 2 minutes →
           </a>
@@ -69,7 +69,7 @@ export default function Landing() {
           </a>
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:24, fontSize:12, color:'rgba(255,255,255,.3)', flexWrap:'wrap', justifyContent:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:24, fontSize:12, color:'rgba(255,255,255,.3)', flexWrap:'wrap', justifyContent:'center' }} className='trust-badges'>
           {['✓ No agency needed','✓ Works with any app','✓ First insights in 2 minutes','✓ Free to start'].map(t=><span key={t}>{t}</span>)}
         </div>
 
@@ -165,7 +165,7 @@ export default function Landing() {
         <div style={{ maxWidth:860, margin:'0 auto', textAlign:'center' }}>
           <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'#7c6ff7', marginBottom:12 }}>Simple by design</div>
           <h2 style={{ fontFamily:D, fontSize:'clamp(24px,3.2vw,42px)', fontWeight:800, margin:'0 0 52px', letterSpacing:'-0.03em', color:'#f5f5f7' }}>Up and running in 3 steps</h2>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:40, textAlign:'left' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:40, textAlign:'left' }} className='how-steps'>
             {[
               { n:'01', icon:'🔗', c:'#7c6ff7', title:'Add your app', desc:'Paste your app URL. Markr reads it and extracts your features, audience, tone, and category — automatically.' },
               { n:'02', icon:'🧪', c:'#34c98a', title:'AI tests it', desc:'Give test credentials. Markr logs in, explores every feature, finds friction, and writes a full QA report.' },
@@ -228,7 +228,7 @@ export default function Landing() {
             <p style={{ fontSize:16, color:'rgba(255,255,255,.4)', maxWidth:440, margin:'0 auto' }}>Not a feature list. A focused system that moves your app forward.</p>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20, marginBottom:20 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20, marginBottom:20 }} className='feature-buckets'>
             {[
               { num:'01', icon:'🧪', color:'#34c98a', bg:'rgba(52,201,138,.07)', border:'rgba(52,201,138,.18)', title:'Understand your app', sub:'Real product testing', items:['Logs in and explores every feature','Rates UX across 6 dimensions','Finds bugs with severity ratings','Generates a full QA report','Content strategy informed by real findings'] },
               { num:'02', icon:'✍️', color:'#a78bfa', bg:'rgba(139,92,246,.07)', border:'rgba(139,92,246,.18)', title:'Generate content', sub:'Instagram content engine', items:['3 posts/day — morning, midday, evening','Each optimised for saves, shares, or comments','Full captions, hashtags, image prompts','Post ideas, hooks, and timing','Grounded in what your app actually does'] },
@@ -259,7 +259,7 @@ export default function Landing() {
             <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'#7c6ff7', marginBottom:12 }}>The difference</div>
             <h2 style={{ fontFamily:D, fontSize:'clamp(24px,3.2vw,42px)', fontWeight:800, margin:0, letterSpacing:'-0.03em', color:'#f5f5f7' }}>Before and after Markr</h2>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3, borderRadius:16, overflow:'hidden', border:'1px solid rgba(255,255,255,.08)' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3, borderRadius:16, overflow:'hidden', border:'1px solid rgba(255,255,255,.08)' }} className='before-after'>
             <div style={{ background:'rgba(229,85,85,.05)', padding:'28px 28px 8px', borderBottom:'1px solid rgba(255,255,255,.06)' }}>
               <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.1em', textTransform:'uppercase', color:'#e55555', marginBottom:20 }}>Before</div>
             </div>
@@ -296,7 +296,7 @@ export default function Landing() {
             <h2 style={{ fontFamily:D, fontSize:'clamp(24px,3.2vw,42px)', fontWeight:800, margin:'0 0 12px', letterSpacing:'-0.03em', color:'#f5f5f7' }}>What Markr actually generates</h2>
             <p style={{ fontSize:15, color:'rgba(255,255,255,.4)' }}>From Mindprint — a real mental wellness app. Analyzed and generated in under 2 minutes.</p>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }} className='real-examples'>
             {/* Instagram post */}
             <div style={{ background:'#161619', border:'1px solid rgba(255,255,255,.08)', borderRadius:14, padding:'20px 22px' }}>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
@@ -352,7 +352,7 @@ export default function Landing() {
             <h2 style={{ fontFamily:D, fontSize:'clamp(24px,3.2vw,42px)', fontWeight:800, margin:'0 0 12px', letterSpacing:'-0.03em', color:'#f5f5f7' }}>Start free. Scale when ready.</h2>
             <p style={{ fontSize:15, color:'rgba(255,255,255,.4)' }}>No credit card required. Cancel anytime.</p>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, maxWidth:680, margin:'0 auto' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, maxWidth:680, margin:'0 auto' }} className='pricing-cards'>
             {[
               { name:'Free', price:'₹0', period:'/month', highlight:false, desc:'Try Markr on your first app, free for 7 days. No credit card.', features:['1 app','Content Studio — 3 posts/day','Strategy & value proposition','Basic insights','Community support'], cta:'Get started free', href:'/app' },
               { name:'Pro', price:'₹999', period:'/month', highlight:true, desc:'Everything you need to launch and grow any app.', features:['Unlimited apps','Daily content generation','Product test + full QA report','Competitive intelligence','AARRR growth playbook','Pricing strategy','SWOT & Business Model Canvas','Priority support'], cta:'Get your first insights →', href:'/app' },
@@ -389,7 +389,7 @@ export default function Landing() {
       <section style={{ padding:'64px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth:860, margin:'0 auto', textAlign:'center' }}>
           <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase' as const, color:'rgba(255,255,255,.3)', marginBottom:32 }}>Early access</div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:48 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:48 }} className='social-stats'>
             {[
               { stat:'2 min', label:'Average time to first insight', color:'#a599ff' },
               { stat:'3×', label:'More content ideas per week', color:'#34c98a' },
@@ -403,7 +403,7 @@ export default function Landing() {
           </div>
 
           {/* Testimonial placeholders — swap with real quotes when ready */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }} className='testimonials'>
             {[
               { quote:"I used to spend hours on Monday planning what to post. Now I open Markr and everything is ready. The QA report alone found 3 things I didn't know were broken.", name:'Founder, B2B SaaS app', avatar:'🧑‍💻' },
               { quote:"The competitive analysis gave me more clarity in 5 minutes than 3 hours of manual research. I actually changed my pricing based on what it found.", name:'Solo founder, productivity app', avatar:'👩‍💼' },
