@@ -70,15 +70,23 @@ ${rc.trim()}
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
     try {
-      const prompt = `You are a sharp startup analyst. Identify 5 real named competitors for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${currentApp.url ? ' URL: '+currentApp.url : ''}${ptCtx ? '\n'+ptCtx+'\nUse product test findings to sharpen the diff field.' : ''}${rcCtx}
+            const prompt = `Identify 5 real named competitors for "${currentApp.name}" (${currentApp.category}, ${currentApp.stage}).${currentApp.desc ? ' ' + currentApp.desc : ''}${currentApp.url ? ' URL: ' + currentApp.url : ''}${ptCtx ? '\n' + ptCtx : ''}${rcCtx}
 
-Output ONLY valid JSON — no markdown, no explanation:
-{"comps":[{"name":"Real competitor name","cat":"direct|indirect|emerging","price":"actual pricing","strengths":["s1","s2","s3"],"weaknesses":["w1","w2"],"threat":"High|Medium|Low","score":7,"diff":"One sentence how ${currentApp.name} wins vs this competitor"}],"mktPos":"2 sentences on market position","wspace":"2 sentences on whitespace opportunity","winCond":"1 sentence win condition"}`
+Return ONLY a JSON object. No text before or after. No markdown. No code fences:
+{"comps":[{"name":"Competitor Name","cat":"direct|indirect|emerging","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High|Medium|Low","score":7,"diff":"One sentence on how ${currentApp.name} wins"}],"mktPos":"2 sentences","wspace":"2 sentences","winCond":"1 sentence"}`
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown. No explanation. Name real companies.', 3000)
-      const cleaned = raw.replace(/```json|```/g, '').trim()
+const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown. No explanation. Name real companies.', 3000)
+      // Aggressively clean — handle all possible wrapping formats
+      const cleaned = raw
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .replace(/^[^{]*/,'')   // strip any text before first {
+        .replace(/[^}]*$/,'')   // strip any text after last }
+        .trim()
       const parsed = JSON.parse(cleaned)
-      if (!parsed.comps || !Array.isArray(parsed.comps) || parsed.comps.length === 0) throw new Error('No competitors returned')
+      if (!parsed.comps || !Array.isArray(parsed.comps) || parsed.comps.length === 0) {
+        throw new Error('Empty competitors list')
+      }
       setTabCache('competitive', JSON.stringify(parsed))
       toast('Competitive analysis ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
