@@ -139,6 +139,64 @@ async function callGemini(prompt: string, system: string, maxTokens: number, doS
   }
 }
 
+// ── Call Groq Llama (free fallback #2) ───────────────────────────────────────
+async function callGroq(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse): Promise<boolean> {
+  const key = process.env.GROQ_API_KEY
+  if (!key) return false
+
+  try {
+    const body = JSON.stringify({
+      model:       'llama-3.1-70b-versatile',
+      max_tokens:  maxTokens,
+      stream:      doStream,
+      messages: [
+        { role: 'system',  content: system },
+        { role: 'user',    content: prompt },
+      ],
+    })
+    const headers = {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${key}`,
+    }
+
+    if (doStream) {
+      const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers, body })
+      if (!upstream.ok) return false
+      const reader = upstream.body!.getReader()
+      const dec    = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split('\n'); buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue
+          const data = line.slice(5).trim()
+          if (data === '[DONE]') { res.write('data: [DONE]\n\n'); res.end(); return true }
+          try {
+            const j    = JSON.parse(data)
+            const text = j.choices?.[0]?.delta?.content
+            if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`)
+          } catch { /* ignore */ }
+        }
+      }
+      res.write('data: [DONE]\n\n'); res.end()
+      return true
+    } else {
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers, body })
+      if (!resp.ok) return false
+      const data = await resp.json()
+      const text = data.choices?.[0]?.message?.content ?? ''
+      res.status(200).json({ content: [{ type: 'text', text }], provider: 'groq' })
+      return true
+    }
+  } catch (e) {
+    console.error('Groq error:', e)
+    return false
+  }
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -187,15 +245,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Connection', 'keep-alive')
   }
 
-  // Try Anthropic first — fall back to Gemini if out of credits
+  // Try Anthropic first — fall back to Gemini, then Groq
   const anthropicOk = await callAnthropic(prompt, sys, tok, doStream, res)
   if (anthropicOk) return
 
-  // Fallback: Gemini Flash (free)
   console.log('Anthropic unavailable — falling back to Gemini')
   const geminiOk = await callGemini(prompt, sys, tok, doStream, res)
   if (geminiOk) return
 
-  // Both failed
+  console.log('Gemini unavailable — falling back to Groq')
+  const groqOk = await callGroq(prompt, sys, tok, doStream, res)
+  if (groqOk) return
+
+  // All providers failed
   res.status(503).json({ error: 'AI service temporarily unavailable. Please try again in a moment.' })
 }
