@@ -191,40 +191,12 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, use
         </div>
       </div>
 
-      <div style={{ marginTop: 'auto', padding: '12px 8px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ padding: '6px 10px', marginBottom: 4 }}>
-          <div style={{ fontSize: 11, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userEmail}</div>
-        </div>
-
-        {/* Feedback */}
-        <a
-          href={`mailto:swaroop.raghu@gmail.com?subject=Markr Feedback&body=Hi Swaroop,%0A%0A[Tell us what's working, what's broken, or what you'd love to see]%0A%0AApp I'm using: %0AMy account: ${userEmail}`}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', transition: 'all .15s', marginBottom: 2 }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLElement
-            el.style.background = 'var(--surface2)'
-            el.style.color = 'var(--accent2)'
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLElement
-            el.style.background = 'transparent'
-            el.style.color = 'var(--text3)'
-          }}
-        >
-          <i className="ti ti-message-circle" style={{ fontSize: 14 }} />
-          Share feedback
-        </a>
-
-        {/* Sign out */}
-        <div
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={onSignOut}
-          style={{ padding: '8px 10px', borderRadius: 7, fontSize: 13, color: 'var(--text2)', transition: 'all .15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface2)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-        >
-          <i className="ti ti-logout" style={{ fontSize: 15 }} />
-          Sign out
+      <div style={{ marginTop: 'auto', padding: '10px 8px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ padding: '6px 10px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex:1 }}>{userEmail}</div>
+          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700, flexShrink:0, background: plan === 'pro' ? 'rgba(52,201,138,.12)' : 'rgba(124,111,247,.1)', color: plan === 'pro' ? 'var(--green)' : 'var(--accent2)', border: `1px solid ${plan === 'pro' ? 'rgba(52,201,138,.25)' : 'rgba(124,111,247,.2)'}` }}>
+            {plan === 'pro' ? '✓ Pro' : `Free`}
+          </span>
         </div>
       </div>
     </div>
