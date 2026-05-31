@@ -1,60 +1,55 @@
 import { useStore } from '../lib/store'
-import { Card, CardHeader } from '../components/ui'
 
 export default function Calendar() {
-  const { currentApp } = useStore()
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-  const posts: Record<number,string[]> = {3:['var(--pink)'],5:['var(--text)','var(--text)'],8:['var(--pink)'],10:['var(--pink)','var(--text)'],12:['var(--blue)'],14:['var(--pink)','var(--text)'],17:['var(--pink)'],19:['var(--text)'],21:['var(--blue)','var(--pink)'],24:['var(--text)','var(--text)'],26:['var(--pink)'],28:['var(--blue)','var(--text)','var(--pink)']}
+  const { currentApp, setView } = useStore()
 
   return (
-    <div>
-      <div className="card" style={{ marginBottom:16 }}>
-        <CardHeader title="June 2026" action={
-          <div style={{ display:'flex', gap:12, alignItems:'center' }}>
-            {[['Instagram','var(--pink)'],['X','var(--text)'],['Facebook','var(--blue)']].map(([n,c]) => (
-              <span key={n as string} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text2)' }}>
-                <span style={{ width:7, height:7, borderRadius:'50%', background:c as string, display:'inline-block' }} />{n}
-              </span>
-            ))}
-          </div>
-        } />
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
-          {days.map(d => <div key={d} style={{ textAlign:'center', fontSize:10, color:'var(--text3)', padding:'4px 0' }}>{d}</div>)}
-          {Array.from({length:35},(_,i) => {
-            const day = i-3
-            if (day<1||day>30) return <div key={i} style={{ aspectRatio:'1', borderRadius:6, background:'var(--surface2)', opacity:.15 }} />
-            const p = posts[day]
-            return (
-              <div key={i} style={{ aspectRatio:'1', borderRadius:6, background:'var(--surface2)', display:'flex', flexDirection:'column', alignItems:'center', padding:'4px 2px', cursor:'pointer', border:`1px solid ${day===29?'var(--accent)':p?'rgba(124,111,247,.4)':'transparent'}`, transition:'all .15s' }}>
-                <span style={{ fontSize:10, color: day===29?'var(--accent2)':'var(--text2)', fontWeight:day===29?700:400 }}>{day}</span>
-                {p && <div style={{ display:'flex', gap:2, marginTop:2, flexWrap:'wrap', justifyContent:'center' }}>{p.map((c,j) => <div key={j} style={{ width:4, height:4, borderRadius:'50%', background:c }} />)}</div>}
-              </div>
-            )
-          })}
-        </div>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'70vh', textAlign:'center', padding:'40px 24px' }}>
+      {/* Icon */}
+      <div style={{ width:72, height:72, borderRadius:20, background:'linear-gradient(135deg,rgba(124,111,247,.2),rgba(226,111,175,.15))', border:'1px solid rgba(124,111,247,.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, margin:'0 auto 24px' }}>
+        📅
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-        <Card>
-          <CardHeader title="Upcoming Posts" />
-          {[{day:'Jun 2',p:'Instagram',t:'Morning reflection post',s:'Scheduled'},{day:'Jun 3',p:'X',t:'Feature thread',s:'Pending'},{day:'Jun 5',p:'Instagram',t:'Midday insight',s:'Draft'},{day:'Jun 6',p:'Instagram',t:'Evening engagement',s:'Draft'}].map((item,i) => (
-            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
-              <span style={{ fontSize:11, color:'var(--text3)', width:40 }}>{item.day}</span>
-              <span style={{ width:6, height:6, borderRadius:'50%', background:item.s==='Scheduled'?'var(--green)':item.s==='Pending'?'var(--amber)':'var(--text3)', display:'inline-block', marginRight:4 }} />
-              <span style={{ fontSize:12, flex:1 }}>{item.t}</span>
-              <span style={{ fontSize:10, color:'var(--text3)' }}>{item.p}</span>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, letterSpacing:'-.02em', margin:'0 0 12px', color:'var(--text)' }}>
+        Content Calendar
+      </div>
+      <div style={{ fontSize:15, color:'var(--text3)', maxWidth:440, lineHeight:1.75, margin:'0 0 32px' }}>
+        Schedule and manage your generated posts across platforms. See what's planned, what's missing, and bulk-generate content for the week ahead.
+      </div>
+
+      {/* Coming soon features */}
+      <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r2)', padding:'20px 24px', maxWidth:420, textAlign:'left', marginBottom:32 }}>
+        <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase', color:'var(--text3)', marginBottom:14 }}>Coming soon</div>
+        {[
+          { icon:'🗓', label:'Weekly view', desc:'See morning, midday, evening slots for each day' },
+          { icon:'✅', label:'Post scheduling', desc:'Assign generated posts to specific dates' },
+          { icon:'⚡', label:'Bulk generation', desc:'Generate a full week of content in one click' },
+          { icon:'📊', label:'Consistency tracking', desc:'See how regularly you\'re posting' },
+        ].map(f => (
+          <div key={f.label} style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
+            <span style={{ fontSize:16, flexShrink:0 }}>{f.icon}</span>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, marginBottom:2 }}>{f.label}</div>
+              <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.5 }}>{f.desc}</div>
             </div>
-          ))}
-        </Card>
-        <Card>
-          <CardHeader title="Month Stats" />
-          {[['Posts planned','23'],['Approved','11'],['Pending','6'],['Drafts','6'],['Platforms','2/4'],['Score','78%']].map(([l,v]) => (
-            <div key={l as string} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid var(--border)' }}>
-              <span style={{ fontSize:12, color:'var(--text2)' }}>{l}</span>
-              <span style={{ fontSize:13, fontWeight:600 }}>{v}</span>
-            </div>
-          ))}
-        </Card>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA */}
+      <div style={{ display:'flex', gap:10, flexWrap:'wrap', justifyContent:'center' }}>
+        <button className="gen-btn" onClick={() => setView('studio')}>
+          <i className="ti ti-sparkles" style={{ fontSize:13 }} />
+          Generate today's posts instead
+        </button>
+        <button className="vbtn" style={{ fontSize:12, padding:'7px 14px' }}
+          onClick={() => window.open(`mailto:swaroop.raghu@gmail.com?subject=Calendar Feature Request&body=Hi, I'd love to see the Calendar feature in Markr. Here's what I'd want: `, '_blank')}>
+          💬 Tell us what you need
+        </button>
+      </div>
+
+      <div style={{ fontSize:12, color:'var(--text3)', marginTop:20 }}>
+        Using <strong style={{ color:'var(--text2)' }}>{currentApp?.name}</strong> · Calendar unlocks after billing is live
       </div>
     </div>
   )
