@@ -186,17 +186,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   for (const pref of prefs) {
     try {
       // Get app data
-      const { data: app } = await supabase
+      const { data: app, error: appError } = await supabase
         .from('markr_apps')
         .select('*')
         .eq('id', pref.app_id)
         .eq('user_id', pref.user_id)
         .single()
 
-      if (!app) continue
+      if (appError) { console.error('App fetch error:', appError.message); continue }
+      if (!app) { console.error('No app found for id:', pref.app_id); continue }
+
+      console.log(`Generating content for ${app.name}...`)
 
       // Generate content
       const posts = await generateContent(app)
+      console.log(`Generated ${posts.length} posts, sending to ${pref.email}...`)
 
       // Send email
       const emailRes = await fetch(RESEND_API, {
@@ -213,15 +217,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }),
       })
 
+      const emailData = await emailRes.json()
+      console.log('Resend response:', JSON.stringify(emailData))
+
       if (emailRes.ok) {
         sent++
         results.push({ user: pref.email, app: app.name, status: 'sent' })
+      } else {
+        results.push({ user: pref.email, status: 'error', error: JSON.stringify(emailData) })
       }
     } catch (e) {
+      console.error('Delivery error for', pref.email, ':', (e as Error).message)
       results.push({ user: pref.email, status: 'error', error: (e as Error).message })
     }
   }
 
-  console.log(`Delivery cron: sent ${sent}/${prefs.length} emails`)
+  console.log(`Delivery cron: sent ${sent}/${prefs.length} emails`, results)
   res.status(200).json({ sent, total: prefs.length, results })
 }
