@@ -4,31 +4,31 @@
 
 @layer base {
   :root {
-    --bg: #0f0f11;
-    --surface: #161619;
-    --surface2: #1e1e23;
-    --surface3: #26262d;
-    --border: rgba(255,255,255,0.08);
-    --border2: rgba(255,255,255,0.14);
-    --text: #f0f0f5;
-    --text2: #9494a8;
-    --text3: #5a5a72;
+    --bg: #f8f8fc;
+    --surface: #ffffff;
+    --surface2: #f0f0f7;
+    --surface3: #e4e4f0;
+    --border: rgba(0,0,0,0.08);
+    --border2: rgba(0,0,0,0.14);
+    --text: #111118;
+    --text2: #4a4a6a;
+    --text3: #9090b0;
     --accent: #7c6ff7;
-    --accent2: #a599ff;
-    --green: #34c98a;
-    --amber: #f5a623;
-    --red: #e55555;
-    --pink: #e26faf;
-    --blue: #4f9cf7;
-    --morning-c: #60a5fa;
-    --morning-bg: rgba(59,130,246,.08);
-    --morning-b: rgba(59,130,246,.25);
-    --midday-c: #a78bfa;
-    --midday-bg: rgba(139,92,246,.08);
-    --midday-b: rgba(139,92,246,.25);
-    --evening-c: #34d399;
-    --evening-bg: rgba(16,185,129,.08);
-    --evening-b: rgba(16,185,129,.25);
+    --accent2: #5a4fd4;
+    --green: #16a870;
+    --amber: #d48a0a;
+    --red: #dc2626;
+    --pink: #c0457a;
+    --blue: #2563eb;
+    --morning-c: #2563eb;
+    --morning-bg: rgba(37,99,235,.06);
+    --morning-b: rgba(37,99,235,.2);
+    --midday-c: #7c6ff7;
+    --midday-bg: rgba(124,111,247,.06);
+    --midday-b: rgba(124,111,247,.2);
+    --evening-c: #16a870;
+    --evening-bg: rgba(22,168,112,.06);
+    --evening-b: rgba(22,168,112,.2);
     --r: 10px;
     --r2: 14px;
   }
@@ -46,8 +46,8 @@
   }
 
   input, textarea, select {
-    background: var(--surface2);
-    border: 1px solid var(--border);
+    background: var(--surface);
+    border: 1px solid var(--border2);
     border-radius: var(--r);
     padding: 9px 12px;
     color: var(--text);
@@ -56,9 +56,10 @@
     outline: none;
     width: 100%;
     transition: border-color 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
   }
-  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
-  select option { background: var(--surface2); }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,111,247,.1); }
+  select option { background: var(--surface); color: var(--text); }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -71,6 +72,7 @@
     border: 1px solid var(--border);
     border-radius: var(--r2);
     padding: 18px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
   }
 
   .gen-btn {
@@ -88,8 +90,9 @@
     transition: all .15s;
     font-family: 'DM Sans', sans-serif;
     white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(124,111,247,.25);
   }
-  .gen-btn:hover { background: var(--accent2); }
+  .gen-btn:hover { background: #6b5fe6; box-shadow: 0 4px 12px rgba(124,111,247,.35); }
   .gen-btn:disabled { opacity: .5; cursor: not-allowed; }
 
   .vbtn {
@@ -97,18 +100,19 @@
     padding: 4px 10px;
     border-radius: 5px;
     border: 1px solid var(--border2);
-    background: transparent;
+    background: var(--surface);
     color: var(--text2);
     cursor: pointer;
     transition: all .15s;
     font-family: 'DM Sans', sans-serif;
     white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05);
   }
-  .vbtn:hover { border-color: var(--accent); color: var(--accent); }
+  .vbtn:hover { border-color: var(--accent); color: var(--accent); background: rgba(124,111,247,.04); }
 
   .banner {
-    background: rgba(124,111,247,.08);
-    border: 1px solid rgba(124,111,247,.25);
+    background: rgba(124,111,247,.06);
+    border: 1px solid rgba(124,111,247,.2);
     border-radius: var(--r);
     padding: 12px 14px;
     margin-bottom: 14px;
