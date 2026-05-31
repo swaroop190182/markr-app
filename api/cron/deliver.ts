@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
 const RESEND_API = 'https://api.resend.com/emails'
-const FROM       = 'Markr <hello@mindprintjournal.com>'
+const FROM       = 'Markr <markr@journaljoy.org>'
 const APP_URL    = 'https://markr.mindprintjournal.com'
 
 // ── Generate content for a user ───────────────────────────────────────────────
