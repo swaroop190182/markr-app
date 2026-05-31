@@ -132,7 +132,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
           ].map(([icon, label]) => (
             <div key={label} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderBottom:'1px solid var(--border)', fontSize:13 }}>
               <span style={{ fontSize:16, flexShrink:0 }}>{icon}</span>
-              <span style={{ color:'rgba(255,255,255,.8)' }}>{label}</span>
+              <span style={{ color:'var(--text)' }}>{label}</span>
               <span style={{ marginLeft:'auto', color:'var(--green)', fontSize:12 }}>✓</span>
             </div>
           ))}
