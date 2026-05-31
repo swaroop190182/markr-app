@@ -6,12 +6,40 @@ import { supabase } from './supabase'
 // ── Plan config ────────────────────────────────────────────────────────────────
 const PRO_EMAILS = ['swaroop.raghu@gmail.com']
 
+export const PLAN_CONFIG = {
+  pro: {
+    callsPerDay:    200,
+    appLimit:       Infinity,
+    trialDays:      null,       // no trial — always Pro
+    productTest:    true,
+    fullInsights:   true,
+  },
+  free: {
+    callsPerDay:    5,          // reduced from 20 — protects margins
+    appLimit:       1,
+    trialDays:      7,          // 7 days then locked
+    productTest:    false,      // Pro only — most expensive call
+    fullInsights:   true,       // competitive/BMC/SWOT/growth/pricing still free
+  },
+}
+
 export function getUserPlan(email: string): 'pro' | 'free' {
   return PRO_EMAILS.includes(email.toLowerCase()) ? 'pro' : 'free'
 }
 
 export function getAppLimit(plan: 'pro' | 'free'): number {
-  return plan === 'pro' ? Infinity : 1
+  return PLAN_CONFIG[plan].appLimit
+}
+
+// Check if trial has expired (based on account created_at from Supabase)
+export function isTrialExpired(createdAt: string, plan: 'pro' | 'free'): boolean {
+  if (plan === 'pro') return false
+  const trialDays = PLAN_CONFIG.free.trialDays
+  if (!trialDays) return false
+  const created  = new Date(createdAt).getTime()
+  const now      = Date.now()
+  const daysPassed = (now - created) / (1000 * 60 * 60 * 24)
+  return daysPassed > trialDays
 }
 
 interface AppStore {
@@ -21,6 +49,9 @@ interface AppStore {
   loading: boolean
   plan: 'pro' | 'free'
   canAddApp: boolean
+  canUseProductTest: boolean
+  trialExpired: boolean
+  daysLeftInTrial: number
   setView: (v: ViewType) => void
   setCurrentApp: (id: number) => void
   addApp: (app: AppData) => Promise<void>
@@ -41,12 +72,24 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
   const [currentAppId, setCurrentAppId] = useState<number>(0)
   const [view,         setView]         = useState<ViewType>('overview')
   const [loading,      setLoading]      = useState(true)
+  const [userCreatedAt, setUserCreatedAt] = useState<string>(new Date().toISOString())
 
-  const plan      = getUserPlan(userEmail)
-  const appLimit  = getAppLimit(plan)
-  const canAddApp = apps.length < appLimit
+  const plan             = getUserPlan(userEmail)
+  const appLimit         = getAppLimit(plan)
+  const canAddApp        = apps.length < appLimit
+  const canUseProductTest= PLAN_CONFIG[plan].productTest
+  const trialExpired     = isTrialExpired(userCreatedAt, plan)
+  const daysLeftInTrial  = plan === 'free'
+    ? Math.max(0, Math.ceil((PLAN_CONFIG.free.trialDays! - (Date.now() - new Date(userCreatedAt).getTime()) / (1000*60*60*24))))
+    : 999
 
-  // ── Load apps from Supabase on mount ──────────────────────────────────────
+  // Load user metadata to get created_at for trial calculation
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.created_at) setUserCreatedAt(data.user.created_at)
+    })
+  }, [userId])
+
   useEffect(() => {
     loadApps()
   }, [userId])
@@ -182,7 +225,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
   return (
     <StoreContext.Provider value={{
       apps, currentApp, view, loading,
-      plan, canAddApp,
+      plan, canAddApp, canUseProductTest, trialExpired, daysLeftInTrial,
       setView, setCurrentApp, addApp, updateApp, removeApp
     }}>
       {children}
