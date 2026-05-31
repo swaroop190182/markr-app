@@ -15,11 +15,11 @@ const CATEGORIES = [
   'Food & Nutrition','Education','E-commerce','Travel','Social','Other'
 ]
 
-export default function AddAppModal({ onClose }: { onClose: () => void }) {
+export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: () => void; prefilledUrl?: string }) {
   const { apps, addApp, setCurrentApp } = useStore()
 
   const [name,     setName]     = useState('')
-  const [url,      setUrl]      = useState('')
+  const [url,      setUrl]      = useState(prefilledUrl)  // pre-fill from landing page
   const [platform, setPlatform] = useState<string>('Web')
   const [stage,    setStage]    = useState<string>('Launch')
   const [category, setCategory] = useState<string>('Productivity')
