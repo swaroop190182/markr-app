@@ -44,7 +44,13 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           <span className="topbar-label">Generate All 3</span>
         </button>
         <button className="gen-btn" style={{ fontSize:12, padding:'7px 12px', background:'linear-gradient(135deg,var(--accent),var(--pink))' }}
-          onClick={() => setView('insights')}>
+          onClick={() => {
+            setView('insights')
+            setTimeout(() => {
+              const btn = document.getElementById('run-full-analysis-btn')
+              if (btn) btn.click()
+            }, 150)
+          }}>
           <i className="ti ti-telescope" style={{ fontSize:12 }} />
           <span className="topbar-label">Deep Analysis</span>
         </button>
