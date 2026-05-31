@@ -13,13 +13,23 @@ import Auth from './views/Auth'
 import Landing from './views/Landing'
 import AddAppModal from './components/AddAppModal'
 import EditAppModal from './components/EditAppModal'
+import UpgradeModal from './components/UpgradeModal'
 import Toast from './components/Toast'
 
 function AppInner({ session }: { session: Session }) {
-  const { view } = useStore()
-  const [showAddApp,  setShowAddApp]  = useState(false)
-  const [editAppId,   setEditAppId]   = useState<number | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { view, trialExpired } = useStore()
+  const [showAddApp,   setShowAddApp]   = useState(false)
+  const [editAppId,    setEditAppId]    = useState<number | null>(null)
+  const [showUpgrade,  setShowUpgrade]  = useState(false)
+  const [sidebarOpen,  setSidebarOpen]  = useState(false)
+
+  // Auto-show upgrade modal when trial expires
+  useEffect(() => {
+    if (trialExpired) {
+      const t = setTimeout(() => setShowUpgrade(true), 2000)
+      return () => clearTimeout(t)
+    }
+  }, [trialExpired])
 
   return (
     <div className="app-layout" style={{ background: 'var(--bg)' }}>
@@ -35,6 +45,7 @@ function AppInner({ session }: { session: Session }) {
           onAddApp={() => { setShowAddApp(true); setSidebarOpen(false) }}
           onEditApp={id => { setEditAppId(id); setSidebarOpen(false) }}
           onSignOut={() => supabase.auth.signOut()}
+          onUpgrade={() => setShowUpgrade(true)}
           userEmail={session.user.email ?? ''}
         />
       </div>
@@ -50,8 +61,9 @@ function AppInner({ session }: { session: Session }) {
         </main>
       </div>
 
-      {showAddApp && <AddAppModal onClose={() => setShowAddApp(false)} />}
+      {showAddApp  && <AddAppModal onClose={() => setShowAddApp(false)} />}
       {editAppId !== null && <EditAppModal appId={editAppId} onClose={() => setEditAppId(null)} />}
+      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} trigger={trialExpired ? 'trial_expired' : 'manual'} />}
       <Toast />
     </div>
   )
