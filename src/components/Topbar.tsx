@@ -8,7 +8,7 @@ const VIEW_LABELS: Record<string, string> = {
   insights: 'Insights & Analysis',
 }
 
-export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
+export default function Topbar({ onMenuClick, onSignOut, userEmail }: { onMenuClick?: () => void; onSignOut?: () => void; userEmail?: string }) {
   const { view, currentApp, setView } = useStore()
 
   return (
@@ -24,7 +24,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
       </button>
 
       <div style={{ flex:1, display:'flex', alignItems:'baseline', gap:6, minWidth:0 }}>
-        <span style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, color:'var(--text)', whiteSpace:'nowrap' }}>
+        <span style={{ fontFamily:"'Inter',sans-serif", fontSize:16, fontWeight:700, color:'var(--text)', whiteSpace:'nowrap' }}>
           {VIEW_LABELS[view] ?? view}
         </span>
         <span style={{ fontSize:12, color:'var(--text3)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -32,7 +32,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
         </span>
       </div>
 
-      <div style={{ display:'flex', alignItems:'center', gap:8 }} className="topbar-actions">
+      <div style={{ display:'flex', alignItems:'center', gap:6 }} className="topbar-actions">
         <button className="vbtn" style={{ display:'flex', alignItems:'center', gap:5 }}
           onClick={() => { setView('overview'); setTimeout(() => document.getElementById('ai-insight-btn')?.click(), 100) }}>
           <i className="ti ti-sparkles" style={{ fontSize:12 }} />
@@ -54,12 +54,37 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           <i className="ti ti-telescope" style={{ fontSize:12 }} />
           <span className="topbar-label">Deep Analysis</span>
         </button>
+
+        {/* Divider */}
+        <div style={{ width:1, height:20, background:'var(--border)', margin:'0 2px' }} className="topbar-label" />
+
+        {/* Feedback */}
+        <a
+          href={`mailto:swaroop.raghu@gmail.com?subject=Markr Feedback&body=Hi Swaroop,%0A%0A[Your feedback here]%0A%0AAccount: ${userEmail}`}
+          className="vbtn topbar-label"
+          style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, textDecoration:'none' }}
+          title="Share feedback"
+        >
+          <i className="ti ti-message-circle" style={{ fontSize:13 }} />
+          Feedback
+        </a>
+
+        {/* Sign out */}
+        <button
+          onClick={onSignOut}
+          className="vbtn"
+          style={{ display:'flex', alignItems:'center', gap:5, fontSize:11 }}
+          title="Sign out"
+        >
+          <i className="ti ti-logout" style={{ fontSize:13 }} />
+          <span className="topbar-label">Sign out</span>
+        </button>
       </div>
 
       <style>{`
         @media (max-width: 768px) {
           #sidebar-toggle { display: block !important; }
-          .topbar-label { display: none; }
+          .topbar-label { display: none !important; }
           .topbar-actions .vbtn { padding: 6px 8px; }
           .topbar-actions .gen-btn { padding: 6px 8px; }
         }
