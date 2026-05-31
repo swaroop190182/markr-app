@@ -13,7 +13,7 @@ type Step = 'pending' | 'active' | 'done' | 'skip'
 
 // Inner component receives the resolved app — no undefined risk
 function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
-  const { updateApp } = useStore()
+  const { updateApp, canUseProductTest } = useStore()
 
   const [name,      setName]      = useState(app.name)
   const [url,       setUrl]       = useState(app.url ?? '')
@@ -91,7 +91,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
 
       let productTest = app.productTest
       const effectivePass = testPass || app.testCreds?.password || ''
-      if (hasCreds && effectivePass) {
+      if (hasCreds && effectivePass && canUseProductTest) {  // Pro only
         setStep(2, 'active')
         try {
           productTest = await runProductTest(
