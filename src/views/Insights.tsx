@@ -105,7 +105,7 @@ WIN_CONDITION: [1 sentence]`
       const tC  = { High:'var(--red)', Medium:'var(--amber)', Low:'var(--green)' } as Record<string,string>
       const tBg = { High:'rgba(229,85,85,.12)', Medium:'rgba(245,166,35,.12)', Low:'rgba(52,201,138,.12)' } as Record<string,string>
 
-      setTabCache('competitive', JSON.stringify({ comps, mktPos, wspace, winCond, tC, tBg }))
+      setTabCache('competitive', JSON.stringify({ comps, mktPos, wspace, winCond }))
       toast('Competitive analysis ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('competitive', false)
@@ -357,7 +357,9 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
   if (loading) return <LoadingCard text="Researching competitors…" />
   if (!data) return <EmptyTab emoji="🔍" title="Competitive Analysis" desc="Identify your top 5 competitors, compare features, pricing, and positioning." onGenerate={onGenerate} btnLabel="Run Competitive Analysis" />
   try {
-    const { comps, mktPos, wspace, winCond, tC, tBg } = JSON.parse(data)
+    const { comps, mktPos, wspace, winCond } = JSON.parse(data)
+    const tC  = { High:'var(--red)', Medium:'var(--amber)', Low:'var(--green)' } as Record<string,string>
+    const tBg = { High:'rgba(229,85,85,.12)', Medium:'rgba(245,166,35,.12)', Low:'rgba(52,201,138,.12)' } as Record<string,string>
     return (
       <>
         <Banner icon="🔭">
@@ -707,58 +709,205 @@ function EmptyTab({ emoji, title, desc, onGenerate, btnLabel }: { emoji:string; 
 // ── PDF DOWNLOAD ──────────────────────────────────────────────────────────────
 export function downloadAnalysisPDF(appName: string, tabLabel: string, data: string) {
   const date = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })
-
-  function flatten(obj: any, depth = 0): string {
-    if (typeof obj === 'string') return `<p style="margin:2px 0 6px ${depth*16}px;color:#333">${obj}</p>`
-    if (typeof obj === 'number' || typeof obj === 'boolean') return `<span style="color:#333">${obj}</span>`
-    if (Array.isArray(obj)) return obj.map(i => flatten(i, depth)).join('')
-    if (typeof obj === 'object' && obj !== null) {
-      return Object.entries(obj).map(([k, v]) => {
-        const label = k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase())
-        if (typeof v === 'object') {
-          return `<div style="margin:8px 0 4px ${depth*16}px"><strong style="color:#7c6ff7;font-size:12px;text-transform:uppercase;letter-spacing:.05em">${label}</strong>${flatten(v, depth+1)}</div>`
-        }
-        return `<div style="margin:4px 0 4px ${depth*16}px;font-size:13px"><span style="color:#666;min-width:140px;display:inline-block">${label}:</span> <span style="color:#111">${v}</span></div>`
-      }).join('')
-    }
-    return String(obj)
-  }
-
   let body = ''
+
+  const css = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; background: #f8f8fc; color: #111118; font-size: 13px; line-height: 1.5; }
+    .page { max-width: 860px; margin: 0 auto; padding: 32px 28px; }
+    .header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 2px solid #7c6ff7; margin-bottom: 24px; }
+    .logo-name { font-size: 18px; font-weight: 800; color: #111; }
+    .meta { text-align: right; font-size: 11px; color: #888; }
+    .meta h1 { font-size: 15px; color: #111; font-weight: 700; margin-bottom: 2px; }
+    .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #7c6ff7; margin: 20px 0 10px; }
+    .verdict-box { background: #f0effe; border: 1px solid rgba(124,111,247,.3); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; }
+    .score { font-size: 36px; font-weight: 800; color: #7c6ff7; line-height: 1; min-width: 48px; }
+    .verdict-text { font-size: 13px; color: #333; font-style: italic; line-height: 1.6; }
+    .actions-box { background: #fff; border: 1px solid rgba(124,111,247,.2); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; }
+    .action-row { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f0f0f7; align-items: flex-start; }
+    .action-row:last-child { border-bottom: none; }
+    .priority-badge { width: 22px; height: 22px; border-radius: 50%; background: rgba(124,111,247,.15); color: #7c6ff7; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; margin-left: 4px; }
+    .badge-high { background: rgba(22,168,112,.15); color: #16a870; }
+    .badge-medium { background: rgba(212,138,10,.15); color: #d48a0a; }
+    .badge-low { background: rgba(144,144,176,.15); color: #9090b0; }
+    .quads { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    .quad { border-radius: 10px; padding: 14px; }
+    .quad-s { background: rgba(22,168,112,.06); border: 1px solid rgba(22,168,112,.2); }
+    .quad-w { background: rgba(220,38,38,.06); border: 1px solid rgba(220,38,38,.2); }
+    .quad-o { background: rgba(37,99,235,.06); border: 1px solid rgba(37,99,235,.2); }
+    .quad-t { background: rgba(212,138,10,.06); border: 1px solid rgba(212,138,10,.2); }
+    .quad-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+    .quad-s .quad-title { color: #16a870; }
+    .quad-w .quad-title { color: #dc2626; }
+    .quad-o .quad-title { color: #2563eb; }
+    .quad-t .quad-title { color: #d48a0a; }
+    .quad-item { background: #fff; border-radius: 7px; padding: 8px 10px; margin-bottom: 7px; }
+    .quad-item-title { font-size: 12px; font-weight: 600; color: #111; margin-bottom: 3px; }
+    .quad-item-evidence { font-size: 11px; color: #666; margin-bottom: 4px; line-height: 1.5; }
+    .quad-item-action { font-size: 11px; color: #7c6ff7; font-weight: 500; }
+    .card { background: #fff; border: 1px solid #e4e4f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+    .card-title { font-size: 13px; font-weight: 600; color: #111; margin-bottom: 4px; }
+    .card-sub { font-size: 11px; color: #555; line-height: 1.6; }
+    .lane-title { font-size: 12px; font-weight: 700; color: #5a4fd4; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #e4e4f0; }
+    .competitor-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+    .competitor-card { background: #fff; border: 1px solid #e4e4f0; border-radius: 8px; padding: 10px 12px; }
+    .tier-box { background: #fff; border: 1px solid rgba(124,111,247,.25); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+    .tier-name { font-size: 13px; font-weight: 700; color: #7c6ff7; }
+    .tier-price { font-size: 24px; font-weight: 800; color: #111; margin: 4px 0; }
+    @media print { body { background: #fff; } }
+  `
+
   try {
-    const parsed = JSON.parse(data)
-    body = flatten(parsed)
+    const d = JSON.parse(data)
+    const tab = tabLabel.toLowerCase()
+
+    const rBadge = (r: string) => {
+      const cls = r === 'High' ? 'badge-high' : r === 'Medium' ? 'badge-medium' : 'badge-low'
+      return `<span class="badge ${cls}">${r}</span>`
+    }
+
+    if (tab === 'swot') {
+      const quads = [
+        { key:'strengths',     label:'💪 Strengths',     cls:'quad-s', action:'Leverage' },
+        { key:'weaknesses',    label:'⚠️ Weaknesses',    cls:'quad-w', action:'Fix' },
+        { key:'opportunities', label:'🌟 Opportunities', cls:'quad-o', action:'Capture' },
+        { key:'threats',       label:'🔥 Threats',       cls:'quad-t', action:'Defend' },
+      ]
+      body = `
+        ${(d.overall_score || d.verdict) ? `
+          <div class="verdict-box">
+            ${d.overall_score ? `<div class="score">${d.overall_score}</div>` : ''}
+            <div class="verdict-text">"${d.verdict || ''}"</div>
+          </div>` : ''}
+        ${(d.top_actions || []).length ? `
+          <div class="section-title">🎯 Top Priority Actions</div>
+          <div class="actions-box">
+            ${(d.top_actions || []).map((a: any) => `
+              <div class="action-row">
+                <div class="priority-badge">${a.priority}</div>
+                <div>
+                  <span class="card-title">${a.action}</span>${rBadge(a.impact)}
+                  <div style="font-size:10px;color:#888;margin-top:2px">⏱ ${a.timeframe || ''} ${a.category ? '· ' + a.category : ''}</div>
+                </div>
+              </div>`).join('')}
+          </div>` : ''}
+        <div class="quads">
+          ${quads.map(q => `
+            <div class="quad ${q.cls}">
+              <div class="quad-title">${q.label}</div>
+              ${(d[q.key] || []).map((item: any) => `
+                <div class="quad-item">
+                  <div class="quad-item-title">${item.point || item} ${item.rating ? rBadge(item.rating) : ''}</div>
+                  ${item.evidence ? `<div class="quad-item-evidence">${item.evidence}</div>` : ''}
+                  ${item.action ? `<div class="quad-item-action">→ ${q.action}: ${item.action}</div>` : ''}
+                </div>`).join('')}
+            </div>`).join('')}
+        </div>`
+
+    } else if (tab === 'competitive') {
+      body = `
+        ${d.summary ? `<div class="card" style="margin-bottom:16px;border-left:3px solid #7c6ff7"><div class="card-sub" style="color:#333;font-style:italic">${d.summary}</div></div>` : ''}
+        <div class="section-title">🔍 Competitors</div>
+        <div class="competitor-grid">
+          ${(d.competitors || []).map((c: any) => `
+            <div class="competitor-card">
+              <div class="card-title">${c.name}</div>
+              <div style="font-size:10px;color:#666;margin-bottom:2px">Pricing: <strong>${c.pricing || '-'}</strong></div>
+              <div style="font-size:10px;color:#666;margin-bottom:6px">${c.target_audience || ''}</div>
+              ${c.weakness ? `<div style="font-size:10px;color:#dc2626">Gap: ${c.weakness}</div>` : ''}
+              ${c.differentiation ? `<div style="font-size:10px;color:#16a870;margin-top:2px">Your edge: ${c.differentiation}</div>` : ''}
+            </div>`).join('')}
+        </div>
+        ${d.positioning_opportunity ? `
+          <div class="card" style="border-left:3px solid #7c6ff7">
+            <div class="section-title" style="margin-top:0">💡 Positioning Opportunity</div>
+            <div class="card-sub" style="color:#333">${d.positioning_opportunity}</div>
+          </div>` : ''}`
+
+    } else if (tab === 'business model canvas') {
+      const blocks = ['value_propositions','customer_segments','channels','customer_relationships','revenue_streams','key_resources','key_activities','key_partners','cost_structure']
+      const labels: Record<string,string> = { key_partners:'Key Partners', key_activities:'Key Activities', key_resources:'Key Resources', value_propositions:'Value Propositions', customer_relationships:'Customer Relationships', channels:'Channels', customer_segments:'Customer Segments', cost_structure:'Cost Structure', revenue_streams:'Revenue Streams' }
+      body = blocks.filter(k => d[k]).map(k => `
+        <div class="card">
+          <div class="section-title" style="margin-top:0">${labels[k] || k}</div>
+          ${Array.isArray(d[k])
+            ? d[k].map((item: any) => `<div style="margin-bottom:8px"><div class="card-title">${item.title || item}</div>${item.description ? `<div class="card-sub">${item.description}</div>` : ''}${item.insight ? `<div style="font-size:11px;color:#7c6ff7;margin-top:3px">💡 ${item.insight}</div>` : ''}</div>`).join('')
+            : `<div class="card-sub">${d[k]}</div>`}
+        </div>`).join('')
+
+    } else if (tab === 'growth strategies') {
+      const lanes = [{k:'acquisition',l:'📣 Acquisition'},{k:'activation',l:'⚡ Activation'},{k:'retention',l:'🔁 Retention'},{k:'revenue',l:'💰 Revenue'},{k:'referral',l:'🤝 Referral'}]
+      body = `
+        ${d.top_priority ? `<div class="verdict-box"><div class="verdict-text"><strong>🎯 Top Priority:</strong> ${d.top_priority}</div></div>` : ''}
+        ${lanes.filter(({k}) => (d[k] || []).length).map(({k, l}) => `
+          <div class="lane-title">${l}</div>
+          ${(d[k] || []).map((s: any) => `
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                <div class="card-title">${s.title}</div>
+                <div>${rBadge(s.impact)}<span class="badge" style="background:#f0f0f7;color:#666">Effort: ${s.effort}</span></div>
+              </div>
+              <div class="card-sub">${s.description}</div>
+              <div style="font-size:10px;color:#888;margin-top:4px">⏱ ${s.timeframe}</div>
+            </div>`).join('')}`).join('')}
+      `
+
+    } else if (tab === 'pricing') {
+      body = `
+        ${d.strategy_type ? `<div class="verdict-box"><div class="verdict-text"><strong>Strategy: ${d.strategy_type}</strong>${d.rationale ? '<br>' + d.rationale : ''}</div></div>` : ''}
+        <div class="section-title">💰 Recommended Tiers</div>
+        ${(d.recommended_tiers || []).map((t: any) => `
+          <div class="tier-box">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div>
+                <div class="tier-name">${t.name}</div>
+                <div class="tier-price">${t.price}</div>
+              </div>
+              ${t.positioning ? `<span class="badge" style="background:#f0effe;color:#7c6ff7;padding:4px 10px;font-size:11px">${t.positioning}</span>` : ''}
+            </div>
+            ${t.description ? `<div class="card-sub" style="margin-top:6px">${t.description}</div>` : ''}
+            ${(t.features || []).map((f: string) => `<div style="font-size:11px;color:#444;margin-top:3px"><span style="color:#16a870">✓</span> ${f}</div>`).join('')}
+          </div>`).join('')}
+      `
+    } else {
+      body = `<pre style="font-size:11px;color:#333;white-space:pre-wrap;line-height:1.6">${JSON.stringify(d, null, 2)}</pre>`
+    }
   } catch {
-    body = `<pre style="font-size:12px;color:#333">${data}</pre>`
+    body = `<div style="color:#dc2626;padding:16px">Failed to parse analysis data.</div>`
   }
 
   const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>${appName} — ${tabLabel}</title>
-  <style>
-    body { font-family: 'DM Sans', Arial, sans-serif; margin: 40px; color: #111; background: #fff; }
-    h1 { font-size: 22px; color: #7c6ff7; margin-bottom: 4px; }
-    .meta { font-size: 12px; color: #888; margin-bottom: 24px; border-bottom: 2px solid #7c6ff7; padding-bottom: 12px; }
-    @media print { body { margin: 20px; } }
-  </style>
+  <title>${appName} — ${tabLabel} Analysis</title>
+  <style>${css}</style>
 </head>
 <body>
-  <h1>Markr — ${appName}</h1>
-  <div class="meta">${tabLabel} Analysis &nbsp;·&nbsp; ${date}</div>
-  ${body}
-  <script>window.onload = () => { window.print(); }<\/script>
+  <div class="page">
+    <div class="header">
+      <div>
+        <div class="logo-name">Markr — ${appName}</div>
+        <div style="font-size:11px;color:#888;margin-top:2px">markr.mindprintjournal.com</div>
+      </div>
+      <div class="meta">
+        <h1>${tabLabel} Analysis</h1>
+        <div>${date}</div>
+      </div>
+    </div>
+    ${body}
+  </div>
+  <script>window.onload = () => window.print()<\/script>
 </body>
 </html>`
 
   const blob = new Blob([html], { type: 'text/html' })
-  const url  = URL.createObjectURL(blob)
-  const win  = window.open(url, '_blank')
+  const blobUrl = URL.createObjectURL(blob)
+  const win = window.open(blobUrl, '_blank')
   if (!win) {
-    // Fallback if popup blocked
     const a = document.createElement('a')
-    a.href = url; a.download = `${appName}-${tabLabel}.html`; a.click()
+    a.href = blobUrl; a.download = `${appName}-${tabLabel}-analysis.html`; a.click()
   }
-  setTimeout(() => URL.revokeObjectURL(url), 5000)
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 5000)
 }
