@@ -47,7 +47,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             { n:'2', label:'AI analyzes & tests it', color:'#34c98a' },
             { n:'3', label:'Get content & insights', color:'#e26faf' },
           ].map(s => (
-            <div key={s.n} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderRadius:20, background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)', fontSize:12 }}>
+            <div key={s.n} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderRadius:20, background:'var(--surface2)', border:'1px solid var(--surface3)', fontSize:12 }}>
               <div style={{ width:20, height:20, borderRadius:'50%', background:s.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff', flexShrink:0 }}>{s.n}</div>
               <span style={{ color:'var(--text2)' }}>{s.label}</span>
             </div>
