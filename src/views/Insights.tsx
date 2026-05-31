@@ -2,6 +2,32 @@ import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, safeParseJSON } from '../lib/claude'
+
+const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
+const MONTHLY_LIMIT_DAYS = 30
+
+function isAdmin(email: string): boolean {
+  return ADMIN_EMAILS.includes(email.toLowerCase())
+}
+
+function daysSince(ts: string | null | undefined): number | null {
+  if (!ts) return null
+  return Math.floor((Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function canRefresh(ts: string | null | undefined, email: string): boolean {
+  if (isAdmin(email)) return true
+  const days = daysSince(ts)
+  return days === null || days >= MONTHLY_LIMIT_DAYS
+}
+
+function lastUpdatedLabel(ts: string | null | undefined): string {
+  const days = daysSince(ts)
+  if (days === null) return ''
+  if (days === 0) return 'Updated today'
+  if (days === 1) return 'Updated yesterday'
+  return `Updated ${days} days ago`
+}
 import { toast } from '../components/Toast'
 import ProductTest from './insights/ProductTest'
 
@@ -17,7 +43,7 @@ const TABS: { id: Tab; label: string; emoji: string }[] = [
 ]
 
 export default function Insights() {
-  const { currentApp, updateApp } = useStore()
+  const { currentApp, updateApp, userEmail } = useStore()
   const [activeTab, setActiveTab] = useState<Tab>('competitive')
   const [cache, setCache] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
@@ -39,7 +65,6 @@ export default function Insights() {
   const setFStep = (k: string, s: string) => setFullSteps(p => ({ ...p, [k]: s }))
   const setTabCache = (k: string, data: string) => {
     setCache(p => ({ ...p, [k]: data }))
-    // Persist to Supabase via updateApp
     const fieldMap: Record<string, string> = {
       competitive: 'competitive_analysis',
       bmc:         'bmc_analysis',
@@ -47,8 +72,17 @@ export default function Insights() {
       growth:      'growth_analysis',
       pricing:     'pricing_analysis',
     }
+    const tsMap: Record<string, string> = {
+      competitive: 'competitive_analyzed_at',
+      bmc:         'bmc_analyzed_at',
+      swot:        'swot_analyzed_at',
+      growth:      'growth_analyzed_at',
+      pricing:     'pricing_analyzed_at',
+    }
     const field = fieldMap[k]
-    if (field) updateApp(currentApp.id, { [field]: data } as any)
+    const tsField = tsMap[k]
+    const now = new Date().toISOString()
+    if (field) updateApp(currentApp.id, { [field]: data, ...(tsField ? { [tsField]: now } : {}) } as any)
   }
 
   const pt = currentApp.productTest
@@ -66,6 +100,11 @@ ${rc.trim()}
 
   // ── COMPETITIVE ─────────────────────────────────────────────────────────────
   async function genCompetitive() {
+    // Monthly limit check — skip for admin
+    if (!canRefresh(currentApp.competitive_analyzed_at, userEmail)) {
+      toast(`Analysis was last run ${lastUpdatedLabel(currentApp.competitive_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
+      return
+    }
     setLoad('competitive', true)
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
@@ -90,6 +129,11 @@ JSON only, no markdown:
 
   // ── BMC ──────────────────────────────────────────────────────────────────────
   async function genBMC() {
+    // Monthly limit check — skip for admin
+    if (!canRefresh(currentApp.bmc_analyzed_at, userEmail)) {
+      toast(`Analysis was last run ${lastUpdatedLabel(currentApp.bmc_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
+      return
+    }
     setLoad('bmc', true)
     const ptCtx = getTestContext(currentApp)
     try {
@@ -106,6 +150,11 @@ Output ONLY valid JSON:
 
   // ── SWOT ─────────────────────────────────────────────────────────────────────
   async function genSWOT() {
+    // Monthly limit check — skip for admin
+    if (!canRefresh(currentApp.swot_analyzed_at, userEmail)) {
+      toast(`Analysis was last run ${lastUpdatedLabel(currentApp.swot_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
+      return
+    }
     setLoad('swot', true)
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
@@ -176,6 +225,11 @@ Output ONLY valid JSON, no markdown:
 
   // ── GROWTH ───────────────────────────────────────────────────────────────────
   async function genGrowth() {
+    // Monthly limit check — skip for admin
+    if (!canRefresh(currentApp.growth_analyzed_at, userEmail)) {
+      toast(`Analysis was last run ${lastUpdatedLabel(currentApp.growth_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
+      return
+    }
     setLoad('growth', true)
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
@@ -195,6 +249,11 @@ Output ONLY valid JSON — no markdown, no trailing commas:
 
   // ── PRICING ──────────────────────────────────────────────────────────────────
   async function genPricing() {
+    // Monthly limit check — skip for admin
+    if (!canRefresh(currentApp.pricing_analyzed_at, userEmail)) {
+      toast(`Analysis was last run ${lastUpdatedLabel(currentApp.pricing_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
+      return
+    }
     setLoad('pricing', true)
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
@@ -291,6 +350,14 @@ Output ONLY valid JSON:
       <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:22, paddingBottom:14, borderBottom:'1px solid var(--border)' }}>
         {TABS.map(tab => {
           const hasData = tab.id === 'product' ? !!(pt) : !!(cache[tab.id])
+          const tsMap: Record<string,string> = {
+            competitive: currentApp.competitive_analyzed_at ?? '',
+            bmc:         currentApp.bmc_analyzed_at ?? '',
+            swot:        currentApp.swot_analyzed_at ?? '',
+            growth:      currentApp.growth_analyzed_at ?? '',
+            pricing:     currentApp.pricing_analyzed_at ?? '',
+          }
+          const lastUpdated = tab.id !== 'product' ? lastUpdatedLabel(tsMap[tab.id]) : ''
           return (
             <button
               key={tab.id}
@@ -303,7 +370,10 @@ Output ONLY valid JSON:
                 color: activeTab===tab.id ? 'var(--accent2)' : hasData ? 'var(--text2)' : 'var(--text3)',
               }}
             >
-              {tab.emoji} {tab.label}{hasData ? ' ✓' : ''}
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:1 }}>
+                <span>{tab.emoji} {tab.label}{hasData ? ' ✓' : ''}</span>
+                {lastUpdated && <span style={{ fontSize:9, color:'var(--text3)', fontWeight:400 }}>{lastUpdated}</span>}
+              </div>
             </button>
           )
         })}
@@ -311,9 +381,26 @@ Output ONLY valid JSON:
 
       {/* Tab content */}
       <div style={{ position:'relative' }}>
-        {/* Download button — shows when analysis is available */}
+        {/* Download + refresh info */}
         {cache[activeTab] && activeTab !== 'product' && (
-          <div style={{ position:'absolute', top:-40, right:0, zIndex:10 }}>
+          <div style={{ position:'absolute', top:-40, right:0, zIndex:10, display:'flex', alignItems:'center', gap:8 }}>
+            {(() => {
+              const tsMap: Record<string,string> = {
+                competitive: currentApp.competitive_analyzed_at ?? '',
+                bmc:         currentApp.bmc_analyzed_at ?? '',
+                swot:        currentApp.swot_analyzed_at ?? '',
+                growth:      currentApp.growth_analyzed_at ?? '',
+                pricing:     currentApp.pricing_analyzed_at ?? '',
+              }
+              const ts = tsMap[activeTab]
+              const days = daysSince(ts)
+              const locked = !canRefresh(ts, userEmail)
+              return locked && days !== null ? (
+                <span style={{ fontSize:10, color:'var(--text3)' }}>
+                  🔒 Refresh available in {MONTHLY_LIMIT_DAYS - days} days
+                </span>
+              ) : null
+            })()}
             <button
               onClick={() => downloadAnalysisPDF(
                 currentApp.name,
