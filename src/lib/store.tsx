@@ -48,6 +48,7 @@ interface AppStore {
   view: ViewType
   loading: boolean
   plan: 'pro' | 'free'
+  userEmail: string
   canAddApp: boolean
   canUseProductTest: boolean
   trialExpired: boolean
@@ -151,6 +152,12 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           pricing_analysis:     row.pricing_analysis ?? null,
           content_studio_cache: row.content_studio_cache ?? null,
           strategy_cache:       row.strategy_cache ?? null,
+          // Analysis timestamps
+          competitive_analyzed_at: row.competitive_analyzed_at ?? null,
+          bmc_analyzed_at:         row.bmc_analyzed_at ?? null,
+          swot_analyzed_at:        row.swot_analyzed_at ?? null,
+          growth_analyzed_at:      row.growth_analyzed_at ?? null,
+          pricing_analyzed_at:     row.pricing_analyzed_at ?? null,
         }))
         setApps(loaded)
         setCurrentAppId(loaded[0].id)
@@ -236,6 +243,11 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.pricing_analysis     !== undefined && { pricing_analysis:     updates.pricing_analysis }),
         ...(updates.content_studio_cache !== undefined && { content_studio_cache: updates.content_studio_cache }),
         ...(updates.strategy_cache       !== undefined && { strategy_cache:       updates.strategy_cache }),
+        ...(updates.competitive_analyzed_at !== undefined && { competitive_analyzed_at: updates.competitive_analyzed_at }),
+        ...(updates.bmc_analyzed_at         !== undefined && { bmc_analyzed_at:         updates.bmc_analyzed_at }),
+        ...(updates.swot_analyzed_at        !== undefined && { swot_analyzed_at:        updates.swot_analyzed_at }),
+        ...(updates.growth_analyzed_at      !== undefined && { growth_analyzed_at:      updates.growth_analyzed_at }),
+        ...(updates.pricing_analyzed_at     !== undefined && { pricing_analyzed_at:     updates.pricing_analyzed_at }),
       })
       .eq('id', id)
       .eq('user_id', userId)
@@ -261,7 +273,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
   return (
     <StoreContext.Provider value={{
       apps, currentApp, view, loading,
-      plan, canAddApp, canUseProductTest, trialExpired, daysLeftInTrial,
+      plan, userEmail, canAddApp, canUseProductTest, trialExpired, daysLeftInTrial,
       setView, setCurrentApp, addApp, updateApp, removeApp
     }}>
       {children}
