@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: Props) {
-  const { apps, currentApp, view, plan, canAddApp, setView, setCurrentApp } = useStore()
+  const { apps, currentApp, view, plan, canAddApp, trialExpired, daysLeftInTrial, setView, setCurrentApp } = useStore()
 
   return (
     <div
@@ -160,10 +160,32 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: P
           </div>
         )}
 
-        {/* Plan badge */}
-        <div style={{ padding: '4px 10px', marginBottom: 8 }}>
+        {/* Trial / plan status */}
+        <div style={{ padding: '4px 10px', marginBottom: 4 }}>
+          {plan === 'free' && !trialExpired && daysLeftInTrial <= 7 && (
+            <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', marginBottom: 3 }}>
+                ⏳ {daysLeftInTrial} day{daysLeftInTrial !== 1 ? 's' : ''} left in trial
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, lineHeight: 1.4 }}>
+                5 AI calls/day · 1 app · No Product Test
+              </div>
+              <a href="mailto:swaroop.raghu@gmail.com?subject=Markr Pro Upgrade" style={{ display: 'block', textAlign: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--amber)', color: '#000', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>
+                Upgrade to Pro →
+              </a>
+            </div>
+          )}
+          {plan === 'free' && trialExpired && (
+            <div style={{ background: 'rgba(229,85,85,.08)', border: '1px solid rgba(229,85,85,.25)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', marginBottom: 3 }}>Trial ended</div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>Upgrade to keep using Markr</div>
+              <a href="mailto:swaroop.raghu@gmail.com?subject=Markr Pro Upgrade" style={{ display: 'block', textAlign: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--red)', color: '#fff', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>
+                Upgrade now →
+              </a>
+            </div>
+          )}
           <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700, background: plan === 'pro' ? 'rgba(52,201,138,.12)' : 'rgba(124,111,247,.1)', color: plan === 'pro' ? 'var(--green)' : 'var(--accent2)', border: `1px solid ${plan === 'pro' ? 'rgba(52,201,138,.25)' : 'rgba(124,111,247,.2)'}` }}>
-            {plan === 'pro' ? '✓ Pro' : 'Free'}
+            {plan === 'pro' ? '✓ Pro' : `Free · ${daysLeftInTrial}d left`}
           </span>
         </div>
       </div>
