@@ -83,6 +83,12 @@ export interface AppData {
   pricing_analysis?:     string | null
   content_studio_cache?: string | null
   strategy_cache?:       string | null
+  // Analysis timestamps
+  competitive_analyzed_at?: string | null
+  bmc_analyzed_at?:         string | null
+  swot_analyzed_at?:        string | null
+  growth_analyzed_at?:      string | null
+  pricing_analyzed_at?:     string | null
 }
 
 export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights'
