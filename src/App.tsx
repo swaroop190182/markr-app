@@ -17,11 +17,12 @@ import UpgradeModal from './components/UpgradeModal'
 import Toast from './components/Toast'
 
 function AppInner({ session }: { session: Session }) {
-  const { view, trialExpired } = useStore()
+  const { view, apps, trialExpired } = useStore()
   const [showAddApp,   setShowAddApp]   = useState(false)
   const [editAppId,    setEditAppId]    = useState<number | null>(null)
   const [showUpgrade,  setShowUpgrade]  = useState(false)
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
+  const [prefilledUrl, setPrefilledUrl] = useState('')
 
   // Auto-show upgrade modal when trial expires
   useEffect(() => {
@@ -30,6 +31,17 @@ function AppInner({ session }: { session: Session }) {
       return () => clearTimeout(t)
     }
   }, [trialExpired])
+
+  // Auto-open Add App modal with pre-filled URL from landing page
+  useEffect(() => {
+    const urlParam = new URLSearchParams(window.location.search).get('url')
+    if (urlParam && apps.length === 0) {
+      setPrefilledUrl(urlParam)
+      // Small delay so app finishes loading
+      const t = setTimeout(() => setShowAddApp(true), 800)
+      return () => clearTimeout(t)
+    }
+  }, [apps.length])
 
   return (
     <div className="app-layout" style={{ background: 'var(--bg)' }}>
@@ -61,7 +73,7 @@ function AppInner({ session }: { session: Session }) {
         </main>
       </div>
 
-      {showAddApp  && <AddAppModal onClose={() => setShowAddApp(false)} />}
+      {showAddApp  && <AddAppModal onClose={() => { setShowAddApp(false); setPrefilledUrl('') }} prefilledUrl={prefilledUrl} />}
       {editAppId !== null && <EditAppModal appId={editAppId} onClose={() => setEditAppId(null)} />}
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} trigger={trialExpired ? 'trial_expired' : 'manual'} />}
       <Toast />
