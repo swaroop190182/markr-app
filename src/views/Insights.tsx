@@ -508,7 +508,18 @@ function SWOTTab({ data, loading, onGenerate }: { data?:string; loading?:boolean
         <div style={{ textAlign:'right' }}><button className="vbtn" onClick={onGenerate}>🔄 Regenerate</button></div>
       </>
     )
-  } catch { return <ErrorCard message="Failed to render — try regenerating" onRetry={onGenerate} /> }
+  } catch {
+    return (
+      <div style={{ textAlign:'center', padding:'32px 16px' }}>
+        <div style={{ fontSize:13, color:'var(--amber)', marginBottom:16 }}>
+          ⚠️ This analysis was generated with an older format — please regenerate to get the new intelligent SWOT with ratings and action points.
+        </div>
+        <button className="gen-btn" style={{ margin:'0 auto' }} onClick={onGenerate}>
+          🔄 Regenerate SWOT
+        </button>
+      </div>
+    )
+  }
 }
 
 // ── GROWTH TAB ───────────────────────────────────────────────────────────────
