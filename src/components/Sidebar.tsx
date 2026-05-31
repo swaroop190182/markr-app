@@ -13,10 +13,11 @@ interface Props {
   onAddApp: () => void
   onEditApp: (id: number) => void
   onSignOut: () => void
+  onUpgrade: () => void
   userEmail: string
 }
 
-export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: Props) {
+export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, userEmail }: Props) {
   const { apps, currentApp, view, plan, canAddApp, trialExpired, daysLeftInTrial, setView, setCurrentApp } = useStore()
 
   return (
@@ -150,7 +151,7 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: P
           </div>
         ) : (
           <div
-            style={{ margin: '4px 2px 8px', padding: '10px 10px', borderRadius: 7, border: '1px solid rgba(124,111,247,.25)', background: 'rgba(124,111,247,.06)', fontSize: 11, cursor: 'default' }}
+            style={{ margin: '4px 2px 8px', padding: '10px 10px', borderRadius: 7, border: '1px solid rgba(124,111,247,.25)', background: 'rgba(124,111,247,.06)', fontSize: 11 }}
           >
             <div style={{ color: 'var(--accent2)', fontWeight: 700, marginBottom: 4 }}>Free plan · 1 app limit</div>
             <div style={{ color: 'var(--text3)', lineHeight: 1.5, marginBottom: 8 }}>Upgrade to Pro for unlimited apps</div>
@@ -170,18 +171,18 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: P
               <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, lineHeight: 1.4 }}>
                 5 AI calls/day · 1 app · No Product Test
               </div>
-              <a href="mailto:swaroop.raghu@gmail.com?subject=Markr Pro Upgrade" style={{ display: 'block', textAlign: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--amber)', color: '#000', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>
+              <button onClick={onUpgrade} style={{ display: 'block', width: '100%', textAlign: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--amber)', color: '#000', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Upgrade to Pro →
-              </a>
+              </button>
             </div>
           )}
           {plan === 'free' && trialExpired && (
             <div style={{ background: 'rgba(229,85,85,.08)', border: '1px solid rgba(229,85,85,.25)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', marginBottom: 3 }}>Trial ended</div>
               <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>Upgrade to keep using Markr</div>
-              <a href="mailto:swaroop.raghu@gmail.com?subject=Markr Pro Upgrade" style={{ display: 'block', textAlign: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--red)', color: '#fff', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>
+              <button onClick={onUpgrade} style={{ display: 'block', width: '100%', textAlign: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--red)', color: '#fff', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Upgrade now →
-              </a>
+              </button>
             </div>
           )}
           <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700, background: plan === 'pro' ? 'rgba(52,201,138,.12)' : 'rgba(124,111,247,.1)', color: plan === 'pro' ? 'var(--green)' : 'var(--accent2)', border: `1px solid ${plan === 'pro' ? 'rgba(52,201,138,.25)' : 'rgba(124,111,247,.2)'}` }}>
