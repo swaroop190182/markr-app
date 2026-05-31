@@ -5,10 +5,37 @@ import { runProductTest } from '../../lib/claude'
 import { toast } from '../../components/Toast'
 
 export default function ProductTest() {
-  const { currentApp, updateApp } = useStore()
+  const { currentApp, updateApp, canUseProductTest, plan } = useStore()
   const [running, setRunning] = useState(false)
   const [testPass, setTestPass] = useState('')
   const pt = currentApp.productTest
+
+  // Pro-only gate
+  if (!canUseProductTest) {
+    return (
+      <div style={{ padding:'40px 24px', textAlign:'center' }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>🔒</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:10 }}>Product Test is a Pro feature</div>
+        <div style={{ fontSize:13, color:'var(--text3)', maxWidth:400, margin:'0 auto 24px', lineHeight:1.7 }}>
+          The AI QA simulation uses our most powerful model to test every feature of your app as a real user. It's the most valuable — and most expensive — feature in Markr. Available on Pro only.
+        </div>
+        <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r2)', padding:'16px 20px', margin:'0 auto 24px', maxWidth:380, textAlign:'left' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:10 }}>What you get on Pro</div>
+          {['🧪 Full QA simulation — every feature tested','⭐ UX scores across 6 dimensions','🐛 Bug report with severity ratings','💡 Content implications from real usage','🎯 Prioritised fix list for your team'].map(s => (
+            <div key={s} style={{ fontSize:12, color:'var(--text2)', display:'flex', gap:8, marginBottom:7 }}>
+              <span style={{ flexShrink:0 }}>{s.split(' ')[0]}</span>
+              <span>{s.slice(s.indexOf(' ')+1)}</span>
+            </div>
+          ))}
+        </div>
+        <a href="mailto:swaroop.raghu@gmail.com?subject=Markr Pro Upgrade&body=Hi, I'd like to upgrade to Markr Pro to access Product Testing."
+          style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'11px 24px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:700, textDecoration:'none' }}>
+          Upgrade to Pro — ₹999/mo →
+        </a>
+        <div style={{ fontSize:12, color:'var(--text3)', marginTop:12 }}>Currently on: <strong style={{ color:'var(--text2)' }}>{plan} plan</strong></div>
+      </div>
+    )
+  }
 
   async function runTest() {
     if (!currentApp.testCreds) { toast('No test credentials saved. Edit the app to add them.'); return }
