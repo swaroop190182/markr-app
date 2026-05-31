@@ -74,6 +74,7 @@ export interface AppData {
   testCreds?: TestCreds | null
   productTest?: ProductTest | null
   analyzed?: boolean
+  recent_context?: string | null  // user-provided recent data: reviews, metrics, feedback
   // Persisted analysis cache
   competitive_analysis?: string | null
   bmc_analysis?:         string | null
