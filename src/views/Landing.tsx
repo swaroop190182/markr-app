@@ -277,10 +277,9 @@ export default function Landing() {
               { n:'2', color:'#a78bfa', bg:'rgba(139,92,246,.06)', border:'rgba(139,92,246,.18)', title:'Generate content', icon:'✍️', items:['Daily posts that fit your app perfectly','Captions, hooks, hashtags & image prompts','Built for saves, shares & comments'] },
               { n:'3', color:'#60a5fa', bg:'rgba(59,130,246,.06)', border:'rgba(59,130,246,.18)', title:'Grow with strategy', icon:'📊', items:['BMC, SWOT, growth playbook','Pricing strategy tailored to your stage','Competitive intelligence that updates'] },
             ].map(b=>(
-              <div key={b.title} style={{ background:b.bg, border:`1px solid ${b.border}`, borderRadius:12, padding:'20px 18px' }}
+              <div key={b.title} style={{ background:b.bg, border:`1px solid ${b.border}`, borderRadius:12, padding:'20px 18px', transition:'transform .2s' }}
                 onMouseEnter={e=>(e.currentTarget as HTMLElement).style.transform='translateY(-2px)'}
-                onMouseLeave={e=>(e.currentTarget as HTMLElement).style.transform='none'}
-                style2={{ transition:'transform .2s' }}>
+                onMouseLeave={e=>(e.currentTarget as HTMLElement).style.transform='none'}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
                   <span style={{ fontSize:20 }}>{b.icon}</span>
                   <div style={{ fontFamily:D, fontSize:14, fontWeight:700, color:b.color }}>{b.title}</div>
