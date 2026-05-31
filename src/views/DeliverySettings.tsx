@@ -61,15 +61,15 @@ export default function DeliverySettings() {
         method: 'POST',
         headers: {
           'Content-Type':     'application/json',
-          'Authorization':    `Bearer ${process.env.CRON_SECRET ?? 'markr_cron_2026'}`,
-          'x-manual-trigger': import.meta.env.VITE_CRON_SECRET ?? 'markr_cron_2026',
+          'Authorization':    'Bearer markr_cron_2026',
+          'x-manual-trigger': 'markr_cron_2026',
           'x-user-token':     session.access_token,
         },
       })
       const data = await res.json()
       if (data.sent > 0) toast('📧 Test email sent! Check your inbox.', 4000)
       else if (data.error) toast('Error: ' + data.error)
-      else toast('No delivery prefs found — make sure you clicked Save first, then try again.')
+      else toast('Something went wrong — check Vercel logs.')
     } catch (e) {
       toast('Failed: ' + (e as Error).message)
     }
