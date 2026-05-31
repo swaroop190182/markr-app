@@ -171,6 +171,27 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: P
         <div style={{ padding: '6px 10px', marginBottom: 4 }}>
           <div style={{ fontSize: 11, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userEmail}</div>
         </div>
+
+        {/* Feedback */}
+        <a
+          href={`mailto:swaroop.raghu@gmail.com?subject=Markr Feedback&body=Hi Swaroop,%0A%0A[Tell us what's working, what's broken, or what you'd love to see]%0A%0AApp I'm using: %0AMy account: ${userEmail}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', transition: 'all .15s', marginBottom: 2 }}
+          onMouseEnter={e => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'var(--surface2)'
+            el.style.color = 'var(--accent2)'
+          }}
+          onMouseLeave={e => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'transparent'
+            el.style.color = 'var(--text3)'
+          }}
+        >
+          <i className="ti ti-message-circle" style={{ fontSize: 14 }} />
+          Share feedback
+        </a>
+
+        {/* Sign out */}
         <div
           className="flex items-center gap-2 cursor-pointer"
           onClick={onSignOut}
