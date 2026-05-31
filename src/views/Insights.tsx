@@ -231,16 +231,53 @@ Output ONLY valid JSON, no markdown:
       return
     }
     setLoad('growth', true)
-    const ptCtx = getTestContext(currentApp)
-    const rcCtx = getRecentContext()
+    const ptCtx  = getTestContext(currentApp)
+    const rcCtx  = getRecentContext()
+
+    // Pull existing analysis to cross-reference
+    let existingCtx = ''
     try {
-      const prompt = `AARRR growth strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nReference specific real features by name in Activation/Retention.' : ''}
+      if (cache.competitive) {
+        const c = JSON.parse(cache.competitive)
+        const competitorNames = (c.comps||[]).map((x:any)=>x.name).join(', ')
+        const weaknesses = (c.comps||[]).map((x:any)=>`${x.name}: ${(x.weaknesses||[]).join(', ')}`).join(' | ')
+        existingCtx += `\n\nCOMPETITOR INTELLIGENCE:\nCompetitors: ${competitorNames}\nTheir weaknesses to exploit: ${weaknesses}\nMarket whitespace: ${c.wspace||''}\nWin condition: ${c.winCond||''}`
+      }
+      if (cache.swot) {
+        const s = JSON.parse(cache.swot)
+        const topStrengths = (s.strengths||[]).filter((x:any)=>x.rating==='High').map((x:any)=>x.point).join(', ')
+        const topWeaknesses = (s.weaknesses||[]).filter((x:any)=>x.rating==='High').map((x:any)=>x.point).join(', ')
+        const topOpps = (s.opportunities||[]).filter((x:any)=>x.rating==='High').map((x:any)=>x.point).join(', ')
+        existingCtx += `\n\nSWOT INTELLIGENCE:\nTop strengths to leverage: ${topStrengths}\nCritical weaknesses to fix first: ${topWeaknesses}\nBiggest opportunities: ${topOpps}\nVerdict: ${s.verdict||''}`
+      }
+      if (cache.bmc) {
+        const b = JSON.parse(cache.bmc)
+        existingCtx += `\n\nBUSINESS MODEL:\nValue props: ${(b.value_propositions||[]).join(', ')}\nKey channels: ${(b.channels||[]).join(', ')}\nRevenue streams: ${(b.revenue_streams||[]).join(', ')}\nCustomer segments: ${(b.customer_segments||[]).join(', ')}`
+      }
+    } catch { /* ignore parse errors */ }
 
-2 tactics per lane. Each description is ONE sentence max (under 20 words).
-Output ONLY valid JSON — no markdown, no trailing commas:
-{"top_priority":"single most impactful 30-day action","acquisition":[{"title":"t","description":"1 sentence","impact":"High","effort":"Low","timeframe":"Week 1-2"},{"title":"t","description":"1 sentence","impact":"Medium","effort":"Medium","timeframe":"Week 2-4"}],"activation":[{"title":"t","description":"1 sentence","impact":"High","effort":"Low","timeframe":"Week 1"},{"title":"t","description":"1 sentence","impact":"High","effort":"Medium","timeframe":"Week 2-3"}],"retention":[{"title":"t","description":"1 sentence","impact":"High","effort":"Low","timeframe":"Ongoing"},{"title":"t","description":"1 sentence","impact":"Medium","effort":"Medium","timeframe":"Month 2"}],"revenue":[{"title":"t","description":"1 sentence","impact":"High","effort":"Medium","timeframe":"Month 1"},{"title":"t","description":"1 sentence","impact":"Medium","effort":"Low","timeframe":"Month 2"}],"referral":[{"title":"t","description":"1 sentence","impact":"Medium","effort":"Low","timeframe":"Month 2"},{"title":"t","description":"1 sentence","impact":"High","effort":"Medium","timeframe":"Month 3"}]}`
+    try {
+      const prompt = `You are a growth strategist. Create a specific, data-driven AARRR growth plan for "${currentApp.name}" — ${currentApp.category} app (${currentApp.stage} stage, ${currentApp.platform}).
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Each description ONE sentence under 20 words. No trailing commas.', 3000)
+App description: ${currentApp.desc || 'Not provided'}
+Target audience: ${currentApp.audience || 'Not specified'}
+Key features: ${(currentApp.features||[]).join(', ') || 'Not listed'}
+${ptCtx}${rcCtx}${existingCtx}
+
+RULES — this must NOT be generic:
+1. Every tactic MUST reference specific features, competitor weaknesses, or SWOT findings above
+2. Acquisition tactics must name specific channels relevant to this app's audience (not just "social ads")
+3. Activation tactics must reference the actual app features users need to reach
+4. Retention tactics must be specific to this app's category and user behaviour
+5. Revenue tactics must align with the pricing model and customer segments
+6. Each title should be a specific action (e.g. "Partner with Indian pediatricians for Tiny Tummies" not "Influencer Marketing")
+7. NO generic tactics — if it could apply to any app, rewrite it
+
+2 tactics per lane. Each description max 25 words.
+Output ONLY valid JSON:
+{"top_priority":"single most impactful specific 30-day action for THIS app","acquisition":[{"title":"specific tactic name","description":"specific 1 sentence action referencing app features or competitors","impact":"High","effort":"Low","timeframe":"Week 1-2"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Medium","timeframe":"Week 2-4"}],"activation":[{"title":"specific tactic","description":"specific action referencing actual app feature","impact":"High","effort":"Low","timeframe":"Week 1"},{"title":"specific tactic","description":"specific action","impact":"High","effort":"Medium","timeframe":"Week 2-3"}],"retention":[{"title":"specific tactic","description":"specific action unique to this app category","impact":"High","effort":"Low","timeframe":"Ongoing"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Medium","timeframe":"Month 2"}],"revenue":[{"title":"specific tactic","description":"specific monetisation action for this app","impact":"High","effort":"Medium","timeframe":"Month 1"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Low","timeframe":"Month 2"}],"referral":[{"title":"specific tactic","description":"specific referral mechanic for this app's users","impact":"Medium","effort":"Low","timeframe":"Month 2"},{"title":"specific tactic","description":"specific action","impact":"High","effort":"Medium","timeframe":"Month 3"}]}`
+
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Every tactic must be specific to this exact app — no generic advice. No trailing commas.', 3500)
       setTabCache('growth', raw.replace(/```json|```/g,'').trim())
       toast('Growth playbook ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
