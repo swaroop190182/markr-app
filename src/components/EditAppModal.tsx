@@ -21,6 +21,7 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
   const [stage,     setStage]     = useState<typeof STAGES[number]>(app.stage as typeof STAGES[number])
   const [category,  setCategory]  = useState(app.category)
   const [desc,      setDesc]      = useState(app.desc ?? '')
+  const [recentCtx, setRecentCtx] = useState(app.recent_context ?? '')
   const [credsOpen, setCredsOpen] = useState(!!(app.testCreds?.user))
   const [testUser,  setTestUser]  = useState(app.testCreds?.user ?? '')
   const [testPass,  setTestPass]  = useState('')
@@ -40,6 +41,7 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
       platform: platform as AppData['platform'],
       stage: stage as AppData['stage'],
       category, desc,
+      recent_context: recentCtx || null,
       testCreds: testUser ? {
         user: testUser,
         password: testPass || app.testCreds?.password || '',
@@ -138,6 +140,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         category,
         desc: newDesc,
         brand, pillars, features, audience, problem, diff,
+        recent_context: recentCtx || null,
         testCreds: {
           user: testUser,
           password: effectivePass,
@@ -187,6 +190,27 @@ BRAND_VOICE: [3-4 sentences on voice]`,
       <Field label="Description">
         <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} />
       </Field>
+
+      {/* Recent Context */}
+      <div style={{ background:'rgba(124,111,247,.05)', border:'1px solid rgba(124,111,247,.2)', borderRadius:'var(--r)', padding:'12px 14px', marginBottom:14 }}>
+        <div style={{ fontSize:11, fontWeight:700, color:'var(--accent2)', marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em' }}>
+          📊 Recent Context <span style={{ fontSize:10, color:'var(--text3)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>— makes analysis smarter over time</span>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text3)', marginBottom:8, lineHeight:1.6 }}>
+          Paste any recent data: user reviews, metrics, feedback, revenue numbers, Instagram performance, feature usage. Markr injects this into every analysis so results reflect your current reality.
+        </div>
+        <textarea
+          value={recentCtx}
+          onChange={e => setRecentCtx(e.target.value)}
+          rows={5}
+          placeholder={`Examples:\n• "47 reviews this month — 30% complain about slow onboarding, users love the streak feature"\n• "DAU: 340, D7 retention: 42%, top feature: journal (68% usage)"\n• "MRR grew from ₹0 to ₹15k, churn 8%"\n• "Instagram post about habit streaks got 4x normal reach (2,400 views)"\n• "Users keep asking for dark mode and reminder notifications"`}
+        />
+        {recentCtx && (
+          <div style={{ fontSize:11, color:'var(--green)', marginTop:6 }}>
+            ✓ Context saved — will be used in all future analyses
+          </div>
+        )}
+      </div>
 
       {/* Credentials accordion */}
       <div style={{ border: '1px solid rgba(124,111,247,.3)', borderRadius: 'var(--r)', overflow: 'hidden', marginBottom: 4 }}>
