@@ -16,7 +16,7 @@ const CATEGORIES = [
 ]
 
 export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: () => void; prefilledUrl?: string }) {
-  const { apps, addApp, setCurrentApp } = useStore()
+  const { apps, addApp, setCurrentApp, canUseProductTest } = useStore()
 
   const [name,     setName]     = useState('')
   const [url,      setUrl]      = useState(prefilledUrl)  // pre-fill from landing page
@@ -79,7 +79,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
 
       // Step 2 — product test
       let productTest = null
-      if (hasCreds) {
+      if (hasCreds && canUseProductTest) {  // Pro only — Sonnet is expensive
         setStep(2, 'active')
         try {
           productTest = await runProductTest({
