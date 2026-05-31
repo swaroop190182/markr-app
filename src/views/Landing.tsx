@@ -79,7 +79,7 @@ export default function Landing() {
           ✦ AI Marketing Co-founder for App Founders
         </div>
 
-        {/* Headline — 2 lines like the screenshot */}
+        {/* Headline */}
         <h1 style={{ fontFamily:D, fontSize:'clamp(34px,5vw,68px)', fontWeight:800, lineHeight:1.08, margin:'0 0 8px', letterSpacing:'-0.03em', color:'#f5f5f7', maxWidth:860 }}>
           Your app already knows how to grow.
         </h1>
@@ -87,9 +87,17 @@ export default function Landing() {
           We just make it obvious.
         </h1>
 
-        <p style={{ fontSize:17, color:'rgba(255,255,255,.5)', maxWidth:520, lineHeight:1.7, margin:'0 0 36px' }}>
+        <p style={{ fontSize:17, color:'rgba(255,255,255,.5)', maxWidth:520, lineHeight:1.7, margin:'0 0 20px' }}>
           Paste your app URL. Markr analyzes it like a real user, tests what works, and generates exactly what to post — and why.
         </p>
+
+        {/* Automated delivery highlight */}
+        <div style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'10px 18px', borderRadius:10, border:'1px solid rgba(52,201,138,.3)', background:'rgba(52,201,138,.06)', marginBottom:32 }}>
+          <div style={{ width:8, height:8, borderRadius:'50%', background:'#34c98a', flexShrink:0, boxShadow:'0 0 8px #34c98a' }} />
+          <span style={{ fontSize:13, color:'rgba(255,255,255,.8)', fontWeight:500 }}>
+            <strong style={{ color:'#34c98a' }}>New:</strong> Wake up to 3 ready-to-post captions in your inbox — every morning, automatically.
+          </span>
+        </div>
 
         {/* URL input + CTA — like the screenshot */}
         <div style={{ display:'flex', gap:0, maxWidth:540, width:'100%', marginBottom:16, borderRadius:10, overflow:'hidden', border:'1.5px solid rgba(124,111,247,.4)', background:'rgba(255,255,255,.04)' }}>
@@ -214,6 +222,78 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── AUTOMATED DELIVERY HIGHLIGHT ── */}
+      <section style={{ padding:'60px 6%', background:'linear-gradient(135deg,rgba(52,201,138,.06),rgba(124,111,247,.06))', borderTop:'1px solid rgba(52,201,138,.15)', borderBottom:'1px solid rgba(52,201,138,.15)' }}>
+        <div style={{ maxWidth:960, margin:'0 auto', display:'grid', gridTemplateColumns:'1fr 1fr', gap:48, alignItems:'center' }} className="two-col">
+          <div>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'4px 12px', borderRadius:20, background:'rgba(52,201,138,.12)', border:'1px solid rgba(52,201,138,.3)', fontSize:11, fontWeight:700, color:'#34c98a', marginBottom:16, letterSpacing:'.05em', textTransform:'uppercase' as const }}>
+              ✦ Agentic AI — runs while you sleep
+            </div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(24px,3vw,42px)', fontWeight:800, margin:'0 0 16px', letterSpacing:'-0.03em', color:'#f5f5f7', lineHeight:1.1 }}>
+              Your content plan.<br />
+              <span style={{ color:'#34c98a' }}>In your inbox.</span><br />
+              Every morning.
+            </h2>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,.55)', lineHeight:1.75, marginBottom:24 }}>
+              Enable daily delivery and Markr's AI agent generates 3 Instagram posts for your app every morning — captions, hashtags, image prompts, hooks — and sends them straight to your inbox before you wake up.
+            </p>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {[
+                { icon:'🌅', text:'Morning post optimised for saves — ready at 6:30am' },
+                { icon:'💡', text:'Midday post optimised for shares — written overnight' },
+                { icon:'🌙', text:'Evening post optimised for comments — zero effort' },
+                { icon:'🔄', text:'Fully automated — no app opens required' },
+              ].map(i => (
+                <div key={i.text} style={{ display:'flex', alignItems:'center', gap:10, fontSize:13, color:'rgba(255,255,255,.75)' }}>
+                  <span style={{ fontSize:16, flexShrink:0 }}>{i.icon}</span>
+                  <span>{i.text}</span>
+                </div>
+              ))}
+            </div>
+            <a href="/app" style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:24, padding:'11px 24px', borderRadius:9, background:'#34c98a', color:'#000', fontSize:14, fontWeight:700, textDecoration:'none', transition:'opacity .15s', fontFamily:B }}
+              onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.85'}
+              onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
+              Enable daily delivery →
+            </a>
+          </div>
+
+          {/* Email preview mockup */}
+          <div style={{ background:'#161619', borderRadius:16, border:'1px solid rgba(255,255,255,.08)', overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,.5)' }}>
+            {/* Email client header */}
+            <div style={{ background:'#111113', padding:'12px 16px', borderBottom:'1px solid rgba(255,255,255,.06)', display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:10, height:10, borderRadius:'50%', background:'#e55' }} />
+              <div style={{ width:10, height:10, borderRadius:'50%', background:'#f5a623' }} />
+              <div style={{ width:10, height:10, borderRadius:'50%', background:'#34c98a' }} />
+              <div style={{ flex:1, textAlign:'center', fontSize:11, color:'rgba(255,255,255,.3)' }}>Inbox</div>
+            </div>
+            {/* Email subject line */}
+            <div style={{ padding:'14px 16px', borderBottom:'1px solid rgba(255,255,255,.06)', background:'rgba(52,201,138,.05)' }}>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', marginBottom:4 }}>From: Markr &lt;markr@journaljoy.org&gt;</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5' }}>Your Mindprint content plan for today 🚀</div>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', marginTop:2 }}>Sunday, 1 June · 6:30 AM</div>
+            </div>
+            {/* Email content preview */}
+            <div style={{ padding:'16px' }}>
+              {[
+                { emoji:'🌅', label:'Morning Post', time:'7–9 AM', color:'#60a5fa', badge:'Saves', text:'You don\'t have to earn a peaceful morning. Just notice: the weight of the mug in your hand.\n\nWhat are you noticing right now?' },
+                { emoji:'💡', label:'Midday Post', time:'12–1:30 PM', color:'#a78bfa', badge:'Shares', text:'The people who\'ve grown the most aren\'t the ones who never fell apart.\n\nWho needs to hear this today?' },
+              ].map(p => (
+                <div key={p.label} style={{ background:'rgba(255,255,255,.03)', borderRadius:10, padding:'12px', marginBottom:8, border:`1px solid ${p.color}25` }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                    <span style={{ fontSize:14 }}>{p.emoji}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:p.color }}>{p.label}</span>
+                    <span style={{ fontSize:10, color:'rgba(255,255,255,.3)', marginLeft:'auto' }}>{p.time}</span>
+                    <span style={{ fontSize:9, padding:'2px 7px', borderRadius:20, background:`${p.color}18`, color:p.color, fontWeight:700 }}>{p.badge}</span>
+                  </div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,.6)', lineHeight:1.6, fontStyle:'italic' }}>{p.text}</div>
+                </div>
+              ))}
+              <div style={{ textAlign:'center', padding:'8px 0', fontSize:11, color:'rgba(255,255,255,.25)' }}>+ Evening post & hashtags inside →</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── FEATURES — 3 buckets ── */}
       <section id="features" style={{ padding:'80px 6%' }}>
         <div style={{ maxWidth:1000, margin:'0 auto' }}>
@@ -258,7 +338,7 @@ export default function Landing() {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 48px 1fr', gap:0, alignItems:'center' }} className="before-after">
             <div style={{ background:'rgba(229,85,85,.06)', border:'1px solid rgba(229,85,85,.2)', borderRadius:14, padding:'24px 20px' }}>
               <div style={{ fontSize:12, fontWeight:700, color:'#e55555', marginBottom:16, letterSpacing:'.05em', textTransform:'uppercase' as const }}>Before Markr</div>
-              {['Guessing what to post every day','No idea what users care about','Vague strategy, no clear plan','No insights, just opinions','Wasting time & money'].map(t=>(
+              {['Guessing what to post every day','Spending hours writing captions','No idea what users care about','Vague strategy, no clear plan','Wasting time & money'].map(t=>(
                 <div key={t} style={{ display:'flex', gap:8, alignItems:'center', padding:'7px 0', borderBottom:'1px solid rgba(229,85,85,.1)', fontSize:13, color:'rgba(255,255,255,.5)' }}>
                   <span style={{ color:'#e55555', flexShrink:0 }}>✕</span>{t}
                 </div>
@@ -269,7 +349,7 @@ export default function Landing() {
             </div>
             <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.2)', borderRadius:14, padding:'24px 20px' }}>
               <div style={{ fontSize:12, fontWeight:700, color:'#34c98a', marginBottom:16, letterSpacing:'.05em', textTransform:'uppercase' as const }}>After Markr</div>
-              {['Clear content ideas that get engagement','Real insights from real user testing','Strategy tailored to your app','Know what to post, why & when','Save time. Grow faster.'].map(t=>(
+              {['3 posts in your inbox every morning','Zero time spent writing captions','Real insights from real user testing','Strategy tailored to your app','Save time. Grow faster.'].map(t=>(
                 <div key={t} style={{ display:'flex', gap:8, alignItems:'center', padding:'7px 0', borderBottom:'1px solid rgba(52,201,138,.1)', fontSize:13, color:'rgba(255,255,255,.75)', fontWeight:500 }}>
                   <span style={{ color:'#34c98a', flexShrink:0 }}>✓</span>{t}
                 </div>
@@ -367,7 +447,9 @@ export default function Landing() {
             Now let it tell you{' '}
             <span style={{ background:'linear-gradient(135deg,#7c6ff7,#e26faf)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>how to grow.</span>
           </h2>
-          <p style={{ fontSize:16, color:'rgba(255,255,255,.45)', marginBottom:32 }}>Stop guessing. Start growing with Markr.</p>
+          <p style={{ fontSize:16, color:'rgba(255,255,255,.45)', marginBottom:32 }}>
+            Wake up to 3 ready-to-post captions every morning. Stop guessing. Start growing with Markr.
+          </p>
           <a href="/app" style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'14px 36px', borderRadius:10, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:15, fontWeight:700, textDecoration:'none', boxShadow:'0 0 40px rgba(124,111,247,.3)', transition:'all .2s', fontFamily:B }}
             onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform='translateY(-2px)';(e.currentTarget as HTMLElement).style.boxShadow='0 8px 40px rgba(124,111,247,.45)'}}
             onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='none';(e.currentTarget as HTMLElement).style.boxShadow='0 0 40px rgba(124,111,247,.3)'}}>
