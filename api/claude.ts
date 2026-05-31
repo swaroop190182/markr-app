@@ -1,7 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 // Rate limits per plan (calls per day)
-const RATE_LIMITS = { pro: 200, free: 20 }
+const RATE_LIMITS = { pro: 200, free: 5 }  // free reduced from 20 to 5
+
+// Pro-only features
+const PRO_ONLY_MODELS = ['sonnet']  // product test uses sonnet — Pro only
 
 // In-memory rate limiter (resets on cold start — good enough for launch)
 const usageMap = new Map<string, { count: number; date: string }>()
@@ -39,6 +42,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   )
   const { data: { user }, error } = await supabase.auth.getUser(token)
   if (error || !user) return res.status(401).json({ error: 'Invalid session' })
+
+  // ── Feature gate: Product Test is Pro only ────────────────────────────────
+  const { model: reqModel } = req.body
+  if (reqModel === 'sonnet' && plan !== 'pro') {
+    return res.status(403).json({
+      error: 'Product Test is a Pro feature. Upgrade to run QA simulations on your app.',
+      feature: 'product_test',
+      plan,
+    })
+  }
 
   // ── Rate limit ───────────────────────────────────────────────────────────
   const plan = getPlan(user.email ?? '')
