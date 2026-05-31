@@ -97,13 +97,51 @@ Output ONLY valid JSON:
     setLoad('swot', true)
     const ptCtx = getTestContext(currentApp)
     try {
-      const prompt = `Detailed SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST come from product test findings. Name specific features.' : ' No generic filler.'}
-Output ONLY valid JSON:
-{"strengths":["4 specific strengths"],"weaknesses":["4 honest weaknesses"],"opportunities":["4 real opportunities"],"threats":["4 real threats"],"strategic_priorities":["3 actions to focus on RIGHT NOW"]}`
+      const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON.', 2000)
+For EVERY point include:
+- A rating (High/Medium/Low impact)
+- A specific action (what to DO about this point — not generic, specific to this app)
+- An owner hint (who should action this: founder/marketing/product/dev)
+
+Output ONLY valid JSON, no markdown:
+{
+  "overall_score": 72,
+  "verdict": "1 sentence strategic summary — what is the single most important thing this company should focus on?",
+  "strengths": [
+    { "point": "specific strength", "rating": "High", "evidence": "why this is true — 1 sentence", "action": "how to LEVERAGE this strength — specific tactic", "owner": "marketing" },
+    { "point": "specific strength", "rating": "Medium", "evidence": "why this is true", "action": "specific leverage tactic", "owner": "founder" },
+    { "point": "specific strength", "rating": "High", "evidence": "why this is true", "action": "specific leverage tactic", "owner": "product" },
+    { "point": "specific strength", "rating": "Low", "evidence": "why this is true", "action": "specific leverage tactic", "owner": "marketing" }
+  ],
+  "weaknesses": [
+    { "point": "specific weakness", "rating": "High", "evidence": "why this hurts — 1 sentence", "action": "how to FIX or MITIGATE — specific step", "owner": "product", "timeframe": "Week 1-2" },
+    { "point": "specific weakness", "rating": "Medium", "evidence": "why this hurts", "action": "specific fix", "owner": "dev", "timeframe": "Month 1" },
+    { "point": "specific weakness", "rating": "High", "evidence": "why this hurts", "action": "specific fix", "owner": "founder", "timeframe": "Week 1" },
+    { "point": "specific weakness", "rating": "Low", "evidence": "why this hurts", "action": "specific fix", "owner": "marketing", "timeframe": "Month 2" }
+  ],
+  "opportunities": [
+    { "point": "specific opportunity", "rating": "High", "evidence": "why this is real — 1 sentence", "action": "how to CAPTURE this — specific next step", "owner": "founder", "timeframe": "Month 1" },
+    { "point": "specific opportunity", "rating": "High", "evidence": "why this is real", "action": "specific capture step", "owner": "marketing", "timeframe": "Month 2" },
+    { "point": "specific opportunity", "rating": "Medium", "evidence": "why this is real", "action": "specific capture step", "owner": "product", "timeframe": "Quarter 2" },
+    { "point": "specific opportunity", "rating": "Medium", "evidence": "why this is real", "action": "specific capture step", "owner": "founder", "timeframe": "Quarter 2" }
+  ],
+  "threats": [
+    { "point": "specific threat", "rating": "High", "evidence": "why this is dangerous — 1 sentence", "action": "how to DEFEND or NEUTRALISE — specific step", "owner": "founder", "timeframe": "Immediate" },
+    { "point": "specific threat", "rating": "Medium", "evidence": "why this is dangerous", "action": "specific defence", "owner": "product", "timeframe": "Month 1" },
+    { "point": "specific threat", "rating": "High", "evidence": "why this is dangerous", "action": "specific defence", "owner": "marketing", "timeframe": "Month 1" },
+    { "point": "specific threat", "rating": "Low", "evidence": "why this is dangerous", "action": "specific defence", "owner": "founder", "timeframe": "Quarter 2" }
+  ],
+  "top_actions": [
+    { "priority": 1, "action": "Single most important thing to do NOW — specific, not generic", "category": "weakness/threat/opportunity", "impact": "High", "timeframe": "This week" },
+    { "priority": 2, "action": "Second most important action", "category": "weakness/opportunity", "impact": "High", "timeframe": "Month 1" },
+    { "priority": 3, "action": "Third most important action", "category": "opportunity/strength", "impact": "Medium", "timeframe": "Month 2" }
+  ]
+}`
+
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Be specific and honest — no generic consulting filler.', 3000)
       setTabCache('swot', raw.replace(/```json|```/g,'').trim())
-      toast('SWOT ready!')
+      toast('SWOT analysis ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('swot', false)
   }
@@ -373,45 +411,104 @@ function BMCTab({ data, loading, onGenerate, appName }: { data?:string; loading?
 
 // ── SWOT TAB ─────────────────────────────────────────────────────────────────
 function SWOTTab({ data, loading, onGenerate }: { data?:string; loading?:boolean; onGenerate:()=>void }) {
-  if (loading) return <LoadingCard text="Running SWOT analysis…" />
-  if (!data) return <EmptyTab emoji="⚡" title="SWOT Analysis" desc="Strengths, Weaknesses, Opportunities, Threats — grounded in your market and stage." onGenerate={onGenerate} btnLabel="Run SWOT" />
+  if (loading) return <LoadingCard text="Running strategic SWOT analysis…" />
+  if (!data) return (
+    <EmptyTab emoji="⚡" title="Strategic SWOT Analysis" desc="Strengths, Weaknesses, Opportunities, Threats — each rated High/Medium/Low with specific action points and owners." onGenerate={onGenerate} btnLabel="Run SWOT Analysis" />
+  )
   try {
     const d = JSON.parse(data)
+    const ratingColor  = { High:'var(--green)', Medium:'var(--amber)', Low:'var(--text3)' } as Record<string,string>
+    const ratingBg     = { High:'rgba(52,201,138,.1)', Medium:'rgba(245,166,35,.1)', Low:'rgba(90,90,114,.1)' } as Record<string,string>
+    const ownerColor   = { founder:'#a78bfa', marketing:'#60a5fa', product:'#34c98a', dev:'#f5a623' } as Record<string,string>
     const quads = [
-      { key:'strengths',     label:'Strengths',     emoji:'💪', bg:'rgba(52,201,138,.06)',  border:'rgba(52,201,138,.25)',  color:'var(--green)', dot:'#34c98a' },
-      { key:'weaknesses',    label:'Weaknesses',    emoji:'⚠️', bg:'rgba(229,85,85,.06)',   border:'rgba(229,85,85,.25)',   color:'var(--red)',   dot:'#e55555' },
-      { key:'opportunities', label:'Opportunities', emoji:'🌟', bg:'rgba(79,156,247,.06)',  border:'rgba(79,156,247,.25)',  color:'var(--blue)',  dot:'#4f9cf7' },
-      { key:'threats',       label:'Threats',       emoji:'🔥', bg:'rgba(245,166,35,.06)',  border:'rgba(245,166,35,.25)',  color:'var(--amber)', dot:'#f5a623' },
+      { key:'strengths',    label:'Strengths',    emoji:'💪', color:'var(--green)',  bg:'rgba(52,201,138,.05)',  border:'rgba(52,201,138,.2)',  actionLabel:'Leverage' },
+      { key:'weaknesses',   label:'Weaknesses',   emoji:'⚠️', color:'var(--red)',    bg:'rgba(229,85,85,.05)',   border:'rgba(229,85,85,.2)',   actionLabel:'Fix' },
+      { key:'opportunities',label:'Opportunities',emoji:'🌟', color:'var(--blue)',   bg:'rgba(79,156,247,.05)',  border:'rgba(79,156,247,.2)',  actionLabel:'Capture' },
+      { key:'threats',      label:'Threats',      emoji:'🔥', color:'var(--amber)',  bg:'rgba(245,166,35,.05)',  border:'rgba(245,166,35,.2)',  actionLabel:'Defend' },
     ]
+
     return (
       <>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3, marginBottom:16 }}>
+        {/* Overall score + verdict */}
+        {d.verdict && (
+          <div style={{ background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.2)', borderRadius:'var(--r2)', padding:'14px 18px', marginBottom:20, display:'flex', alignItems:'center', gap:14 }}>
+            {d.overall_score && (
+              <div style={{ textAlign:'center', flexShrink:0 }}>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:32, fontWeight:800, color:'var(--accent2)', lineHeight:1 }}>{d.overall_score}</div>
+                <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>Strategic Score</div>
+              </div>
+            )}
+            <div style={{ fontSize:13, color:'var(--text2)', lineHeight:1.6, fontStyle:'italic' }}>"{d.verdict}"</div>
+          </div>
+        )}
+
+        {/* Top 3 actions */}
+        {(d.top_actions ?? []).length > 0 && (
+          <div style={{ background:'var(--surface)', border:'1px solid rgba(124,111,247,.25)', borderRadius:'var(--r2)', padding:16, marginBottom:20 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'var(--accent2)', marginBottom:12, display:'flex', alignItems:'center', gap:8 }}>
+              🎯 Top Priority Actions <span style={{ fontSize:11, color:'var(--text3)', fontWeight:400 }}>— do these first</span>
+            </div>
+            {d.top_actions.map((a: any, i: number) => (
+              <div key={i} style={{ display:'flex', gap:12, padding:'10px 0', borderBottom:'1px solid var(--border)', alignItems:'flex-start' }}>
+                <div style={{ width:24, height:24, borderRadius:'50%', background:`rgba(124,111,247,${0.3 - i*0.08})`, color:'var(--accent2)', fontSize:12, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{a.priority}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:600, marginBottom:3 }}>{a.action}</div>
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:ratingBg[a.impact]??ratingBg.Medium, color:ratingColor[a.impact]??ratingColor.Medium, fontWeight:600 }}>{a.impact} impact</span>
+                    <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'rgba(255,255,255,.05)', color:'var(--text3)' }}>⏱ {a.timeframe}</span>
+                    {a.category && <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'rgba(255,255,255,.05)', color:'var(--text3)' }}>{a.category}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* SWOT quadrants */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
           {quads.map(q => (
-            <div key={q.key} style={{ borderRadius:8, padding:14, border:`1px solid ${q.border}`, background:q.bg }}>
-              <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.05em', textTransform:'uppercase', color:q.color, marginBottom:10 }}>{q.emoji} {q.label}</div>
-              {(d[q.key]??[]).map((item:string, i:number) => (
-                <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8, padding:'4px 0', borderBottom:'1px solid rgba(255,255,255,.05)' }}>
-                  <div style={{ width:5, height:5, borderRadius:'50%', background:q.dot, flexShrink:0, marginTop:7 }} />
-                  <span style={{ fontSize:12, lineHeight:1.55 }}>{item}</span>
+            <div key={q.key} style={{ borderRadius:'var(--r2)', border:`1px solid ${q.border}`, background:q.bg, padding:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, letterSpacing:'.05em', textTransform:'uppercase' as const, color:q.color, marginBottom:12, display:'flex', alignItems:'center', gap:6 }}>
+                <span>{q.emoji}</span>{q.label}
+              </div>
+              {(d[q.key] ?? []).map((item: any, i: number) => (
+                <div key={i} style={{ background:'rgba(255,255,255,.025)', borderRadius:'var(--r)', padding:'10px 12px', marginBottom:8, border:'1px solid rgba(255,255,255,.05)' }}>
+                  {/* Point + rating */}
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8, marginBottom:6 }}>
+                    <div style={{ fontSize:13, fontWeight:600, lineHeight:1.4, flex:1 }}>{item.point}</div>
+                    <span style={{ fontSize:10, padding:'2px 7px', borderRadius:20, fontWeight:700, background:ratingBg[item.rating]??ratingBg.Medium, color:ratingColor[item.rating]??ratingColor.Medium, flexShrink:0, whiteSpace:'nowrap' as const }}>{item.rating}</span>
+                  </div>
+                  {/* Evidence */}
+                  {item.evidence && (
+                    <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, marginBottom:8, fontStyle:'italic' }}>{item.evidence}</div>
+                  )}
+                  {/* Action */}
+                  <div style={{ display:'flex', gap:6, alignItems:'flex-start', padding:'7px 9px', background:'rgba(255,255,255,.04)', borderRadius:6, borderLeft:`2px solid ${q.color}` }}>
+                    <span style={{ fontSize:10, fontWeight:700, color:q.color, flexShrink:0, marginTop:1 }}>→ {q.actionLabel}:</span>
+                    <span style={{ fontSize:11, color:'rgba(255,255,255,.75)', lineHeight:1.5 }}>{item.action}</span>
+                  </div>
+                  {/* Owner + timeframe */}
+                  <div style={{ display:'flex', gap:6, marginTop:6, flexWrap:'wrap' as const }}>
+                    {item.owner && (
+                      <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'rgba(255,255,255,.06)', color:ownerColor[item.owner]??'var(--text3)', fontWeight:600 }}>
+                        👤 {item.owner}
+                      </span>
+                    )}
+                    {item.timeframe && (
+                      <span style={{ fontSize:10, padding:'1px 7px', borderRadius:20, background:'rgba(255,255,255,.04)', color:'var(--text3)' }}>
+                        ⏱ {item.timeframe}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           ))}
         </div>
-        {d.strategic_priorities?.length > 0 && (
-          <Card>
-            <CardHeader title="🎯 Strategic Priorities Right Now" action={<button className="vbtn" onClick={onGenerate}>🔄 Refresh</button>} />
-            {d.strategic_priorities.map((p:string, i:number) => (
-              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'10px 0', borderBottom:'1px solid var(--border)' }}>
-                <div style={{ width:22, height:22, borderRadius:'50%', background:'rgba(124,111,247,.15)', color:'var(--accent2)', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</div>
-                <div style={{ fontSize:13, lineHeight:1.6 }}>{p}</div>
-              </div>
-            ))}
-          </Card>
-        )}
+        <div style={{ textAlign:'right' }}><button className="vbtn" onClick={onGenerate}>🔄 Regenerate</button></div>
       </>
     )
-  } catch { return <ErrorCard message="Failed to render" onRetry={onGenerate} /> }
+  } catch { return <ErrorCard message="Failed to render — try regenerating" onRetry={onGenerate} /> }
 }
 
 // ── GROWTH TAB ───────────────────────────────────────────────────────────────
