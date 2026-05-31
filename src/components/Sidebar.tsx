@@ -138,6 +138,7 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, userEmail }: P
 
         {canAddApp ? (
           <div
+            id="add-app-btn"
             onClick={onAddApp}
             className="flex items-center gap-1.5 cursor-pointer"
             style={{ margin: '4px 2px 8px', padding: '7px 10px', borderRadius: 7, border: '1px dashed var(--border2)', fontSize: 12, color: 'var(--text3)', transition: 'all .15s' }}
