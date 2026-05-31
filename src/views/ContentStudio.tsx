@@ -126,7 +126,7 @@ Output ONLY valid JSON:
       {/* Metric legend */}
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:20 }}>
         {[['📥 Morning → Saves','rgba(59,130,246,.1)','#60a5fa'],['🔁 Midday → Shares','rgba(139,92,246,.1)','#a78bfa'],['💬 Evening → Comments','rgba(16,185,129,.1)','#34d399']].map(([l,bg,c]) => (
-          <div key={l as string} style={{ fontSize:11, padding:'5px 12px', borderRadius:20, fontWeight:600, border:'1px solid rgba(255,255,255,.08)', background:bg as string, color:c as string, display:'flex', alignItems:'center', gap:5 }}>{l}</div>
+          <div key={l as string} style={{ fontSize:11, padding:'5px 12px', borderRadius:20, fontWeight:600, border:'1px solid var(--surface3)', background:bg as string, color:c as string, display:'flex', alignItems:'center', gap:5 }}>{l}</div>
         ))}
       </div>
 
@@ -169,7 +169,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
   return (
     <div style={{ background:'var(--surface2)', borderRadius:'var(--r2)', overflow:'hidden', display:'flex', flexDirection:'column', border:`1.5px solid ${state==='ready' ? c.border : 'var(--surface3)'}`, transition:'border-color .3s' }}>
       {/* Header */}
-      <div style={{ padding:'13px 15px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.05)', background:c.bg }}>
+      <div style={{ padding:'13px 15px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid var(--surface2)', background:c.bg }}>
         <span style={{ fontSize:20 }}>{c.emoji}</span>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:13, fontWeight:600, color:c.color }}>{c.label}</div>
@@ -216,7 +216,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
             </div>
 
             {/* Metric reason */}
-            <div style={{ fontSize:11, padding:'8px 10px', borderRadius:'var(--r)', fontWeight:500, lineHeight:1.5, border:'1px solid rgba(255,255,255,.06)', background:c.metricBg, color:c.metricColor }}>{c.metricReason}</div>
+            <div style={{ fontSize:11, padding:'8px 10px', borderRadius:'var(--r)', fontWeight:500, lineHeight:1.5, border:'1px solid var(--surface2)', background:c.metricBg, color:c.metricColor }}>{c.metricReason}</div>
 
             {/* Hook */}
             {hook && (
@@ -230,7 +230,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
             <div style={{ display:'flex', gap:4, flexWrap:'wrap', borderBottom:'1px solid rgba(255,255,255,.07)', paddingBottom:8 }}>
               {tabs.map(tab => (
                 <button key={tab} onClick={() => onTabChange(tab)}
-                  style={{ padding:'4px 10px', borderRadius:20, border:`1px solid ${activeTab===tab ? 'rgba(255,255,255,.15)' : 'transparent'}`, fontSize:11, fontWeight:activeTab===tab ? 600 : 500, color:activeTab===tab ? 'var(--text)' : 'var(--text3)', background:activeTab===tab ? 'rgba(255,255,255,.06)' : 'transparent', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>
+                  style={{ padding:'4px 10px', borderRadius:20, border:`1px solid ${activeTab===tab ? 'rgba(255,255,255,.15)' : 'transparent'}`, fontSize:11, fontWeight:activeTab===tab ? 600 : 500, color:activeTab===tab ? 'var(--text)' : 'var(--text3)', background:activeTab===tab ? 'var(--surface2)' : 'transparent', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>
                   {tab}
                 </button>
               ))}
@@ -242,7 +242,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
                 <div style={{ display:'flex', justifyContent:'flex-end' }}>
                   <CopyButton text={post.caption + '\n\n' + (post.hashtags??[]).map(h=>'#'+h).join(' ')} label="Copy caption + hashtags" />
                 </div>
-                <div style={{ fontSize:13, lineHeight:1.85, background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:'var(--r)', padding:'10px 12px', whiteSpace:'pre-wrap' }}>{post.caption}</div>
+                <div style={{ fontSize:13, lineHeight:1.85, background:'var(--surface2)', border:'1px solid rgba(255,255,255,.07)', borderRadius:'var(--r)', padding:'10px 12px', whiteSpace:'pre-wrap' }}>{post.caption}</div>
                 {post.poll_options && (
                   <div style={{ display:'flex', gap:6 }}>
                     {post.poll_options.map((o,i) => (
@@ -269,7 +269,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
               <>
                 <div style={{ display:'flex', justifyContent:'flex-end' }}><CopyButton text={post.image_prompt} label="Copy prompt" /></div>
                 <div style={{ fontSize:12, lineHeight:1.7, padding:'10px 12px', borderRadius:'var(--r)', border:'1px solid rgba(253,230,138,.15)', fontStyle:'italic', color:'#fef9c3', background:'rgba(254,249,195,.05)' }}>{post.image_prompt}</div>
-                <div style={{ fontSize:11, lineHeight:1.9, padding:'10px 12px', background:'rgba(255,255,255,.03)', borderRadius:'var(--r)', border:'1px solid rgba(255,255,255,.07)', color:'var(--text2)' }}>
+                <div style={{ fontSize:11, lineHeight:1.9, padding:'10px 12px', background:'var(--surface2)', borderRadius:'var(--r)', border:'1px solid rgba(255,255,255,.07)', color:'var(--text2)' }}>
                   Paste into: <a href="https://www.canva.com/ai-image-generator/" target="_blank" style={{ color:'#60a5fa' }}>Canva AI</a> · <a href="https://firefly.adobe.com" target="_blank" style={{ color:'#60a5fa' }}>Adobe Firefly</a> · <a href="https://labs.openai.com" target="_blank" style={{ color:'#60a5fa' }}>DALL-E</a>
                 </div>
               </>
@@ -280,7 +280,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
                   <div style={{ fontSize:18, fontWeight:700, color:c.color, marginBottom:4 }}>⏰ {post.best_posting_time}</div>
                   <div style={{ fontSize:12, lineHeight:1.55, color:c.color, opacity:.8 }}>{c.timeReason}</div>
                 </div>
-                <div style={{ fontSize:12, lineHeight:1.75, padding:'10px 12px', background:'rgba(255,255,255,.03)', borderRadius:'var(--r)', border:'1px solid rgba(255,255,255,.07)', color:'var(--text2)' }}>
+                <div style={{ fontSize:12, lineHeight:1.75, padding:'10px 12px', background:'var(--surface2)', borderRadius:'var(--r)', border:'1px solid rgba(255,255,255,.07)', color:'var(--text2)' }}>
                   <strong style={{ color:'var(--text)' }}>Why this works:</strong><br/>{c.metricReason}<br/><br/>
                   <strong style={{ color:'var(--text)' }}>Best days:</strong> {c.bestDays}
                 </div>
