@@ -2,7 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
 const RESEND_API = 'https://api.resend.com/emails'
-const FROM       = 'Markr <markr@mindprintjournal.com>'
+const FROM       = 'Markr <hello@mindprintjournal.com>'
+const APP_URL    = 'https://markr.mindprintjournal.com'
 
 // ── Generate content for a user ───────────────────────────────────────────────
 async function generateContent(app: any): Promise<any[]> {
@@ -41,7 +42,7 @@ Output ONLY valid JSON:
 }`
 
     try {
-      const res = await fetch(`${process.env.VERCEL_URL ? 'https://'+process.env.VERCEL_URL : 'http://localhost:3000'}/api/claude`, {
+      const res = await fetch(`${APP_URL}/api/claude`, {
         method: 'POST',
         headers: {
           'Content-Type':  'application/json',
