@@ -74,6 +74,14 @@ export interface AppData {
   testCreds?: TestCreds | null
   productTest?: ProductTest | null
   analyzed?: boolean
+  // Persisted analysis cache
+  competitive_analysis?: string | null
+  bmc_analysis?:         string | null
+  swot_analysis?:        string | null
+  growth_analysis?:      string | null
+  pricing_analysis?:     string | null
+  content_studio_cache?: string | null
+  strategy_cache?:       string | null
 }
 
 export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights'
