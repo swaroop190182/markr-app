@@ -110,45 +110,60 @@ Output ONLY valid JSON:
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
     try {
-      const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}
+      const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}${rcCtx}
 
-For EVERY point include:
-- A rating (High/Medium/Low impact)
-- A specific action (what to DO about this point — not generic, specific to this app)
-- An owner hint (who should action this: founder/marketing/product/dev)
+SCORING RULES — you MUST calculate each component score honestly based on actual evidence:
+- strength_score (0-25): High strength = +6pts, Medium = +4pts, Low = +2pts. Cap at 25.
+- weakness_score (0-25): Start at 25. High weakness = -6pts, Medium = -3pts, Low = -1pt. Floor at 0.
+- opportunity_score (0-25): High opportunity = +6pts, Medium = +4pts. Cap at 25.
+- threat_score (0-25): Start at 25. High threat = -6pts, Medium = -3pts. Floor at 0.
+- overall_score = sum of all four components (0-100)
+
+HONEST BENCHMARKS — do NOT default to 70-75:
+- 20-40: struggling, unvalidated, high risk
+- 41-55: early with real problems to fix
+- 56-68: solid foundation but gaps remain
+- 69-79: strong with clear path forward
+- 80+: proven traction (rare — only if strong evidence)
+
+For EVERY point: rating (High/Medium/Low), specific evidence (not generic), specific action, owner, timeframe.
 
 Output ONLY valid JSON, no markdown:
 {
-  "overall_score": 72,
-  "verdict": "1 sentence strategic summary — what is the single most important thing this company should focus on?",
+  "strength_score": 14,
+  "weakness_score": 10,
+  "opportunity_score": 16,
+  "threat_score": 11,
+  "overall_score": 51,
+  "verdict": "1 sentence — the single most important strategic focus for THIS specific app right now",
   "strengths": [
-    { "point": "specific strength", "rating": "High", "evidence": "why this is true — 1 sentence", "action": "how to LEVERAGE this strength — specific tactic", "owner": "marketing" },
-    { "point": "specific strength", "rating": "Medium", "evidence": "why this is true", "action": "specific leverage tactic", "owner": "founder" },
-    { "point": "specific strength", "rating": "High", "evidence": "why this is true", "action": "specific leverage tactic", "owner": "product" },
-    { "point": "specific strength", "rating": "Low", "evidence": "why this is true", "action": "specific leverage tactic", "owner": "marketing" }
+    { "point": "specific strength unique to this app", "rating": "High", "evidence": "concrete reason this is a real strength for this specific app", "action": "specific tactic to leverage this", "owner": "marketing" },
+    { "point": "specific strength", "rating": "Medium", "evidence": "concrete reason", "action": "specific leverage tactic", "owner": "founder" },
+    { "point": "specific strength", "rating": "High", "evidence": "concrete reason", "action": "specific leverage tactic", "owner": "product" },
+    { "point": "specific strength", "rating": "Low", "evidence": "concrete reason", "action": "specific leverage tactic", "owner": "marketing" }
   ],
   "weaknesses": [
-    { "point": "specific weakness", "rating": "High", "evidence": "why this hurts — 1 sentence", "action": "how to FIX or MITIGATE — specific step", "owner": "product", "timeframe": "Week 1-2" },
-    { "point": "specific weakness", "rating": "Medium", "evidence": "why this hurts", "action": "specific fix", "owner": "dev", "timeframe": "Month 1" },
-    { "point": "specific weakness", "rating": "High", "evidence": "why this hurts", "action": "specific fix", "owner": "founder", "timeframe": "Week 1" },
-    { "point": "specific weakness", "rating": "Low", "evidence": "why this hurts", "action": "specific fix", "owner": "marketing", "timeframe": "Month 2" }
+    { "point": "specific weakness unique to this app", "rating": "High", "evidence": "concrete reason this hurts growth", "action": "specific fix step", "owner": "product", "timeframe": "Week 1-2" },
+    { "point": "specific weakness", "rating": "Medium", "evidence": "concrete reason", "action": "specific fix", "owner": "dev", "timeframe": "Month 1" },
+    { "point": "specific weakness", "rating": "High", "evidence": "concrete reason", "action": "specific fix", "owner": "founder", "timeframe": "Week 1" },
+    { "point": "specific weakness", "rating": "Low", "evidence": "concrete reason", "action": "specific fix", "owner": "marketing", "timeframe": "Month 2" }
   ],
   "opportunities": [
-    { "point": "specific opportunity", "rating": "High", "evidence": "why this is real — 1 sentence", "action": "how to CAPTURE this — specific next step", "owner": "founder", "timeframe": "Month 1" },
-    { "point": "specific opportunity", "rating": "High", "evidence": "why this is real", "action": "specific capture step", "owner": "marketing", "timeframe": "Month 2" },
-    { "point": "specific opportunity", "rating": "Medium", "evidence": "why this is real", "action": "specific capture step", "owner": "product", "timeframe": "Quarter 2" },
-    { "point": "specific opportunity", "rating": "Medium", "evidence": "why this is real", "action": "specific capture step", "owner": "founder", "timeframe": "Quarter 2" }
+    { "point": "specific opportunity for this app", "rating": "High", "evidence": "concrete reason this is real and addressable now", "action": "specific capture step", "owner": "founder", "timeframe": "Month 1" },
+    { "point": "specific opportunity", "rating": "High", "evidence": "concrete reason", "action": "specific capture step", "owner": "marketing", "timeframe": "Month 2" },
+    { "point": "specific opportunity", "rating": "Medium", "evidence": "concrete reason", "action": "specific capture step", "owner": "product", "timeframe": "Quarter 2" },
+    { "point": "specific opportunity", "rating": "Medium", "evidence": "concrete reason", "action": "specific capture step", "owner": "founder", "timeframe": "Quarter 2" }
   ],
   "threats": [
-    { "point": "specific threat", "rating": "High", "evidence": "why this is dangerous — 1 sentence", "action": "how to DEFEND or NEUTRALISE — specific step", "owner": "founder", "timeframe": "Immediate" },
-    { "point": "specific threat", "rating": "Medium", "evidence": "why this is dangerous", "action": "specific defence", "owner": "product", "timeframe": "Month 1" },
-    { "point": "specific threat", "rating": "High", "evidence": "why this is dangerous", "action": "specific defence", "owner": "marketing", "timeframe": "Month 1" },
-    { "point": "specific threat", "rating": "Low", "evidence": "why this is dangerous", "action": "specific defence", "owner": "founder", "timeframe": "Quarter 2" }
+    { "point": "specific threat to this app", "rating": "High", "evidence": "concrete reason this is dangerous", "action": "specific defence step", "owner": "founder", "timeframe": "Immediate" },
+    { "point": "specific threat", "rating": "Medium", "evidence": "concrete reason", "action": "specific defence", "owner": "product", "timeframe": "Month 1" },
+    { "point": "specific threat", "rating": "High", "evidence": "concrete reason", "action": "specific defence", "owner": "marketing", "timeframe": "Month 1" },
+    { "point": "specific threat", "rating": "Low", "evidence": "concrete reason", "action": "specific defence", "owner": "founder", "timeframe": "Quarter 2" }
   ],
   "top_actions": [
-    { "priority": 1, "action": "Single most important thing to do NOW — specific, not generic", "category": "weakness/threat/opportunity", "impact": "High", "timeframe": "This week" },
-    { "priority": 2, "action": "Second most important action", "category": "weakness/opportunity", "impact": "High", "timeframe": "Month 1" },
-    { "priority": 3, "action": "Third most important action", "category": "opportunity/strength", "impact": "Medium", "timeframe": "Month 2" }
+    { "priority": 1, "action": "Most important action NOW — specific to this app only", "category": "weakness", "impact": "High", "timeframe": "This week" },
+    { "priority": 2, "action": "Second most important action — specific", "category": "opportunity", "impact": "High", "timeframe": "Month 1" },
+    { "priority": 3, "action": "Third action — specific", "category": "strength", "impact": "Medium", "timeframe": "Month 2" }
   ]
 }`
 
@@ -466,16 +481,45 @@ function SWOTTab({ data, loading, onGenerate }: { data?:string; loading?:boolean
 
     return (
       <>
-        {/* Overall score + verdict */}
+        {/* Overall score + component breakdown + verdict */}
         {d.verdict && (
-          <div style={{ background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.2)', borderRadius:'var(--r2)', padding:'14px 18px', marginBottom:20, display:'flex', alignItems:'center', gap:14 }}>
-            {d.overall_score && (
-              <div style={{ textAlign:'center', flexShrink:0 }}>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:32, fontWeight:800, color:'var(--accent2)', lineHeight:1 }}>{d.overall_score}</div>
-                <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>Strategic Score</div>
+          <div style={{ background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.2)', borderRadius:'var(--r2)', padding:'16px 18px', marginBottom:20 }}>
+            <div style={{ display:'flex', gap:16, alignItems:'flex-start', flexWrap:'wrap' as const }}>
+              {/* Big score */}
+              {d.overall_score && (
+                <div style={{ textAlign:'center', flexShrink:0, minWidth:64 }}>
+                  <div style={{ fontFamily:"'Inter',sans-serif", fontSize:40, fontWeight:700, color:'var(--accent)', lineHeight:1 }}>{d.overall_score}</div>
+                  <div style={{ fontSize:9, color:'var(--text3)', marginTop:2, fontWeight:600, letterSpacing:'.05em', textTransform:'uppercase' as const }}>/ 100</div>
+                </div>
+              )}
+              {/* Component bars */}
+              <div style={{ flex:1, minWidth:200 }}>
+                {d.strength_score !== undefined && (
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 16px', marginBottom:10 }}>
+                    {[
+                      { label:'Strengths',     score:d.strength_score,     color:'var(--green)' },
+                      { label:'Opportunities', score:d.opportunity_score,   color:'var(--blue)'  },
+                      { label:'Weaknesses',    score:d.weakness_score,     color:'var(--red)'   },
+                      { label:'Threats',       score:d.threat_score,       color:'var(--amber)' },
+                    ].map(c => (
+                      <div key={c.label}>
+                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                          <span style={{ fontSize:10, color:'var(--text3)', fontWeight:600 }}>{c.label}</span>
+                          <span style={{ fontSize:10, fontWeight:700, color:c.color }}>{c.score}/25</span>
+                        </div>
+                        <div style={{ height:4, background:'var(--surface3)', borderRadius:2, overflow:'hidden' }}>
+                          <div style={{ height:'100%', width:`${(c.score/25)*100}%`, background:c.color, borderRadius:2 }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize:12, color:'var(--text2)', lineHeight:1.6, fontStyle:'italic' }}>"{d.verdict}"</div>
+                <div style={{ fontSize:10, color:'var(--text3)', marginTop:6 }}>
+                  ℹ️ Score calculated from weighted strengths, weaknesses, opportunities and threats. Add recent metrics in Edit App for a more accurate assessment.
+                </div>
               </div>
-            )}
-            <div style={{ fontSize:13, color:'var(--text2)', lineHeight:1.6, fontStyle:'italic' }}>"{d.verdict}"</div>
+            </div>
           </div>
         )}
 
