@@ -3,6 +3,62 @@ import { useState, useEffect } from 'react'
 const D = "'Syne', sans-serif"
 const B = "'DM Sans', sans-serif"
 
+// ── Video with thumbnail + play button (loads iframe only on click) ───────────
+function VideoEmbed() {
+  const [playing, setPlaying] = useState(false)
+  const thumb = 'https://img.youtube.com/vi/G8xh5wXhemU/maxresdefault.jpg'
+
+  return (
+    <div
+      style={{ position:'relative', width:'100%', paddingBottom:'56.25%', borderRadius:16, overflow:'hidden', border:'1px solid rgba(255,255,255,.1)', boxShadow:'0 32px 80px rgba(0,0,0,.6)', cursor: playing ? 'default' : 'pointer' }}
+      onClick={() => !playing && setPlaying(true)}
+    >
+      {playing ? (
+        <iframe
+          style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', border:'none' }}
+          src="https://www.youtube.com/embed/G8xh5wXhemU?autoplay=1&rel=0"
+          title="Markr Demo"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      ) : (
+        <>
+          {/* Thumbnail */}
+          <img
+            src={thumb}
+            alt="Markr demo video"
+            style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', objectFit:'cover' }}
+          />
+          {/* Dark overlay */}
+          <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,.45)', transition:'background .2s' }}
+            onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(0,0,0,.3)'}
+            onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='rgba(0,0,0,.45)'}
+          />
+          {/* Play button */}
+          <div style={{
+            position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+            width:80, height:80, borderRadius:'50%',
+            background:'rgba(124,111,247,.95)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            boxShadow:'0 0 0 12px rgba(124,111,247,.2), 0 0 0 24px rgba(124,111,247,.08)',
+            transition:'all .2s',
+          }}
+            onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform='translate(-50%,-50%) scale(1.1)';(e.currentTarget as HTMLElement).style.background='#9b8af4'}}
+            onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='translate(-50%,-50%) scale(1)';(e.currentTarget as HTMLElement).style.background='rgba(124,111,247,.95)'}}
+          >
+            {/* Triangle play icon */}
+            <div style={{ width:0, height:0, borderTop:'14px solid transparent', borderBottom:'14px solid transparent', borderLeft:'22px solid #fff', marginLeft:4 }} />
+          </div>
+          {/* Label under play button */}
+          <div style={{ position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)', fontSize:13, fontWeight:600, color:'rgba(255,255,255,.9)', whiteSpace:'nowrap', textShadow:'0 1px 4px rgba(0,0,0,.8)', letterSpacing:'.02em' }}>
+            ▶ Watch the demo · 6 mins
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Landing() {
   const [scrolled, setScrolled] = useState(false)
 
@@ -145,15 +201,17 @@ export default function Landing() {
           </p>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, textAlign:'left' }}>
             {[
-              { icon:'😓', problem:'What do I post today?', fix:'Daily content — written, ready, optimised.' },
-              { icon:'🤔', problem:'Why are users dropping off?', fix:'Real QA testing — bugs, friction, UX scores.' },
-              { icon:'📊', problem:'How do I stack up against competitors?', fix:'Competitive analysis — benchmarks, gaps, wins.' },
+              { icon:'😓', problem:'What do I post today?', fix:'Daily content', fixRest:' — written, ready, optimised.' },
+              { icon:'🤔', problem:'Why are users dropping off?', fix:'Real QA testing', fixRest:' — bugs, friction, UX scores.' },
+              { icon:'📊', problem:'How do I stack up against competitors?', fix:'Competitive analysis', fixRest:' — benchmarks, gaps, wins.' },
             ].map(item=>(
               <div key={item.problem} style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, padding:'20px 18px' }}>
                 <div style={{ fontSize:28, marginBottom:12 }}>{item.icon}</div>
                 <div style={{ fontSize:13, color:'rgba(255,255,255,.35)', marginBottom:10, lineHeight:1.5, fontStyle:'italic' }}>"{item.problem}"</div>
                 <div style={{ width:28, height:2, background:'linear-gradient(90deg,#7c6ff7,#e26faf)', borderRadius:2, marginBottom:10 }} />
-                <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', lineHeight:1.6, fontWeight:500 }}>{item.fix}</div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', lineHeight:1.6, fontWeight:500 }}>
+                  <strong style={{ color:'rgba(255,255,255,.9)' }}>{item.fix}</strong>{item.fixRest}
+                </div>
               </div>
             ))}
           </div>
@@ -193,16 +251,8 @@ export default function Landing() {
             </p>
           </div>
 
-          {/* Video embed */}
-          <div style={{ position:'relative', width:'100%', paddingBottom:'56.25%', borderRadius:16, overflow:'hidden', border:'1px solid rgba(255,255,255,.08)', boxShadow:'0 32px 80px rgba(0,0,0,.6)' }}>
-            <iframe
-              style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', border:'none' }}
-              src="https://www.youtube.com/embed/G8xh5wXhemU"
-              title="Markr Demo — AI co-founder for app founders"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
+          {/* Video embed with play button overlay */}
+          <VideoEmbed />
 
           <div style={{ display:'flex', justifyContent:'center', gap:32, marginTop:28, flexWrap:'wrap' }}>
             {[
@@ -230,9 +280,27 @@ export default function Landing() {
 
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20, marginBottom:20 }} className='feature-buckets'>
             {[
-              { num:'01', icon:'🧪', color:'#34c98a', bg:'rgba(52,201,138,.07)', border:'rgba(52,201,138,.18)', title:'Understand your app', sub:'Real product testing', items:['Logs in and explores every feature','Rates UX across 6 dimensions','Finds bugs with severity ratings','Generates a full QA report','Content strategy informed by real findings'] },
-              { num:'02', icon:'✍️', color:'#a78bfa', bg:'rgba(139,92,246,.07)', border:'rgba(139,92,246,.18)', title:'Generate content', sub:'Instagram content engine', items:['3 posts/day — morning, midday, evening','Each optimised for saves, shares, or comments','Full captions, hashtags, image prompts','Post ideas, hooks, and timing','Grounded in what your app actually does'] },
-              { num:'03', icon:'📊', color:'#4f9cf7', bg:'rgba(79,156,247,.07)', border:'rgba(79,156,247,.18)', title:'Grow with confidence', sub:'Strategy & insights', items:['5 real competitors identified and compared','Business Model Canvas — all 9 blocks','AARRR growth playbook','Pricing strategy with tier recommendations','SWOT analysis and strategic priorities'] },
+              { num:'01', icon:'🧪', color:'#34c98a', bg:'rgba(52,201,138,.07)', border:'rgba(52,201,138,.18)', title:'Understand your app', sub:'Real product testing', items:[
+                ['Logs in','and explores every feature'],
+                ['Rates UX','across 6 dimensions'],
+                ['Finds bugs','with severity ratings'],
+                ['Full QA report','generated automatically'],
+                ['Content strategy','informed by real findings'],
+              ]},
+              { num:'02', icon:'✍️', color:'#a78bfa', bg:'rgba(139,92,246,.07)', border:'rgba(139,92,246,.18)', title:'Generate content', sub:'Instagram content engine', items:[
+                ['3 posts/day','— morning, midday, evening'],
+                ['Each optimised','for saves, shares, or comments'],
+                ['Full captions,','hashtags, image prompts'],
+                ['Post ideas,','hooks, and best timing'],
+                ['Grounded','in what your app actually does'],
+              ]},
+              { num:'03', icon:'📊', color:'#4f9cf7', bg:'rgba(79,156,247,.07)', border:'rgba(79,156,247,.18)', title:'Grow with confidence', sub:'Strategy & insights', items:[
+                ['5 competitors','identified and compared'],
+                ['Business Model Canvas','— all 9 blocks'],
+                ['AARRR growth playbook','with prioritised tactics'],
+                ['Pricing strategy','with tier recommendations'],
+                ['SWOT analysis','and strategic priorities'],
+              ]},
             ].map(b=>(
               <div key={b.title} style={{ background:b.bg, border:`1px solid ${b.border}`, borderRadius:16, padding:'28px 24px', transition:'transform .2s' }} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.transform='translateY(-3px)'} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.transform='none'}>
                 <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
@@ -241,9 +309,10 @@ export default function Landing() {
                 </div>
                 <div style={{ fontFamily:D, fontSize:19, fontWeight:800, color:b.color, marginBottom:4, letterSpacing:'-.02em' }}>{b.title}</div>
                 <div style={{ fontSize:12, color:'rgba(255,255,255,.35)', marginBottom:18, fontWeight:500 }}>{b.sub}</div>
-                {b.items.map(item=>(
-                  <div key={item} style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom:9, fontSize:13, color:'rgba(255,255,255,.65)', lineHeight:1.5 }}>
-                    <span style={{ color:b.color, flexShrink:0, fontSize:11, marginTop:2 }}>✓</span>{item}
+                {b.items.map((item, idx)=>(
+                  <div key={idx} style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom:9, fontSize:13, color:'rgba(255,255,255,.65)', lineHeight:1.55 }}>
+                    <span style={{ color:b.color, flexShrink:0, fontSize:11, marginTop:2 }}>✓</span>
+                    <span><strong style={{ color:'rgba(255,255,255,.88)', fontWeight:600 }}>{item[0]}</strong> {item[1]}</span>
                   </div>
                 ))}
               </div>
