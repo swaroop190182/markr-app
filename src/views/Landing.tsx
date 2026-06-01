@@ -140,7 +140,7 @@ export default function Landing() {
         </p>
 
         {/* URL input */}
-        <div style={{ display:'flex', gap:0, maxWidth:520, width:'100%', marginBottom:12, borderRadius:10, overflow:'hidden', border:'1.5px solid rgba(124,111,247,.4)', background:'rgba(255,255,255,.04)', boxShadow:'0 0 0 4px rgba(124,111,247,.06)' }}>
+        <div style={{ display:'flex', gap:0, maxWidth:520, width:'100%', marginBottom:8, borderRadius:10, overflow:'hidden', border:'1.5px solid rgba(124,111,247,.4)', background:'rgba(255,255,255,.04)', boxShadow:'0 0 0 4px rgba(124,111,247,.06)' }}>
           <input ref={inputRef} value={url}
             onChange={e=>{ setUrl(e.target.value); if(state==='blocked'||state==='error') setState('idle') }}
             onKeyDown={e=>e.key==='Enter'&&handleAnalyze()}
@@ -149,22 +149,46 @@ export default function Landing() {
             style={{ flex:1, background:'transparent', border:'none', padding:'14px 16px', fontSize:14, color:'#fff', outline:'none', borderRadius:0, fontFamily:D, opacity: state==='loading'?.6:1 }} />
           <button onClick={handleAnalyze} disabled={state==='loading'}
             style={{ padding:'14px 24px', background: state==='loading'?'rgba(124,111,247,.5)':'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', fontSize:14, fontWeight:600, cursor: state==='loading'?'not-allowed':'pointer', fontFamily:D, whiteSpace:'nowrap', letterSpacing:'-0.01em', transition:'all .2s' }}>
-            {state==='loading' ? 'Analyzing…' : 'Analyze my app →'}
+            {state==='loading' ? 'Analyzing…' : 'Get my growth insights →'}
           </button>
         </div>
 
-        {/* Trust badges */}
-        <div style={{ display:'flex', alignItems:'center', gap:18, fontSize:12, color:'rgba(255,255,255,.3)', flexWrap:'wrap', justifyContent:'center', fontFamily:D, fontWeight:400, marginBottom: state==='idle'?48:24 }}>
-          {['Free to start','No credit card','2 min setup','Real insights'].map(t=>(
-            <span key={t} style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ color:'#7c6ff7' }}>✓</span>{t}</span>
-          ))}
-        </div>
+        {/* Fix 1: Expectation setting right below CTA */}
+        {state === 'idle' && (
+          <div style={{ fontSize:12, color:'rgba(255,255,255,.4)', marginBottom:16, fontFamily:D, textAlign:'center' }}>
+            Takes 2 minutes · No signup · See where users drop off instantly
+          </div>
+        )}
 
-        {/* Loading state */}
+        {/* Fix 3: What happens next strip */}
+        {state === 'idle' && (
+          <div style={{ display:'flex', alignItems:'center', gap:0, maxWidth:520, width:'100%', marginBottom:32, borderRadius:8, overflow:'hidden', border:'1px solid rgba(255,255,255,.06)' }}>
+            {[
+              { step:'1', label:'Paste URL', sub:'We fetch your site', color:'#7c6ff7' },
+              { step:'→', label:'', sub:'', color:'transparent' },
+              { step:'2', label:'We analyze', sub:'5 dimensions scored', color:'#a78bfa' },
+              { step:'→', label:'', sub:'', color:'transparent' },
+              { step:'3', label:'You get insights', sub:'+ content templates', color:'#34c98a' },
+            ].map((s,i) => s.step === '→'
+              ? <div key={i} style={{ fontSize:14, color:'rgba(255,255,255,.2)', padding:'0 4px', background:'rgba(255,255,255,.02)' }}>→</div>
+              : <div key={i} style={{ flex:1, padding:'10px 12px', background:'rgba(255,255,255,.02)', textAlign:'center' as const }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:s.color, fontFamily:D }}>{s.label}</div>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,.3)', fontFamily:D, marginTop:2 }}>{s.sub}</div>
+                </div>
+            )}
+          </div>
+        )}
+
+        {/* Loading state — Fix 2: More specific progress steps */}
         {state === 'loading' && (
           <div style={{ maxWidth:520, width:'100%', marginBottom:32, textAlign:'left' }}>
             <div style={{ background:'rgba(124,111,247,.08)', border:'1px solid rgba(124,111,247,.2)', borderRadius:10, padding:'16px 20px' }}>
-              {STEPS.map((s, i) => (
+              {[
+                'Fetching your homepage…',
+                'Detecting friction points & drop-offs…',
+                'Scoring clarity, trust, conversion…',
+                'Building your growth insights…',
+              ].map((s, i) => (
                 <div key={s} style={{ display:'flex', alignItems:'center', gap:10, padding:'5px 0', fontSize:13, color: i < step ? '#34c98a' : i === step ? '#a599ff' : 'rgba(255,255,255,.25)', transition:'color .3s' }}>
                   <span style={{ fontSize:12, width:16, textAlign:'center' as const, flexShrink:0 }}>
                     {i < step ? '✓' : i === step ? '◉' : '○'}
@@ -298,9 +322,16 @@ export default function Landing() {
         <div style={{ maxWidth:900, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:48 }}>
             <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>How it works</div>
-            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:700, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7' }}>
               From URL to content plan in 2 minutes
             </h2>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, fontSize:13, color:'rgba(255,255,255,.4)', fontFamily:D }}>
+              <span style={{ color:'#7c6ff7' }}>Step 1:</span> We detect drop-off
+              <span style={{ color:'rgba(255,255,255,.2)', margin:'0 4px' }}>·</span>
+              <span style={{ color:'#a78bfa' }}>Step 2:</span> We generate content
+              <span style={{ color:'rgba(255,255,255,.2)', margin:'0 4px' }}>·</span>
+              <span style={{ color:'#34c98a' }}>Step 3:</span> You fix it and grow
+            </div>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2 }} className="how-steps">
             {[
@@ -315,6 +346,11 @@ export default function Landing() {
                 <div style={{ fontSize:13, color:'rgba(255,255,255,.5)', lineHeight:1.7 }}>{s.outcome}</div>
               </div>
             ))}
+          </div>
+          <div style={{ textAlign:'center', marginTop:32 }}>
+            <a href="/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'12px 24px', borderRadius:9, background:'rgba(124,111,247,.15)', border:'1px solid rgba(124,111,247,.3)', color:'#a599ff', fontSize:13, fontWeight:600, textDecoration:'none', fontFamily:B }}>
+              See why your app isn't growing →
+            </a>
           </div>
         </div>
       </section>
@@ -570,7 +606,7 @@ export default function Landing() {
           {/* Mid-page CTA */}
           <div style={{ textAlign:'center', marginTop:40 }}>
             <a href="/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'12px 28px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:600, textDecoration:'none', fontFamily:B }}>
-              Analyze my app free →
+              Get my growth insights →
             </a>
             <div style={{ marginTop:10, fontSize:11, color:'rgba(255,255,255,.25)' }}>Join founders already using Markr</div>
           </div>
@@ -620,7 +656,7 @@ export default function Landing() {
           <a href="/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'14px 32px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:15, fontWeight:600, textDecoration:'none', fontFamily:B, boxShadow:'0 4px 20px rgba(124,111,247,.3)', transition:'opacity .15s' }}
             onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.85'}
             onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
-            Analyze my app free →
+            Get my growth insights →
           </a>
           <div style={{ marginTop:14, fontSize:11, color:'rgba(255,255,255,.25)' }}>Free to start · No credit card · 2 min setup</div>
         </div>
