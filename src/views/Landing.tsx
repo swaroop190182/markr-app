@@ -119,19 +119,24 @@ export default function Landing() {
 
         {/* Badge */}
         <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'5px 14px', borderRadius:20, border:'1px solid rgba(124,111,247,.3)', background:'rgba(124,111,247,.08)', fontSize:12, fontWeight:500, color:'#a599ff', marginBottom:24, letterSpacing:'.01em', fontFamily:D }}>
-          ✦ AI Co-founder for App Founders
+          ✦ Growth Intelligence for App Founders
         </div>
 
         {/* Headline */}
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:700, lineHeight:1.07, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:740 }}>
           Your app already knows how to grow.
         </h1>
-        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 20px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
+        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 16px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
           You just needed someone to show you.
         </h1>
 
-        <p style={{ fontFamily:D, fontSize:17, fontWeight:400, color:'rgba(255,255,255,.5)', maxWidth:480, lineHeight:1.65, margin:'0 0 20px' }}>
-          Paste your app URL. Markr analyzes it, runs a product test, and delivers 3 ready-to-post captions to your inbox every morning.
+        {/* New subline */}
+        <p style={{ fontFamily:D, fontSize:18, fontWeight:500, color:'rgba(255,255,255,.75)', maxWidth:560, lineHeight:1.5, margin:'0 0 16px', letterSpacing:'-0.01em' }}>
+          See exactly why your app isn't growing — and what to post to fix it.
+        </p>
+
+        <p style={{ fontFamily:D, fontSize:15, fontWeight:400, color:'rgba(255,255,255,.4)', maxWidth:460, lineHeight:1.65, margin:'0 0 20px' }}>
+          Paste your URL. Get a free audit in 60 seconds — no signup needed.
         </p>
 
         {/* URL input */}
@@ -310,6 +315,77 @@ export default function Landing() {
                 <div style={{ fontSize:13, color:'rgba(255,255,255,.5)', lineHeight:1.7 }}>{s.outcome}</div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── REAL EXAMPLE ── */}
+      <section style={{ padding:'80px 6%', background:'rgba(124,111,247,.04)', borderTop:'1px solid rgba(124,111,247,.1)' }}>
+        <div style={{ maxWidth:860, margin:'0 auto' }}>
+          <div style={{ textAlign:'center', marginBottom:48 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Real output — no fluff</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.8vw,34px)', fontWeight:700, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7' }}>
+              This is what Markr actually found
+            </h2>
+            <p style={{ fontSize:14, color:'rgba(255,255,255,.4)', maxWidth:460, margin:'0 auto', fontFamily:D }}>
+              Real analysis from a real app — Emrise, a wellness app for founders.
+            </p>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }} className="how-steps">
+            {/* Step 1 — Insight */}
+            <div style={{ background:'rgba(220,38,38,.06)', border:'1px solid rgba(220,38,38,.2)', borderRadius:'12px 0 0 12px', padding:'24px 22px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(220,38,38,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>🔍</div>
+                <div style={{ fontSize:11, fontWeight:700, color:'#fca5a5', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>What Markr found</div>
+              </div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:8, fontFamily:D }}>Emotional Pull: 3/10</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,.6)', lineHeight:1.7, fontFamily:D }}>
+                The page uses "we/our" 14× vs "you/your" 3×. It talks about the product — not the person using it. A founder visiting this page doesn't feel seen.
+              </div>
+              <div style={{ marginTop:12, padding:'8px 12px', background:'rgba(220,38,38,.08)', borderRadius:8, fontSize:12, color:'#fca5a5', fontFamily:D }}>
+                ⚠️ This is why visitors browse but don't convert
+              </div>
+            </div>
+
+            {/* Step 2 — Content */}
+            <div style={{ background:'rgba(124,111,247,.08)', border:'1px solid rgba(124,111,247,.25)', borderTop:'3px solid #7c6ff7', padding:'24px 22px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(124,111,247,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>✍️</div>
+                <div style={{ fontSize:11, fontWeight:700, color:'#a599ff', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>What to post</div>
+              </div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:10, fontFamily:D }}>Generated caption:</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,.8)', lineHeight:1.8, fontStyle:'italic', fontFamily:D, padding:'10px 14px', background:'rgba(255,255,255,.04)', borderRadius:8, borderLeft:'3px solid #7c6ff7' }}>
+                "Most founders don't burn out from overwork. They burn out from building in silence — no feedback, no traction, no sign it's working. This app was built for that moment. 🧘"
+              </div>
+              <div style={{ marginTop:10, display:'flex', flexWrap:'wrap' as const, gap:4 }}>
+                {['#founders','#buildinpublic','#solofounder','#mentalhealth','#startuplife'].map(h=>(
+                  <span key={h} style={{ fontSize:10, padding:'2px 8px', borderRadius:20, background:'rgba(124,111,247,.12)', color:'#a599ff', fontFamily:D }}>{h}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Step 3 — Why it works */}
+            <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.2)', borderRadius:'0 12px 12px 0', padding:'24px 22px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(52,201,138,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>💡</div>
+                <div style={{ fontSize:11, fontWeight:700, color:'#34c98a', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>Why it works</div>
+              </div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:8, fontFamily:D }}>Optimised for saves</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,.6)', lineHeight:1.7, fontFamily:D }}>
+                Speaks directly to the founder's emotional state — not the product. "Burning out from building in silence" mirrors exactly what Emrise's audience feels. Saves-optimised content validates, it doesn't sell.
+              </div>
+              <div style={{ marginTop:12, padding:'8px 12px', background:'rgba(52,201,138,.08)', borderRadius:8, fontSize:12, color:'#34c98a', fontFamily:D }}>
+                ✓ This is Markr understanding your app — not generic AI
+              </div>
+            </div>
+          </div>
+
+          <div style={{ textAlign:'center', marginTop:36 }}>
+            <a href="/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'13px 28px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:600, textDecoration:'none', fontFamily:B, boxShadow:'0 4px 20px rgba(124,111,247,.3)' }}>
+              Get this for your app →
+            </a>
+            <div style={{ marginTop:10, fontSize:12, color:'rgba(255,255,255,.3)', fontFamily:D }}>Free to start · Your first analysis in 2 minutes</div>
           </div>
         </div>
       </section>
