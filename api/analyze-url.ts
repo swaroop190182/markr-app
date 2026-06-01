@@ -275,7 +275,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
 
   // ── 4. Trust (0–10) ─────────────────────────────────────────────────────────
   const hasSP      = social || /testimonial|review|rating|stars|trusted|said|quote|blockquote|discord|community|feedback|users say|founders say/i.test(allPagesText)
-  const hasTeam    = about && /founder|team|ceo|built by|created by/i.test(about.allText)
+  const hasTeam    = (about && /founder|team|ceo|built by|created by/i.test(about.allText))
+                  || /founder|built by|created by|my story|why i built|about the founder/i.test(allPagesText)
   const hasLogos   = /trusted by|used by|as seen|featured in|partner/i.test(allPagesText)
   const hasNumbers = /\d+[k+]?\s*(?:users|customers|apps|founders|teams|reviews|clients)/i.test(allPagesText)
 
