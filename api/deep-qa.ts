@@ -85,6 +85,21 @@ async function takeScreenshots(
         if (await submitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
           await submitBtn.click()
           await page.waitForTimeout(3000)
+
+          // ── Detect login failure ──────────────────────────────────────────
+          const currentUrl = page.url()
+          const pageContent = await page.textContent('body').catch(() => '')
+          const loginFailed =
+            // Still on login/auth page
+            (currentUrl.includes('login') || currentUrl.includes('auth') || currentUrl.includes('signin')) ||
+            // Error message visible
+            /invalid|incorrect|wrong|failed|error|not found|no account/i.test(pageContent ?? '')
+
+          if (loginFailed) {
+            await browser.close()
+            throw new Error('Login failed — please check the test email and password are correct')
+          }
+
           await shot('After login — home screen')
         }
       }
