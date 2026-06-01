@@ -468,7 +468,7 @@ export default function Landing() {
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }} className="how-steps">
             {[
               { quote:'Going through the landing page felt like an experience — which is enough to get me in. The focus is on the user throughout. My favourite part is the CTA — "Analyze my app" all the way through. Simple and clear.', name:'Discord community member', app:'App founder', color:'#7c6ff7', tag:'✓ Headline feedback implemented' },
-              { quote:'The daily content delivery is a game changer. I wake up with 3 ready-to-post captions every morning. Zero effort on my end.', name:'Beta tester', app:'SaaS founder', color:'#34c98a', tag:null },
+              { quote:'The video in the hero proves the value more than 90% of things above it. The analyse URL piece is a great hook. I also flagged the "no sign up required" claim — went to analyze my site and it asked me to sign up instantly. That\'s been fixed now. Page flow feels much more logical too — outcome first, then how it works.', name:'Discord community member', app:'Product founder', color:'#34c98a', tag:'✓ All feedback implemented' },
               { quote:'Finally an AI tool that actually understands my app instead of giving generic marketing advice. It felt like a real co-founder.', name:'Early adopter', app:'EdTech founder', color:'#e26faf', tag:null },
             ].map(t=>(
               <div key={t.name} style={{ padding:'22px 20px', background:'rgba(255,255,255,.03)', border:`1px solid ${t.color}20`, borderRadius:12, position:'relative' }}>
