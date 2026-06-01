@@ -22,7 +22,8 @@ export default function ProductTest() {
   const { currentApp, updateApp, plan, canUseProductTest } = useStore()
   const [running, setRunning]     = useState(false)
   const [aiRunning, setAiRunning] = useState(false)
-  const [testPass, setTestPass]   = useState('')
+  const [testEmail, setTestEmail]   = useState('')
+  const [testPass, setTestPass]     = useState('')
   const [expanded, setExpanded]   = useState<Record<string,boolean>>({})
   const [activeTab, setActiveTab] = useState<'landing'|'deep'>('landing')
 
@@ -53,23 +54,23 @@ export default function ProductTest() {
     setRunning(false)
   }
 
-  // ── Deep AI product test (real browser, real screenshots, Claude Vision) ──
   async function runDeepTest() {
     if (!canUseProductTest) { toast('Deep AI Product Test is a Pro feature'); return }
-    if (!currentApp.testCreds?.user) { toast('Add test credentials in Edit App first'); return }
-    const pass = testPass || currentApp.testCreds.password || ''
-    if (!pass) { toast('Enter the test password below'); return }
+    if (!currentApp.url) { toast('Add your app URL in Edit App first'); return }
+    const email = testEmail || currentApp.testCreds?.user || ''
+    const pass  = testPass  || currentApp.testCreds?.password || ''
+    if (!email) { toast('Enter a test email address'); return }
+    if (!pass)  { toast('Enter the test password'); return }
     setAiRunning(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { toast('Please sign in again'); setAiRunning(false); return }
-
       const res = await fetch('/api/deep-qa', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}` },
         body: JSON.stringify({
           url:           currentApp.url,
-          loginEmail:    currentApp.testCreds.user,
+          loginEmail:    email,
           loginPassword: pass,
           appName:       currentApp.name,
           desc:          currentApp.desc,
@@ -242,8 +243,13 @@ export default function ProductTest() {
               <div style={{ fontSize:11, color:'var(--amber)', marginBottom:20, opacity:.8 }}>
                 ⚠️ Uses ~1,500 tokens (vision) — counts toward your daily limit
               </div>
-              <div style={{ maxWidth:260, margin:'0 auto 14px' }}>
-                <input type="password" value={testPass} onChange={e=>setTestPass(e.target.value)} placeholder="Enter test password" style={{ textAlign:'center' }} />
+              <div style={{ maxWidth:300, margin:'0 auto 14px', display:'flex', flexDirection:'column', gap:8 }}>
+                <input type="email" value={testEmail} onChange={e=>setTestEmail(e.target.value)}
+                  placeholder={currentApp.testCreds?.user || 'Test email address'}
+                  style={{ textAlign:'center' }} />
+                <input type="password" value={testPass} onChange={e=>setTestPass(e.target.value)}
+                  placeholder="Test password"
+                  style={{ textAlign:'center' }} />
               </div>
               <button className="gen-btn" style={{ margin:'0 auto' }} onClick={runDeepTest} disabled={aiRunning}>
                 {aiRunning
@@ -350,9 +356,14 @@ export default function ProductTest() {
                     </div>
 
                     {/* Re-run */}
-                    <div style={{ textAlign:'center' }}>
-                      <div style={{ maxWidth:260, margin:'0 auto 10px' }}>
-                        <input type="password" value={testPass} onChange={e=>setTestPass(e.target.value)} placeholder="Password to re-run" style={{ textAlign:'center' }} />
+                    <div style={{ textAlign:'center', marginTop:14 }}>
+                      <div style={{ maxWidth:300, margin:'0 auto 10px', display:'flex', flexDirection:'column', gap:8 }}>
+                        <input type="email" value={testEmail} onChange={e=>setTestEmail(e.target.value)}
+                          placeholder={currentApp.testCreds?.user || 'Test email to re-run'}
+                          style={{ textAlign:'center' }} />
+                        <input type="password" value={testPass} onChange={e=>setTestPass(e.target.value)}
+                          placeholder="Password to re-run"
+                          style={{ textAlign:'center' }} />
                       </div>
                       <button className="vbtn" onClick={runDeepTest} disabled={aiRunning} style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12 }}>
                         <i className="ti ti-refresh" />  {aiRunning?'Running…':'Re-run deep test'}
