@@ -24,8 +24,17 @@ function AppInner({ session }: { session: Session }) {
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [prefilledUrl, setPrefilledUrl] = useState('')
 
-  // Auto-show upgrade modal when trial expires
+  // Mark lead converted after Google OAuth redirect
   useEffect(() => {
+    const leadUrl = localStorage.getItem('markr_lead_url')
+    if (leadUrl && session) {
+      supabase.from('markr_url_leads')
+        .update({ converted: true, user_id: session.user.id })
+        .eq('url', leadUrl)
+        .eq('converted', false)
+        .then(() => localStorage.removeItem('markr_lead_url'))
+    }
+  }, [session])
     if (trialExpired) {
       const t = setTimeout(() => setShowUpgrade(true), 2000)
       return () => clearTimeout(t)
