@@ -21,7 +21,8 @@ export default function Auth() {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        // Redirect preserving URL param
+        // Mark lead as converted if they came from URL analysis
+        if (urlParam) markLeadConverted(urlParam)
         window.location.href = appTarget
       } else if (mode === 'signup') {
         const { error } = await supabase.auth.signUp({
@@ -29,6 +30,8 @@ export default function Auth() {
           options: { emailRedirectTo: `${window.location.origin}${appTarget}` }
         })
         if (error) throw error
+        // Mark lead as converted
+        if (urlParam) markLeadConverted(urlParam)
         setMessage('Check your email for a confirmation link!')
       } else {
         const { error } = await supabase.auth.resetPasswordForEmail(email)
@@ -41,8 +44,20 @@ export default function Auth() {
     setLoading(false)
   }
 
+  async function markLeadConverted(url: string) {
+    try {
+      await supabase
+        .from('markr_url_leads')
+        .update({ converted: true })
+        .eq('url', url)
+        .eq('converted', false)
+    } catch { /* non-blocking */ }
+  }
+
   async function handleGoogle() {
     setLoading(true); setError('')
+    // Store URL param in localStorage so we can mark converted after OAuth redirect
+    if (urlParam) localStorage.setItem('markr_lead_url', urlParam)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}${appTarget}` }
