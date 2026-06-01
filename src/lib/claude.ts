@@ -88,7 +88,7 @@ export function getTestContext(app: AppData): string {
       warns  ? `WARNINGS: ${warns}` : '',
       passes ? `PASSING: ${passes}` : '',
       pt.verdict ? `VERDICT: ${pt.verdict}` : '',
-      `LOAD TIME: ${(pt.loadTime/1000).toFixed(1)}s`,
+      `LOAD TIME: ${((pt.loadTime ?? 0)/1000).toFixed(1)}s`,
       '━━━ USE THESE FINDINGS TO SHAPE CONTENT AND GROWTH STRATEGY ━━━',
     ].filter(Boolean).join('\n')
   }
