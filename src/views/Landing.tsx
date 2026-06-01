@@ -136,12 +136,12 @@ export default function Landing() {
 
         {/* URL input */}
         <div style={{ display:'flex', gap:0, maxWidth:520, width:'100%', marginBottom:12, borderRadius:10, overflow:'hidden', border:'1.5px solid rgba(124,111,247,.4)', background:'rgba(255,255,255,.04)', boxShadow:'0 0 0 4px rgba(124,111,247,.06)' }}>
-          <input ref={inputRef} value={url} onChange={e=>setUrl(e.target.value)}
+          <input ref={inputRef} value={url}
+            onChange={e=>{ setUrl(e.target.value); if(state==='blocked'||state==='error') setState('idle') }}
             onKeyDown={e=>e.key==='Enter'&&handleAnalyze()}
             placeholder="https://yourapp.com"
             disabled={state==='loading'}
-            style={{ flex:1, background:'transparent', border:'none', padding:'14px 16px', fontSize:14, color:'#fff', outline:'none', borderRadius:0, fontFamily:D, opacity: state==='loading'?.6:1 }}
-            onChange={e=>{ setUrl(e.target.value); if(state==='blocked'||state==='error') setState('idle') }} />
+            style={{ flex:1, background:'transparent', border:'none', padding:'14px 16px', fontSize:14, color:'#fff', outline:'none', borderRadius:0, fontFamily:D, opacity: state==='loading'?.6:1 }} />
           <button onClick={handleAnalyze} disabled={state==='loading'}
             style={{ padding:'14px 24px', background: state==='loading'?'rgba(124,111,247,.5)':'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', fontSize:14, fontWeight:600, cursor: state==='loading'?'not-allowed':'pointer', fontFamily:D, whiteSpace:'nowrap', letterSpacing:'-0.01em', transition:'all .2s' }}>
             {state==='loading' ? 'Analyzing…' : 'Analyze my app →'}
