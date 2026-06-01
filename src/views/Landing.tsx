@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 const D = "'Inter', sans-serif"
 const B = "'Inter', sans-serif"
@@ -32,10 +32,28 @@ function VideoEmbed() {
   )
 }
 
+type AnalysisState = 'idle' | 'loading' | 'done' | 'error'
+interface AnalysisResult {
+  overall: number
+  headline: string
+  category: string
+  dimensions: { label: string; score: number; issue: string }[]
+  bottleneck: { label: string; issue: string }
+  growth_teaser: string
+  scraped: { title: string; h1: string; metaDesc: string }
+}
+
 export default function Landing() {
-  const [scrolled, setScrolled] = useState(false)
-  const [url, setUrl]           = useState('')
-  const inputRef                = useRef<HTMLInputElement>(null)
+  const [scrolled,  setScrolled]  = useState(false)
+  const [url,       setUrl]       = useState('')
+  const [state,     setState]     = useState<AnalysisState>('idle')
+  const [result,    setResult]    = useState<AnalysisResult | null>(null)
+  const [error,     setError]     = useState('')
+  const [step,      setStep]      = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const resultRef = useRef<HTMLDivElement>(null)
+
+  const STEPS = ['Fetching your homepage…', 'Reading headlines & copy…', 'Scoring 5 dimensions…', 'Building your verdict…']
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 40)
@@ -43,9 +61,29 @@ export default function Landing() {
     return () => window.removeEventListener('scroll', fn)
   }, [])
 
-  const handleAnalyze = () => {
-    window.location.href = url ? `/login?url=${encodeURIComponent(url)}` : '/login'
-  }
+  const handleAnalyze = useCallback(async () => {
+    if (!url.trim()) { inputRef.current?.focus(); return }
+    setState('loading'); setError(''); setStep(0); setResult(null)
+    // Step animation
+    const interval = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 900)
+    try {
+      const res  = await fetch('/api/analyze-url', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ url: url.trim() }),
+      })
+      const data = await res.json()
+      clearInterval(interval)
+      if (!res.ok) { setState('error'); setError(data.error || 'Something went wrong'); return }
+      setResult(data)
+      setState('done')
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100)
+    } catch (e) {
+      clearInterval(interval)
+      setState('error')
+      setError('Could not reach our server — please try again.')
+    }
+  }, [url])
 
   return (
     <div style={{ background:'#08080a', color:'#f0f0f5', fontFamily:B, overflowX:'hidden', lineHeight:1.6 }}>
@@ -96,29 +134,118 @@ export default function Landing() {
           <input ref={inputRef} value={url} onChange={e=>setUrl(e.target.value)}
             onKeyDown={e=>e.key==='Enter'&&handleAnalyze()}
             placeholder="https://yourapp.com"
-            style={{ flex:1, background:'transparent', border:'none', padding:'14px 16px', fontSize:14, color:'#fff', outline:'none', borderRadius:0, fontFamily:D }} />
-          <button onClick={handleAnalyze}
-            style={{ padding:'14px 24px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:D, whiteSpace:'nowrap', letterSpacing:'-0.01em' }}
-            onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.88'}
-            onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
-            Analyze my app →
+            disabled={state==='loading'}
+            style={{ flex:1, background:'transparent', border:'none', padding:'14px 16px', fontSize:14, color:'#fff', outline:'none', borderRadius:0, fontFamily:D, opacity: state==='loading'?.6:1 }} />
+          <button onClick={handleAnalyze} disabled={state==='loading'}
+            style={{ padding:'14px 24px', background: state==='loading'?'rgba(124,111,247,.5)':'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', fontSize:14, fontWeight:600, cursor: state==='loading'?'not-allowed':'pointer', fontFamily:D, whiteSpace:'nowrap', letterSpacing:'-0.01em', transition:'all .2s' }}>
+            {state==='loading' ? 'Analyzing…' : 'Analyze my app →'}
           </button>
         </div>
 
-        {/* Trust badges — honest ones only */}
-        <div style={{ display:'flex', alignItems:'center', gap:18, fontSize:12, color:'rgba(255,255,255,.3)', flexWrap:'wrap', justifyContent:'center', fontFamily:D, fontWeight:400, marginBottom:48 }}>
+        {/* Trust badges */}
+        <div style={{ display:'flex', alignItems:'center', gap:18, fontSize:12, color:'rgba(255,255,255,.3)', flexWrap:'wrap', justifyContent:'center', fontFamily:D, fontWeight:400, marginBottom: state==='idle'?48:24 }}>
           {['Free to start','No credit card','2 min setup','Real insights'].map(t=>(
             <span key={t} style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ color:'#7c6ff7' }}>✓</span>{t}</span>
           ))}
         </div>
 
-        {/* VIDEO — right in the hero */}
-        <div style={{ maxWidth:820, width:'100%' }}>
-          <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,.3)', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:12, fontFamily:D }}>
-            See the outcome in 6 minutes
+        {/* Loading state */}
+        {state === 'loading' && (
+          <div style={{ maxWidth:520, width:'100%', marginBottom:32, textAlign:'left' }}>
+            <div style={{ background:'rgba(124,111,247,.08)', border:'1px solid rgba(124,111,247,.2)', borderRadius:10, padding:'16px 20px' }}>
+              {STEPS.map((s, i) => (
+                <div key={s} style={{ display:'flex', alignItems:'center', gap:10, padding:'5px 0', fontSize:13, color: i < step ? '#34c98a' : i === step ? '#a599ff' : 'rgba(255,255,255,.25)', transition:'color .3s' }}>
+                  <span style={{ fontSize:12, width:16, textAlign:'center' as const, flexShrink:0 }}>
+                    {i < step ? '✓' : i === step ? '◉' : '○'}
+                  </span>
+                  {s}
+                </div>
+              ))}
+            </div>
           </div>
-          <VideoEmbed />
-        </div>
+        )}
+
+        {/* Error state */}
+        {state === 'error' && (
+          <div style={{ maxWidth:520, width:'100%', marginBottom:32, padding:'12px 16px', background:'rgba(220,38,38,.08)', border:'1px solid rgba(220,38,38,.2)', borderRadius:10, fontSize:13, color:'#fca5a5' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        {/* Result card */}
+        {state === 'done' && result && (
+          <div ref={resultRef} style={{ maxWidth:620, width:'100%', marginBottom:32, textAlign:'left' }}>
+            <div style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:14, overflow:'hidden', boxShadow:'0 20px 50px rgba(0,0,0,.4)' }}>
+
+              {/* Header */}
+              <div style={{ padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,.07)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', marginBottom:3, fontFamily:D }}>Analysis for</div>
+                  <div style={{ fontSize:14, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>{url.replace(/^https?:\/\//,'').split('/')[0]}</div>
+                </div>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontFamily:D, fontSize:36, fontWeight:700, color: result.overall >= 7 ? '#34c98a' : result.overall >= 5 ? '#f5a623' : '#e55', lineHeight:1 }}>{result.overall}</div>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,.3)', fontFamily:D }}>/10</div>
+                </div>
+              </div>
+
+              {/* Dimension scores */}
+              <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(255,255,255,.07)' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                  {result.dimensions.map(d => (
+                    <div key={d.label}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                        <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontFamily:D }}>{d.label}</span>
+                        <span style={{ fontSize:11, fontWeight:700, color: d.score >= 7 ? '#34c98a' : d.score >= 5 ? '#f5a623' : '#e55', fontFamily:D }}>{d.score}/10</span>
+                      </div>
+                      <div style={{ height:4, background:'rgba(255,255,255,.08)', borderRadius:2, overflow:'hidden' }}>
+                        <div style={{ height:'100%', width:`${d.score*10}%`, background: d.score >= 7 ? '#34c98a' : d.score >= 5 ? '#f5a623' : '#e55', borderRadius:2, transition:'width .6s' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Biggest bottleneck */}
+              <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(255,255,255,.07)', background:'rgba(220,38,38,.04)' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'#fca5a5', letterSpacing:'.06em', textTransform:'uppercase' as const, marginBottom:5, fontFamily:D }}>
+                  🚨 Biggest Bottleneck — {result.bottleneck.label}
+                </div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,.75)', lineHeight:1.6, fontFamily:D }}>{result.bottleneck.issue}</div>
+              </div>
+
+              {/* Growth teaser */}
+              <div style={{ padding:'14px 20px', background:'rgba(124,111,247,.05)' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'#a599ff', letterSpacing:'.06em', textTransform:'uppercase' as const, marginBottom:5, fontFamily:D }}>
+                  💡 Growth Opportunity
+                </div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', lineHeight:1.6, fontFamily:D }}>{result.growth_teaser}</div>
+              </div>
+
+              {/* CTA */}
+              <div style={{ padding:'16px 20px', background:'rgba(255,255,255,.03)', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,.4)', fontFamily:D }}>
+                  Full analysis: Competitive · SWOT · BMC · Growth · Pricing + Daily posts
+                </div>
+                <a href={`/login?url=${encodeURIComponent(url)}`}
+                  style={{ padding:'10px 20px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none', fontFamily:D, whiteSpace:'nowrap', boxShadow:'0 4px 14px rgba(124,111,247,.35)' }}>
+                  Get full analysis free →
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Video — shown when idle or after result */}
+        {/* Video — shown when idle or after result */}
+        {(state === 'idle' || state === 'done' || state === 'error') && (
+          <div style={{ maxWidth:820, width:'100%' }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,.3)', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:12, fontFamily:D }}>
+              See the outcome in 6 minutes
+            </div>
+            <VideoEmbed />
+          </div>
+        )}
       </section>
 
       {/* ── HOW IT WORKS ── */}
