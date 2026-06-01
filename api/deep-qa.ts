@@ -15,19 +15,30 @@ async function takeScreenshots(
   loginPassword: string,
   appName: string,
 ): Promise<{ step: string; b64: string; url: string }[]> {
-  let chromium: any, playwright: any
+
+  // Must set these BEFORE importing chromium
+  process.env.AWS_LAMBDA_JS_RUNTIME = 'nodejs20.x'
+
+  let chromium: any, playwrightChromium: any
 
   try {
-    chromium   = await import('@sparticuz/chromium')
-    playwright = await import('playwright-core')
-  } catch {
-    throw new Error('Browser dependencies not available')
+    const chromiumPack = await import('@sparticuz/chromium')
+    chromium = chromiumPack.default ?? chromiumPack
+    // Disable graphics mode to prevent freezing on Lambda
+    chromium.setGraphicsMode = false
+    const pw = await import('playwright-core')
+    playwrightChromium = pw.chromium
+  } catch (e) {
+    throw new Error(`Browser dependencies not available: ${(e as Error).message}`)
   }
 
-  const browser = await playwright.chromium.launch({
-    args:            chromium.default.args,
-    executablePath:  await chromium.default.executablePath(),
-    headless:        chromium.default.headless,
+  const executablePath = await chromium.executablePath()
+  if (!executablePath) throw new Error('Chromium executable not found — check @sparticuz/chromium installation')
+
+  const browser = await playwrightChromium.launch({
+    args:           [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    executablePath,
+    headless:       true,
   })
 
   const shots: { step: string; b64: string; url: string }[] = []
