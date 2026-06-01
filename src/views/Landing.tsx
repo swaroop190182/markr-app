@@ -122,7 +122,7 @@ export default function Landing() {
           Your app already knows how to grow.
         </h1>
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 20px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
-          We just make it obvious.
+          You just needed someone to show you.
         </h1>
 
         <p style={{ fontFamily:D, fontSize:17, fontWeight:400, color:'rgba(255,255,255,.5)', maxWidth:480, lineHeight:1.65, margin:'0 0 20px' }}>
