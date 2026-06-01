@@ -252,13 +252,16 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (hasUrg)                                                    emotion += 2
   emotion = Math.min(10, emotion)
 
+  const isJSOnlyApp = home.wordCount < 100
   const emotionIssue = (weCount > 0 && youCount < weCount)
     ? `Across all pages: "we/our" ${weCount}× vs "you/your" ${youCount}× — flip this to speak to users`
-    : !hasNums
-      ? 'No specific numbers found across all pages — add user counts, time saved, or results'
-      : !hasUrg
-        ? 'Good user focus but missing urgency language anywhere on the site'
-        : `Strong — ${youCount} user-focused phrases, specific numbers present`
+    : (youCount === 0 && weCount === 0 && isJSOnlyApp)
+      ? 'JavaScript app — copy analysis limited to meta tags. Ensure og:description uses "you/your" language for accurate scoring'
+      : !hasNums
+        ? 'No specific numbers found across all pages — add user counts, time saved, or results'
+        : !hasUrg
+          ? 'Good user focus but missing urgency language anywhere on the site'
+          : `Strong — ${youCount} user-focused phrases, specific numbers present`
 
   // ── 4. Trust (0–10) ─────────────────────────────────────────────────────────
   const hasSP      = social || /testimonial|review|rating|stars|trusted|said|quote/i.test(allPagesText)
@@ -268,23 +271,29 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
 
   // Detect early-stage signals
   const isEarlyStage = /beta|early.?access|coming.soon|launch|new|just.launched|v1|0\.1/i.test(allPagesText)
-  const hasFounderStory = /built by|founded by|i built|we built|our story|started when|founder/i.test(allPagesText)
+  const hasFounderStory = /built by|founded by|i built|we built|our story|started when|founder|my story|why i built/i.test(allPagesText)
+  const hasQuotes = /blockquote|testimonial|said|quote|review/i.test(allPagesText)
 
   let trust = 2
-  if (hasSP)           trust += 3
-  if (hasTeam)         trust += 2
-  if (hasLogos)        trust += 2
-  if (hasNumbers)      trust += 1
-  if (hasFounderStory) trust += 1  // founder story counts as trust signal
+  if (hasSP || hasQuotes)  trust += 3
+  if (hasTeam)             trust += 2
+  if (hasLogos)            trust += 2
+  if (hasNumbers)          trust += 1
+  if (hasFounderStory)     trust += 1
+  // For JS apps with low content — don't penalise for what we can't detect
+  // Give benefit of doubt if meta description is rich (suggests real content exists)
+  if (isJSOnlyApp && home.bestDesc.length > 100) trust = Math.max(trust, 4)
   trust = Math.min(10, trust)
 
-  const trustIssue = !hasSP && !hasFounderStory
-    ? 'No social proof or founder story found — even 1 testimonial or a "why I built this" story doubles trust'
-    : !hasSP && hasFounderStory
-      ? 'Founder story exists (good!) but no user testimonials yet — add even 1-2 early user quotes'
-      : !hasTeam
-        ? 'Social proof exists but no team/about page — show who is behind this'
-        : `Trust signals present: social proof ${hasTeam ? '+ team' : ''} ${hasLogos ? '+ logos' : ''}`
+  const trustIssue = isJSOnlyApp && trust <= 4
+    ? `JavaScript app — trust signals may exist but can't be read by crawler. Add og:description and structured data (JSON-LD) for accurate scoring`
+    : !hasSP && !hasFounderStory
+      ? 'No social proof or founder story detected — even 1 testimonial or "why I built this" story doubles trust'
+      : !hasSP && hasFounderStory
+        ? 'Founder story detected (good!) but no user testimonials yet — add 1-2 early user quotes'
+        : !hasTeam
+          ? 'Social proof exists but no about/team page — show who built this'
+          : `Trust signals present: social proof ${hasTeam ? '+ team' : ''} ${hasLogos ? '+ logos' : ''}`
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
   const hasPricing  = !!pricing
@@ -402,9 +411,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    // Confidence level
+    // Confidence level — factor in meta tag richness for JS apps
+    const hasRichMeta = pages.home.bestDesc.length > 80 && pages.home.bestTitle.length > 10
     const confidence = totalWords > 1000 || totalPages >= 4 ? 'high'
                      : totalWords > 300  || totalPages >= 2 ? 'medium'
+                     : hasRichMeta ? 'medium'  // JS app with good meta tags
                      : 'low'
 
     const result = score(pages, url)
