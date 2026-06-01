@@ -88,6 +88,10 @@ function extract(html: string) {
     noscript: noscriptContent.slice(0, 2000),
     bestTitle, bestDesc, bestH1,
     allText: allText.slice(0, 5000),
+      noscriptBtns: (noscriptContent.match(/>([^<]{3,60})</g) ?? [])
+        .map(m => m.replace(/^>|<$/g,'').trim())
+        .filter(t => /start|try|get|sign|join|analyze|free|demo|begin|access/i.test(t))
+        .slice(0,5),
     wordCount: (body + ' ' + noscriptContent).split(' ').filter(w => w.length > 2).length,
     hasViewport: /<meta[^>]+name=["']viewport["']/i.test(html),
   }
@@ -270,7 +274,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
           : `Strong — ${youCount} user-focused phrases, specific numbers present`
 
   // ── 4. Trust (0–10) ─────────────────────────────────────────────────────────
-  const hasSP      = social || /testimonial|review|rating|stars|trusted|said|quote/i.test(allPagesText)
+  const hasSP      = social || /testimonial|review|rating|stars|trusted|said|quote|blockquote|discord|community|feedback|users say|founders say/i.test(allPagesText)
   const hasTeam    = about && /founder|team|ceo|built by|created by/i.test(about.allText)
   const hasLogos   = /trusted by|used by|as seen|featured in|partner/i.test(allPagesText)
   const hasNumbers = /\d+[k+]?\s*(?:users|customers|apps|founders|teams|reviews|clients)/i.test(allPagesText)
@@ -278,7 +282,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   // Detect early-stage signals
   const isEarlyStage = /beta|early.?access|coming.soon|launch|new|just.launched|v1|0\.1/i.test(allPagesText)
   const hasFounderStory = /built by|founded by|i built|we built|our story|started when|founder|my story|why i built/i.test(allPagesText)
-  const hasQuotes = /blockquote|testimonial|said|quote|review/i.test(allPagesText)
+  const hasQuotes = /blockquote|testimonial|said|quote|review|discord|community member|early user|beta/i.test(allPagesText)
 
   let trust = 2
   if (hasSP || hasQuotes)  trust += 3
