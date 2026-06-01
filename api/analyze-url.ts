@@ -65,24 +65,30 @@ function extract(html: string) {
   const btnRe = /<(?:button|a)[^>]*>([^<]{3,80})<\/(?:button|a)>/gi; let bm
   while ((bm = btnRe.exec(html)) && btns.length < 15) { const t = clean(bm[1]); if (t) btns.push(t) }
 
-  // Visible body
+  // Extract noscript content separately — contains static content for scrapers
+  const noscriptContent = (html.match(/<noscript[^>]*>([\s\S]*?)<\/noscript>/i)?.[1] ?? '')
+    .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+
+  // Visible body (strips scripts, styles, noscript)
   const body = html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
     .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 
   const bestTitle = title || ogT || twT || ''
   const bestDesc  = metaD || ogD || twD || jldText || ''
   const bestH1    = h1s[0] || ogT || title || ''
-  const allText   = [bestTitle, bestDesc, bestH1, h2s.join(' '), h3s.join(' '), paras.join(' '), lis.join(' '), jldText, body.slice(0, 2000)].join(' ')
+  const allText   = [bestTitle, bestDesc, bestH1, h2s.join(' '), h3s.join(' '), paras.join(' '), lis.join(' '), jldText, noscriptContent, body.slice(0, 2000)].join(' ')
 
   return {
     title, metaD, ogT, ogD, twT, twD, jldText,
     h1s, h2s, h3s, paras, lis, btns,
     body: body.slice(0, 3000),
+    noscript: noscriptContent.slice(0, 2000),
     bestTitle, bestDesc, bestH1,
     allText: allText.slice(0, 5000),
-    wordCount: body.split(' ').filter(w => w.length > 2).length,
+    wordCount: (body + ' ' + noscriptContent).split(' ').filter(w => w.length > 2).length,
     hasViewport: /<meta[^>]+name=["']viewport["']/i.test(html),
   }
 }
