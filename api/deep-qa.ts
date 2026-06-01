@@ -282,17 +282,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Add metadata
     report.screens_captured = shots.length
-    report.screens_list     = shots.map(s => s.step)
+    report.screens_list     = shots.map((s: any) => s.step)
     report.tested_at        = new Date().toISOString()
     report._type            = 'deep_qa'
 
     res.status(200).json(report)
   } catch (e) {
     const msg = (e as Error).message
+    console.error('Deep QA error:', msg)
     if (msg.includes('Browser dependencies')) {
-      res.status(503).json({ error: 'Browser not available in this environment. Try again in a moment.' })
+      res.status(503).json({ error: 'Headless browser not available — Vercel may need a moment to provision it. Try again in 30 seconds.' })
+    } else if (msg.includes('Login failed')) {
+      res.status(422).json({ error: msg })
+    } else if (msg.includes('executablePath')) {
+      res.status(503).json({ error: 'Browser binary not found — ensure @sparticuz/chromium is installed. Check Vercel function logs.' })
     } else {
-      res.status(500).json({ error: msg })
+      res.status(500).json({ error: `Deep QA failed: ${msg}` })
     }
   }
 }
