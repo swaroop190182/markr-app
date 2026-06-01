@@ -77,15 +77,32 @@ export function getTestContext(app: AppData): string {
   const pt = app.productTest
   if (!pt || pt.error) return ''
 
-  const features = (pt.features_found ?? []).map(f => `${f.name} (${f.quality})`).join(', ')
-  const flows    = (pt.tested_flows   ?? []).map(f =>
+  // New rule-based format
+  if (pt.checks && Array.isArray(pt.checks)) {
+    const fails  = pt.checks.filter((c: any) => c.status === 'fail').map((c: any) => c.detail).join('; ')
+    const warns  = pt.checks.filter((c: any) => c.status === 'warn').map((c: any) => c.detail).join('; ')
+    const passes = pt.checks.filter((c: any) => c.status === 'pass').map((c: any) => c.label).join(', ')
+    return [
+      `\n━━━ PRODUCT TEST INTELLIGENCE (Technical Score: ${pt.score}/100) ━━━`,
+      fails  ? `CRITICAL ISSUES: ${fails}` : '',
+      warns  ? `WARNINGS: ${warns}` : '',
+      passes ? `PASSING: ${passes}` : '',
+      pt.verdict ? `VERDICT: ${pt.verdict}` : '',
+      `LOAD TIME: ${(pt.loadTime/1000).toFixed(1)}s`,
+      '━━━ USE THESE FINDINGS TO SHAPE CONTENT AND GROWTH STRATEGY ━━━',
+    ].filter(Boolean).join('\n')
+  }
+
+  // Legacy AI format
+  const features = (pt.features_found ?? []).map((f: any) => `${f.name} (${f.quality})`).join(', ')
+  const flows    = (pt.tested_flows   ?? []).map((f: any) =>
     `${f.name}: ${f.status} ${f.score}/100${f.friction_point ? ' — ' + f.friction_point : ''}`
   ).join('; ')
   const works    = (pt.what_works_well   ?? []).join('; ')
   const fixes    = (pt.what_needs_fixing ?? []).join('; ')
   const highBugs = (pt.bugs_and_issues  ?? [])
-    .filter(b => b.severity === 'Critical' || b.severity === 'High')
-    .map(b => `${b.title} [${b.severity}]`).join('; ')
+    .filter((b: any) => b.severity === 'Critical' || b.severity === 'High')
+    .map((b: any) => `${b.title} [${b.severity}]`).join('; ')
   const ux = pt.ux_ratings
     ? Object.entries(pt.ux_ratings).map(([k, v]) => `${k}:${v}`).join(', ')
     : ''
@@ -102,7 +119,7 @@ export function getTestContext(app: AppData): string {
     pt.tester_recommendation  ? `TESTER VERDICT: ${pt.tester_recommendation}` : '',
     pt.competitive_edge_from_test ? `REAL COMPETITIVE EDGE: ${pt.competitive_edge_from_test}` : '',
     'CONTENT IMPLICATIONS:',
-    ...(pt.content_implications ?? []).map((c, i) => `  ${i + 1}. ${c}`),
+    ...(pt.content_implications ?? []).map((c: any, i: number) => `  ${i + 1}. ${c}`),
     pt.onboarding_verdict ? `ONBOARDING: ${pt.onboarding_verdict}` : '',
     '━━━ ALL OUTPUTS MUST REFLECT THESE REAL PRODUCT FINDINGS ━━━',
   ].filter(Boolean).join('\n')
