@@ -83,7 +83,7 @@ export function getTestContext(app: AppData): string {
     const warns  = pt.checks.filter((c: any) => c.status === 'warn').map((c: any) => c.detail).join('; ')
     const passes = pt.checks.filter((c: any) => c.status === 'pass').map((c: any) => c.label).join(', ')
     return [
-      `\n━━━ PRODUCT TEST INTELLIGENCE (Technical Score: ${pt.score}/100) ━━━`,
+      `\n━━━ PRODUCT TEST INTELLIGENCE (Technical Score: ${pt.score ?? 0}/100) ━━━`,
       fails  ? `CRITICAL ISSUES: ${fails}` : '',
       warns  ? `WARNINGS: ${warns}` : '',
       passes ? `PASSING: ${passes}` : '',
@@ -108,17 +108,16 @@ export function getTestContext(app: AppData): string {
     : ''
 
   return [
-    `\n━━━ PRODUCT TEST INTELLIGENCE (QA Score: ${pt.overall_score}/100 — "${pt.verdict}") ━━━`,
+    `\n━━━ PRODUCT TEST INTELLIGENCE (QA Score: ${pt.overall_score ?? 0}/100 — "${pt.verdict ?? ''}") ━━━`,
     pt.first_impression ? `FIRST IMPRESSION: ${pt.first_impression}` : '',
-    `FEATURES TESTED & QUALITY: ${features}`,
-    `FLOWS TESTED: ${flows}`,
-    `WHAT GENUINELY WORKS: ${works}`,
-    `WHAT NEEDS FIXING: ${fixes}`,
+    features ? `FEATURES TESTED & QUALITY: ${features}` : '',
+    flows    ? `FLOWS TESTED: ${flows}` : '',
+    works    ? `WHAT GENUINELY WORKS: ${works}` : '',
+    fixes    ? `WHAT NEEDS FIXING: ${fixes}` : '',
     highBugs ? `HIGH-SEVERITY BUGS: ${highBugs}` : '',
-    `UX SCORES: ${ux}`,
-    pt.tester_recommendation  ? `TESTER VERDICT: ${pt.tester_recommendation}` : '',
+    ux       ? `UX SCORES: ${ux}` : '',
+    pt.tester_recommendation   ? `TESTER VERDICT: ${pt.tester_recommendation}` : '',
     pt.competitive_edge_from_test ? `REAL COMPETITIVE EDGE: ${pt.competitive_edge_from_test}` : '',
-    'CONTENT IMPLICATIONS:',
     ...(pt.content_implications ?? []).map((c: any, i: number) => `  ${i + 1}. ${c}`),
     pt.onboarding_verdict ? `ONBOARDING: ${pt.onboarding_verdict}` : '',
     '━━━ ALL OUTPUTS MUST REFLECT THESE REAL PRODUCT FINDINGS ━━━',
