@@ -25,57 +25,89 @@ async function scrapeUrl(url: string): Promise<Record<string, string>> {
       (html.match(pattern)?.[1] ?? '').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim()
 
     const getAll = (tag: string, limit = 4) => {
-      const re = new RegExp(`<${tag}[^>]*>([\\s\\S]{1,120}?)<\\/${tag}>`, 'gi')
+      const re = new RegExp(`<${tag}[^>]*>([\s\S]{1,120}?)<\/${tag}>`, 'gi')
       const out: string[] = []; let m
       while ((m = re.exec(html)) && out.length < limit)
         out.push(m[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim())
       return out
     }
 
+    // Standard tags
     const title    = get(/<title[^>]*>([^<]{1,120})<\/title>/i)
-    const metaDesc = get(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,200})["']/i)
-                  || get(/<meta[^>]+content=["']([^"']{1,200})["'][^>]+name=["']description["']/i)
     const h1       = getAll('h1', 1)[0] ?? ''
     const h2s      = getAll('h2', 4)
+
+    // Meta description — try all formats
+    const metaDesc = get(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,200})["']/i)
+                  || get(/<meta[^>]+content=["']([^"']{1,200})["'][^>]+name=["']description["']/i)
+
+    // OG/Twitter tags — always present even in JS apps
     const ogTitle  = get(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']{1,120})["']/i)
+                  || get(/<meta[^>]+content=["']([^"']{1,120})["'][^>]+property=["']og:title["']/i)
+    const ogDesc   = get(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']{1,200})["']/i)
+                  || get(/<meta[^>]+content=["']([^"']{1,200})["'][^>]+property=["']og:description["']/i)
+    const twTitle  = get(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']{1,120})["']/i)
+    const twDesc   = get(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']{1,200})["']/i)
 
+    // JSON-LD structured data
+    const jsonLd   = get(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]{1,2000}?)<\/script>/i)
+
+    // Best available content — prefer OG/Twitter for JS apps
+    const bestTitle = title || ogTitle || twTitle || ''
+    const bestDesc  = metaDesc || ogDesc || twDesc || ''
+    const bestH1    = h1 || ogTitle || twTitle || ''
+
+    // Full text from all meta sources for keyword analysis
+    const allMetaText = [bestTitle, bestDesc, bestH1, h2s.join(' '), ogDesc, twDesc, jsonLd].join(' ')
+
+    // Body text (may be empty for JS apps)
     const bodyText = html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ')
-    const youCount = (bodyText.match(/\byou\b|\byour\b/gi) ?? []).length
-    const weCount  = (bodyText.match(/\bwe\b|\bour\b|\bwe've\b/gi) ?? []).length
+    const fullText = bodyText + ' ' + allMetaText
 
-    // Detect if this is a JS-rendered SPA (very little visible text)
-    const visibleText = html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()
-    const isJSApp = visibleText.length < 500 || h1 === ''
+    const youCount = (fullText.match(/\byou\b|\byour\b/gi) ?? []).length
+    const weCount  = (fullText.match(/\bwe\b|\bour\b|\bwe've\b/gi) ?? []).length
+
+    // Detect JS/SPA — has little visible text but may have good meta tags
+    const visibleText = bodyText.trim()
+    const isJSApp = (visibleText.length < 800 || h1 === '') && (bestTitle !== '' || bestDesc !== '')
+    const hasNoContent = visibleText.length < 200 && bestTitle === '' && bestDesc === ''
 
     return {
-      title, metaDesc, h1, h2s: h2s.join(' | '), ogTitle,
+      title: bestTitle, metaDesc: bestDesc, h1: bestH1, h2s: h2s.join(' | '), ogTitle,
       hasViewport:    String(/<meta[^>]+name=["']viewport["']/i.test(html)),
-      hasSocialProof: String(/testimonial|review|rating|stars|trusted|customers|users/i.test(html)),
-      hasNumbers:     String(/\d+[k+]?\s*(?:users|customers|apps|founders|teams|reviews)/i.test(html)),
-      hasUrgency:     String(/free|now|today|start|instantly|minutes|fast|quick/i.test(title + h1 + metaDesc)),
+      hasSocialProof: String(/testimonial|review|rating|stars|trusted|customers|users/i.test(fullText)),
+      hasNumbers:     String(/\d+[k+]?\s*(?:users|customers|apps|founders|teams|reviews)/i.test(fullText)),
+      hasUrgency:     String(/free|now|today|start|instantly|minutes|fast|quick/i.test(allMetaText)),
       ctaText:        get(/<(?:button|a)[^>]*(?:hero|primary|cta|action|signup|get-started)[^>]*>([^<]{1,60})<\/(?:button|a)>/i),
       youCount:       String(youCount),
       weCount:        String(weCount),
       isJSApp:        String(isJSApp),
+      hasNoContent:   String(hasNoContent),
+      allMetaText:    allMetaText.slice(0, 500),
     }
   } catch (e) {
     throw new Error(`Could not reach this URL — make sure it is public and accessible.`)
   }
 }
 
+
 // ── Rule-based scoring ────────────────────────────────────────────────────────
 function scoreApp(data: Record<string, string>, url: string) {
-  const title    = data.title || ''
-  const metaDesc = data.metaDesc || ''
-  const h1       = data.h1 || ''
-  const h2s      = data.h2s || ''
-  const ctaText  = data.ctaText || ''
-  const youCount = parseInt(data.youCount || '0')
-  const weCount  = parseInt(data.weCount || '0')
-  const hasSP    = data.hasSocialProof === 'true'
-  const hasNums  = data.hasNumbers === 'true'
-  const hasUrg   = data.hasUrgency === 'true'
-  const headline = h1 || data.ogTitle || title
+  const title      = data.title || ''
+  const metaDesc   = data.metaDesc || ''
+  const h1         = data.h1 || ''
+  const h2s        = data.h2s || ''
+  const ctaText    = data.ctaText || ''
+  const youCount   = parseInt(data.youCount || '0')
+  const weCount    = parseInt(data.weCount || '0')
+  const hasSP      = data.hasSocialProof === 'true'
+  const hasNums    = data.hasNumbers === 'true'
+  const hasUrg     = data.hasUrgency === 'true'
+  const isJSApp    = data.isJSApp === 'true'
+  const allMeta    = data.allMetaText || ''
+  const headline   = h1 || data.ogTitle || title
+  // For JS apps, use all available meta content for keyword analysis
+  const analyzeText = isJSApp ? (allMeta + ' ' + title + ' ' + metaDesc) : (title + ' ' + h1 + ' ' + metaDesc + ' ' + h2s)
 
   // ── 1. Clarity ───────────────────────────────────────────────────────────────
   let clarity = 3
@@ -106,14 +138,19 @@ function scoreApp(data: Record<string, string>, url: string) {
 
   // ── 3. Emotional Pull ────────────────────────────────────────────────────────
   let emotion = 3
-  if (youCount > weCount)                                             emotion += 3
+  // For JS apps, check meta text for you/your language
+  const metaYou = (analyzeText.match(/\byou\b|\byour\b/gi) ?? []).length
+  const metaWe  = (analyzeText.match(/\bwe\b|\bour\b/gi) ?? []).length
+  if (metaYou > metaWe || metaYou >= 2)                              emotion += 3
   if (hasNums)                                                        emotion += 2
   if (hasUrg)                                                         emotion += 2
   emotion = Math.min(10, emotion)
-  const emotionIssue = (weCount > 0 && youCount < weCount)
-    ? `Page says "we/our" ${weCount}× vs "you/your" ${youCount}× — flip this ratio to speak to the user`
-    : (youCount === 0 && weCount === 0)
-      ? 'Could not read page copy — this may be a JavaScript-rendered app. Analysis based on meta tags only.'
+  const effectiveYou = Math.max(youCount, (analyzeText.match(/\byou\b|\byour\b/gi) ?? []).length)
+  const effectiveWe  = Math.max(weCount,  (analyzeText.match(/\bwe\b|\bour\b/gi) ?? []).length)
+  const emotionIssue = (effectiveWe > 0 && effectiveYou < effectiveWe)
+    ? `Page uses "we/our" ${effectiveWe}× vs "you/your" ${effectiveYou}× — flip this to speak to the user`
+    : (effectiveYou === 0 && effectiveWe === 0 && !isJSApp)
+      ? 'No visible copy detected — check if your landing page has readable text content'
       : !hasUrg
         ? 'Good user focus but missing urgency — add a specific reason to act today'
         : 'Speaks to the user and creates momentum'
@@ -192,7 +229,7 @@ function scoreApp(data: Record<string, string>, url: string) {
     growth_teaser: teasers[category] ?? teasers['App'],
     scraped: { title: title.slice(0,80), h1: h1.slice(0,80), metaDesc: metaDesc.slice(0,120) },
     isJSApp,
-    note: isJSApp ? 'This appears to be a JavaScript app — scores are based on meta tags and page structure only. Static landing pages get more accurate results.' : null,
+    note: isJSApp ? 'Scores are based on meta tags (og:title, description, twitter tags). For more accurate results, ensure your app has rich OG meta tags.' : null,
   }
 }
 
