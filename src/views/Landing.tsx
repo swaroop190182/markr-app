@@ -467,11 +467,16 @@ export default function Landing() {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }} className="how-steps">
             {[
-              { quote:'I got more clarity on my app\'s positioning in 2 minutes than 3 months of guessing. The SWOT alone was worth it.', name:'Early user', app:'Wellness app founder', color:'#7c6ff7' },
-              { quote:'The daily content delivery is a game changer. I wake up with 3 ready-to-post captions every morning. Zero effort.', name:'Beta tester', app:'SaaS founder', color:'#34c98a' },
-              { quote:'Finally an AI tool that actually understands my app instead of giving generic marketing advice. It felt like a real co-founder.', name:'Early adopter', app:'EdTech founder', color:'#e26faf' },
+              { quote:'Going through the landing page felt like an experience — which is enough to get me in. The focus is on the user throughout. My favourite part is the CTA — "Analyze my app" all the way through. Simple and clear.', name:'Discord community member', app:'App founder', color:'#7c6ff7', tag:'✓ Headline feedback implemented' },
+              { quote:'The daily content delivery is a game changer. I wake up with 3 ready-to-post captions every morning. Zero effort on my end.', name:'Beta tester', app:'SaaS founder', color:'#34c98a', tag:null },
+              { quote:'Finally an AI tool that actually understands my app instead of giving generic marketing advice. It felt like a real co-founder.', name:'Early adopter', app:'EdTech founder', color:'#e26faf', tag:null },
             ].map(t=>(
               <div key={t.name} style={{ padding:'22px 20px', background:'rgba(255,255,255,.03)', border:`1px solid ${t.color}20`, borderRadius:12, position:'relative' }}>
+                {t.tag && (
+                  <div style={{ position:'absolute', top:-10, left:16, background:'rgba(52,201,138,.15)', border:'1px solid rgba(52,201,138,.3)', borderRadius:20, padding:'2px 10px', fontSize:9, fontWeight:700, color:'#34c98a', fontFamily:D, whiteSpace:'nowrap' as const }}>
+                    {t.tag}
+                  </div>
+                )}
                 <div style={{ fontSize:24, color:t.color, marginBottom:10, lineHeight:1 }}>"</div>
                 <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', lineHeight:1.7, marginBottom:16, fontStyle:'italic' }}>{t.quote}</div>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
