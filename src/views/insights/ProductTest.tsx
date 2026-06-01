@@ -30,12 +30,10 @@ const STATUS_ICON: Record<Severity,string> = {
 }
 
 export default function ProductTest() {
-  const { currentApp, updateApp, userEmail } = useStore()
+  const { currentApp, updateApp } = useStore()
   const [running, setRunning]   = useState(false)
   const [expanded, setExpanded] = useState<Record<string,boolean>>({})
   const pt = currentApp.productTest as PTResult | null | undefined
-
-  const isAdmin = userEmail === 'swaroop.raghu@gmail.com'
 
   async function runTest() {
     if (!currentApp.url) { toast('Add your app URL in Edit App first'); return }
