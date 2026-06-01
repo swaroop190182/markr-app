@@ -1,113 +1,186 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+// ── Helper: extract text from HTML ───────────────────────────────────────────
+function extractFromHtml(html: string) {
+  const get = (pattern: RegExp) =>
+    (html.match(pattern)?.[1] ?? '').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim()
 
-// ── IP rate limit — 3 analyses per IP per day ─────────────────────────────────
-const ipMap = new Map<string, { count: number; date: string }>()
-function checkIpLimit(ip: string): boolean {
-  const today = new Date().toISOString().split('T')[0]
-  const cur   = ipMap.get(ip)
-  const count = cur?.date === today ? cur.count : 0
-  if (count >= 3) return false
-  ipMap.set(ip, { count: count + 1, date: today })
-  return true
-}
+  const getAll = (tag: string, limit = 4) => {
+    const re = new RegExp(`<${tag}[^>]*>([\s\S]{1,120}?)<\/${tag}>`, 'gi')
+    const out: string[] = []; let m
+    while ((m = re.exec(html)) && out.length < limit)
+      out.push(m[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim())
+    return out
+  }
 
-// ── Scrape homepage ───────────────────────────────────────────────────────────
-async function scrapeUrl(url: string): Promise<Record<string, string>> {
+  const title    = get(/<title[^>]*>([^<]{1,120})<\/title>/i)
+  const h1s      = getAll('h1', 2)
+  const h2s      = getAll('h2', 5)
+  const h3s      = getAll('h3', 5)
+  const metaDesc = get(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,300})["']/i)
+                || get(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+name=["']description["']/i)
+  const ogTitle  = get(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']{1,120})["']/i)
+                || get(/<meta[^>]+content=["']([^"']{1,120})["'][^>]+property=["']og:title["']/i)
+  const ogDesc   = get(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']{1,300})["']/i)
+                || get(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+property=["']og:description["']/i)
+  const twDesc   = get(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']{1,300})["']/i)
+                || get(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+name=["']twitter:description["']/i)
+  const twTitle  = get(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']{1,120})["']/i)
+
+  // JSON-LD — often has name, description for any app
+  const jsonLdRaw = get(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]{1,3000}?)<\/script>/i)
+  let jsonLdText = ''
   try {
-    const res  = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Markr/1.0; +https://markr.mindprintjournal.com)' },
-      signal:  AbortSignal.timeout(8000),
-    })
-    const html = await res.text()
+    const jld = JSON.parse(jsonLdRaw)
+    jsonLdText = [jld.name, jld.description, jld.headline, jld.alternateName].filter(Boolean).join(' ')
+  } catch { jsonLdText = jsonLdRaw.replace(/[{}"\[\]]/g,' ').replace(/\s+/g,' ').slice(0,300) }
 
-    const get = (pattern: RegExp) =>
-      (html.match(pattern)?.[1] ?? '').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim()
+  // Paragraph text — present in static sites, Webflow, Framer etc
+  const paras = getAll('p', 8)
 
-    const getAll = (tag: string, limit = 4) => {
-      const re = new RegExp(`<${tag}[^>]*>([\s\S]{1,120}?)<\/${tag}>`, 'gi')
-      const out: string[] = []; let m
-      while ((m = re.exec(html)) && out.length < limit)
-        out.push(m[1].replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim())
-      return out
-    }
+  // Button/CTA text
+  const allButtons: string[] = []
+  const btnRe = /<(?:button|a)[^>]*>([^<]{3,60})<\/(?:button|a)>/gi; let bm
+  while ((bm = btnRe.exec(html)) && allButtons.length < 10)
+    allButtons.push(bm[1].replace(/<[^>]+>/g,'').trim())
 
-    // Standard tags
-    const title    = get(/<title[^>]*>([^<]{1,120})<\/title>/i)
-    const h1       = getAll('h1', 1)[0] ?? ''
-    const h2s      = getAll('h2', 4)
+  // Visible body text (works for static sites)
+  const bodyText = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
-    // Meta description — try all formats
-    const metaDesc = get(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,200})["']/i)
-                  || get(/<meta[^>]+content=["']([^"']{1,200})["'][^>]+name=["']description["']/i)
-
-    // OG/Twitter tags — always present even in JS apps
-    const ogTitle  = get(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']{1,120})["']/i)
-                  || get(/<meta[^>]+content=["']([^"']{1,120})["'][^>]+property=["']og:title["']/i)
-    const ogDesc   = get(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']{1,200})["']/i)
-                  || get(/<meta[^>]+content=["']([^"']{1,200})["'][^>]+property=["']og:description["']/i)
-    const twTitle  = get(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']{1,120})["']/i)
-    const twDesc   = get(/<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']{1,200})["']/i)
-
-    // JSON-LD structured data
-    const jsonLd   = get(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]{1,2000}?)<\/script>/i)
-
-    // Best available content — prefer OG/Twitter for JS apps
-    const bestTitle = title || ogTitle || twTitle || ''
-    const bestDesc  = metaDesc || ogDesc || twDesc || ''
-    const bestH1    = h1 || ogTitle || twTitle || ''
-
-    // Full text from all meta sources for keyword analysis
-    const allMetaText = [bestTitle, bestDesc, bestH1, h2s.join(' '), ogDesc, twDesc, jsonLd].join(' ')
-
-    // Body text (may be empty for JS apps)
-    const bodyText = html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ')
-    const fullText = bodyText + ' ' + allMetaText
-
-    const youCount = (fullText.match(/\byou\b|\byour\b/gi) ?? []).length
-    const weCount  = (fullText.match(/\bwe\b|\bour\b|\bwe've\b/gi) ?? []).length
-
-    // Detect JS/SPA — has little visible text but may have good meta tags
-    const visibleText = bodyText.trim()
-    const isJSApp = (visibleText.length < 800 || h1 === '') && (bestTitle !== '' || bestDesc !== '')
-    const hasNoContent = visibleText.length < 200 && bestTitle === '' && bestDesc === ''
-
-    return {
-      title: bestTitle, metaDesc: bestDesc, h1: bestH1, h2s: h2s.join(' | '), ogTitle,
-      hasViewport:    String(/<meta[^>]+name=["']viewport["']/i.test(html)),
-      hasSocialProof: String(/testimonial|review|rating|stars|trusted|customers|users/i.test(fullText)),
-      hasNumbers:     String(/\d+[k+]?\s*(?:users|customers|apps|founders|teams|reviews)/i.test(fullText)),
-      hasUrgency:     String(/free|now|today|start|instantly|minutes|fast|quick/i.test(allMetaText)),
-      ctaText:        get(/<(?:button|a)[^>]*(?:hero|primary|cta|action|signup|get-started)[^>]*>([^<]{1,60})<\/(?:button|a)>/i),
-      youCount:       String(youCount),
-      weCount:        String(weCount),
-      isJSApp:        String(isJSApp),
-      hasNoContent:   String(hasNoContent),
-      allMetaText:    allMetaText.slice(0, 500),
-    }
-  } catch (e) {
-    throw new Error(`Could not reach this URL — make sure it is public and accessible.`)
+  return {
+    title, h1: h1s[0] ?? '', h2s, h3s, h1s, paras,
+    metaDesc, ogTitle, ogDesc, twTitle, twDesc, jsonLdText,
+    bodyText: bodyText.slice(0, 3000),
+    allButtons,
+    bestTitle: title || ogTitle || twTitle || '',
+    bestDesc:  metaDesc || ogDesc || twDesc || jsonLdText || '',
+    bestH1:    h1s[0] || ogTitle || twTitle || title || '',
+    hasViewport: String(/<meta[^>]+name=["']viewport["']/i.test(html)),
   }
 }
 
+// ── Fetch a URL safely ────────────────────────────────────────────────────────
+async function fetchSafe(url: string, timeout = 5000): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' },
+      signal: AbortSignal.timeout(timeout),
+    })
+    if (!res.ok) return null
+    return await res.text()
+  } catch { return null }
+}
+
+// ── Main scraper — multi-pass for JS apps ─────────────────────────────────────
+async function scrapeUrl(url: string): Promise<Record<string, string>> {
+  const base = new URL(url).origin
+
+  // Pass 1: Main page
+  const mainHtml = await fetchSafe(url)
+  if (!mainHtml) throw new Error('Could not reach this URL — make sure it is public and accessible.')
+
+  const main = extractFromHtml(mainHtml)
+
+  // Detect if JS app (little visible text, or no H1)
+  const visibleWordCount = main.bodyText.split(' ').filter(w => w.length > 2).length
+  const isJSApp = visibleWordCount < 100 || main.h1 === ''
+
+  let extraText = ''
+  let extraH2s: string[] = []
+  let extraParas: string[] = []
+
+  if (isJSApp) {
+    // Pass 2: Try sitemap to find content pages
+    const sitemap = await fetchSafe(`${base}/sitemap.xml`, 3000)
+    if (sitemap) {
+      const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)]
+        .map(m => m[1])
+        .filter(u => /about|features|how|pricing|product|what|why/i.test(u))
+        .slice(0, 3)
+
+      for (const pageUrl of urls) {
+        const pageHtml = await fetchSafe(pageUrl, 4000)
+        if (pageHtml) {
+          const page = extractFromHtml(pageHtml)
+          extraText += ' ' + page.bodyText.slice(0, 1000)
+          extraH2s  = [...extraH2s, ...page.h2s, ...page.h3s]
+          extraParas = [...extraParas, ...page.paras]
+        }
+      }
+    }
+
+    // Pass 3: Try /about and /features directly
+    if (!extraText.trim()) {
+      for (const path of ['/about', '/features', '/how-it-works', '/product']) {
+        const pageHtml = await fetchSafe(`${base}${path}`, 3000)
+        if (pageHtml) {
+          const page = extractFromHtml(pageHtml)
+          if (page.bodyText.split(' ').length > 100) {
+            extraText += ' ' + page.bodyText.slice(0, 1000)
+            extraH2s  = [...extraH2s, ...page.h2s]
+            extraParas = [...extraParas, ...page.paras]
+            break
+          }
+        }
+      }
+    }
+  }
+
+  // Combine all text sources
+  const allText = [
+    main.bestTitle, main.bestDesc, main.bestH1,
+    main.h2s.join(' '), main.h3s.join(' '),
+    main.paras.join(' '), main.jsonLdText,
+    extraText, extraH2s.join(' '), extraParas.join(' ')
+  ].join(' ').replace(/\s+/g, ' ')
+
+  const youCount = (allText.match(/\byou\b|\byour\b/gi) ?? []).length
+  const weCount  = (allText.match(/\bwe\b|\bour\b|\bwe've\b/gi) ?? []).length
+
+  // CTA detection from all sources
+  const ctaText = main.allButtons
+    .find(b => /start|try|get|sign|join|analyze|free|demo|launch|begin/i.test(b)) ?? ''
+
+  return {
+    title:          main.bestTitle,
+    metaDesc:       main.bestDesc,
+    h1:             main.bestH1,
+    h2s:            [...main.h2s, ...extraH2s].slice(0,6).join(' | '),
+    ogTitle:        main.ogTitle,
+    allText:        allText.slice(0, 2000),
+    ctaText,
+    hasViewport:    main.hasViewport,
+    hasSocialProof: String(/testimonial|review|rating|stars|trusted|customers|\d+\s*users|\d+\s*founders/i.test(allText)),
+    hasNumbers:     String(/\d+[k+]?\s*(?:users|customers|apps|founders|teams|reviews|clients)/i.test(allText)),
+    hasUrgency:     String(/free|now|today|start|instantly|minutes|fast|quick/i.test(allText)),
+    youCount:       String(youCount),
+    weCount:        String(weCount),
+    isJSApp:        String(isJSApp),
+    extraPagesRead: String(extraText.length > 50),
+  }
+}
 
 // ── Rule-based scoring ────────────────────────────────────────────────────────
 function scoreApp(data: Record<string, string>, url: string) {
-  const title      = data.title || ''
-  const metaDesc   = data.metaDesc || ''
-  const h1         = data.h1 || ''
-  const h2s        = data.h2s || ''
-  const ctaText    = data.ctaText || ''
-  const youCount   = parseInt(data.youCount || '0')
-  const weCount    = parseInt(data.weCount || '0')
-  const hasSP      = data.hasSocialProof === 'true'
-  const hasNums    = data.hasNumbers === 'true'
-  const hasUrg     = data.hasUrgency === 'true'
-  const isJSApp    = data.isJSApp === 'true'
-  const allMeta    = data.allMetaText || ''
-  const headline   = h1 || data.ogTitle || title
-  // For JS apps, use all available meta content for keyword analysis
-  const analyzeText = isJSApp ? (allMeta + ' ' + title + ' ' + metaDesc) : (title + ' ' + h1 + ' ' + metaDesc + ' ' + h2s)
+  const title     = data.title || ''
+  const metaDesc  = data.metaDesc || ''
+  const h1        = data.h1 || ''
+  const h2s       = data.h2s || ''
+  const ctaText   = data.ctaText || ''
+  const youCount  = parseInt(data.youCount || '0')
+  const weCount   = parseInt(data.weCount || '0')
+  const hasSP     = data.hasSocialProof === 'true'
+  const hasNums   = data.hasNumbers === 'true'
+  const hasUrg    = data.hasUrgency === 'true'
+  const isJSApp   = data.isJSApp === 'true'
+  const extraRead = data.extraPagesRead === 'true'
+  const allText   = data.allText || (title + ' ' + metaDesc + ' ' + h1 + ' ' + h2s)
+  const headline  = h1 || data.ogTitle || title
+  // Use combined text for all keyword analysis
+  const analyzeText = allText
 
   // ── 1. Clarity ───────────────────────────────────────────────────────────────
   let clarity = 3
