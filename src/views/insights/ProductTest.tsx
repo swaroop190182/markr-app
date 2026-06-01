@@ -53,20 +53,37 @@ export default function ProductTest() {
     setRunning(false)
   }
 
-  // ── Deep AI product test (uses tokens, simulates real user) ───────────────
+  // ── Deep AI product test (real browser, real screenshots, Claude Vision) ──
   async function runDeepTest() {
     if (!canUseProductTest) { toast('Deep AI Product Test is a Pro feature'); return }
-    if (!currentApp.testCreds) { toast('Add test credentials in Edit App first'); return }
+    if (!currentApp.testCreds?.user) { toast('Add test credentials in Edit App first'); return }
     const pass = testPass || currentApp.testCreds.password || ''
     if (!pass) { toast('Enter the test password below'); return }
     setAiRunning(true)
     try {
-      const { runProductTest } = await import('../../lib/claude')
-      const result = await runProductTest(currentApp, pass)
-      await updateApp(currentApp.id, { productTest: result } as any)
-      toast(`Deep test complete! Score: ${result.overall_score}/100`, 4000)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { toast('Please sign in again'); setAiRunning(false); return }
+
+      const res = await fetch('/api/deep-qa', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          url:           currentApp.url,
+          loginEmail:    currentApp.testCreds.user,
+          loginPassword: pass,
+          appName:       currentApp.name,
+          desc:          currentApp.desc,
+          features:      currentApp.features,
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) { toast('Error: ' + data.error); setAiRunning(false); return }
+      await updateApp(currentApp.id, { productTest: data } as any)
+      toast(`Deep QA complete! Score: ${data.overall_score}/100 · ${data.screens_captured} screens tested`, 5000)
       setActiveTab('deep')
-    } catch(e) { toast('Deep test failed: ' + (e as Error).message) }
+    } catch(e) {
+      toast('Deep test failed: ' + (e as Error).message)
+    }
     setAiRunning(false)
   }
 
@@ -200,22 +217,47 @@ export default function ProductTest() {
             <div style={{ padding:'32px', textAlign:'center' }}>
               <div style={{ fontSize:40, marginBottom:12 }}>🧪</div>
               <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:8 }}>Deep AI Product Test</div>
-              <div style={{ fontSize:13, color:'var(--text3)', maxWidth:380, margin:'0 auto', lineHeight:1.7 }}>
-                Add test credentials in Edit App — Markr will simulate a real user session, testing every feature and generating a full QA report.
+              <div style={{ fontSize:13, color:'var(--text3)', maxWidth:420, margin:'0 auto 16px', lineHeight:1.7 }}>
+                Markr opens a <strong style={{ color:'var(--text2)' }}>real browser</strong>, logs into your app with test credentials, navigates through every screen, takes screenshots, and sends them to Claude Vision for a genuine QA report.
               </div>
+              <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r2)', padding:'14px 18px', maxWidth:400, margin:'0 auto', textAlign:'left' as const }}>
+                {['🌐 Opens real browser — not simulated','📸 Screenshots every screen it visits','🔐 Logs in with your test credentials','👁️ Claude Vision analyzes what it actually sees','🐛 Reports real bugs from real screens'].map(s=>(
+                  <div key={s} style={{ fontSize:12, color:'var(--text2)', display:'flex', gap:8, marginBottom:7 }}>
+                    <span>{s.split(' ')[0]}</span><span>{s.slice(3)}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop:16, fontSize:12, color:'var(--text3)' }}>Add test credentials in Edit App to get started</div>
             </div>
           ) : !aiPt ? (
             <div style={{ padding:'32px', textAlign:'center' }}>
               <div style={{ fontSize:40, marginBottom:12 }}>🧪</div>
-              <div style={{ fontSize:14, fontWeight:700, marginBottom:8, color:'var(--text)' }}>Ready for Deep Test</div>
-              <div style={{ fontSize:12, color:'var(--text3)', marginBottom:16 }}>Test account: <strong style={{ color:'var(--text2)' }}>{currentApp.testCreds.user}</strong></div>
-              <div style={{ maxWidth:260, margin:'0 auto 16px' }}>
+              <div style={{ fontSize:14, fontWeight:700, marginBottom:8, color:'var(--text)' }}>Ready for Deep Browser Test</div>
+              <div style={{ fontSize:12, color:'var(--text3)', marginBottom:4 }}>
+                Will open a real browser, log in as: <strong style={{ color:'var(--text2)' }}>{currentApp.testCreds.user}</strong>
+              </div>
+              <div style={{ fontSize:11, color:'var(--text3)', marginBottom:4, opacity:.7 }}>
+                Takes ~30-45 seconds · Captures 5-8 real screenshots · Claude Vision analyzes each one
+              </div>
+              <div style={{ fontSize:11, color:'var(--amber)', marginBottom:20, opacity:.8 }}>
+                ⚠️ Uses ~1,500 tokens (vision) — counts toward your daily limit
+              </div>
+              <div style={{ maxWidth:260, margin:'0 auto 14px' }}>
                 <input type="password" value={testPass} onChange={e=>setTestPass(e.target.value)} placeholder="Enter test password" style={{ textAlign:'center' }} />
               </div>
               <button className="gen-btn" style={{ margin:'0 auto' }} onClick={runDeepTest} disabled={aiRunning}>
-                {aiRunning ? <><span className="spinner" style={{ color:'#fff' }} /> Running deep test…</> : <><i className="ti ti-flask" style={{ fontSize:13 }} /> Run Deep AI Test</>}
+                {aiRunning
+                  ? <><span className="spinner" style={{ color:'#fff' }} /> Opening browser…</>
+                  : <><i className="ti ti-flask" style={{ fontSize:13 }} /> Run Deep Browser Test</>}
               </button>
-              {aiRunning && <div style={{ marginTop:12, fontSize:12, color:'var(--text3)', opacity:.7 }}>Exploring flows · Assessing features · Finding issues…</div>}
+              {aiRunning && (
+                <div style={{ marginTop:14, fontSize:12, color:'var(--text3)', opacity:.7, lineHeight:2 }}>
+                  🌐 Opening browser…<br/>
+                  🔐 Logging in…<br/>
+                  📸 Capturing screens…<br/>
+                  👁️ Claude Vision analyzing…
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -233,9 +275,19 @@ export default function ProductTest() {
                         <div style={{ fontSize:38, fontWeight:800, color:sc, lineHeight:1 }}>{score}</div>
                         <div style={{ fontSize:9, color:'var(--text3)', marginTop:2 }}>QA Score</div>
                       </div>
-                      <div>
+                      <div style={{ flex:1 }}>
                         <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4 }}>{aiPt.verdict_emoji} {aiPt.verdict}</div>
-                        <div style={{ fontSize:12, color:'var(--text2)', lineHeight:1.5 }}>{aiPt.executive_summary}</div>
+                        <div style={{ fontSize:12, color:'var(--text2)', lineHeight:1.5, marginBottom:6 }}>{aiPt.executive_summary}</div>
+                        {(aiPt as any).screens_captured && (
+                          <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const }}>
+                            <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, background:'rgba(124,111,247,.15)', color:'var(--accent2)', fontWeight:600 }}>
+                              📸 {(aiPt as any).screens_captured} screens tested
+                            </span>
+                            {(aiPt as any).screens_list?.slice(0,3).map((s: string, i: number) => (
+                              <span key={i} style={{ fontSize:10, padding:'2px 8px', borderRadius:20, background:'var(--surface2)', color:'var(--text3)' }}>{s.slice(0,30)}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
