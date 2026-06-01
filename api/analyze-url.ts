@@ -384,7 +384,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pages = await fullScrape(url)
+
+    // Confidence check — total words scraped across all pages
+    const totalWords = Object.values(pages).reduce((sum, p) => sum + p.wordCount, 0)
+    const totalPages = Object.keys(pages).length
+    const hasRichContent = totalWords > 200 || (pages.home.bestTitle && pages.home.bestDesc)
+
+    if (!hasRichContent) {
+      return res.status(200).json({
+        blocked: true,
+        url,
+        message: "We couldn't read enough content from this site to give an accurate score.",
+        reason: totalWords < 50
+          ? "This site appears to have bot protection (Cloudflare, etc.) or serves content only to browsers."
+          : "This site uses heavy JavaScript rendering with no meta tags — not enough content to analyze.",
+        suggestion: "Try analyzing your own app's landing page URL for the most accurate results."
+      })
+    }
+
+    // Confidence level
+    const confidence = totalWords > 1000 || totalPages >= 4 ? 'high'
+                     : totalWords > 300  || totalPages >= 2 ? 'medium'
+                     : 'low'
+
     const result = score(pages, url)
+    ;(result as any).confidence = confidence
+    ;(result as any).totalWords = totalWords
 
     // Save lead
     try {
