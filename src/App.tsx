@@ -35,6 +35,9 @@ function AppInner({ session }: { session: Session }) {
         .then(() => localStorage.removeItem('markr_lead_url'))
     }
   }, [session])
+
+  // Auto-show upgrade modal when trial expires
+  useEffect(() => {
     if (trialExpired) {
       const t = setTimeout(() => setShowUpgrade(true), 2000)
       return () => clearTimeout(t)
