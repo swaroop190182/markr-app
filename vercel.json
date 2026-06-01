@@ -8,5 +8,11 @@
       "path": "/api/cron/deliver",
       "schedule": "0 1 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/deep-qa.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
 }
