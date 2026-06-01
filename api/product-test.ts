@@ -225,9 +225,16 @@ async function runRules(url: string, appName: string, desc: string, features: st
   const failCount = checks.filter(c => c.status === 'fail').length
   const warnCount = checks.filter(c => c.status === 'warn').length
   const highFails = checks.filter(c => c.status === 'fail' && c.impact === 'High').length
-  const score     = Math.max(0, Math.round(
-    (passCount * 5 - failCount * 8 - warnCount * 2) / checks.length * 20 + 50
-  ))
+
+  // Weighted score: each check worth points based on impact
+  const maxPoints = checks.reduce((sum, c) => sum + (c.impact === 'High' ? 6 : c.impact === 'Medium' ? 4 : 2), 0)
+  const earned    = checks.reduce((sum, c) => {
+    const pts = c.impact === 'High' ? 6 : c.impact === 'Medium' ? 4 : 2
+    if (c.status === 'pass') return sum + pts
+    if (c.status === 'warn') return sum + Math.floor(pts / 2)
+    return sum
+  }, 0)
+  const score = Math.min(100, Math.max(0, Math.round((earned / maxPoints) * 100)))
 
   const categories = ['Technical', 'SEO', 'Accessibility', 'UX'] as const
   const byCategory = Object.fromEntries(
