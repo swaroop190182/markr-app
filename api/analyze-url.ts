@@ -266,18 +266,25 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const hasLogos   = /trusted by|used by|as seen|featured in|partner/i.test(allPagesText)
   const hasNumbers = /\d+[k+]?\s*(?:users|customers|apps|founders|teams|reviews|clients)/i.test(allPagesText)
 
+  // Detect early-stage signals
+  const isEarlyStage = /beta|early.?access|coming.soon|launch|new|just.launched|v1|0\.1/i.test(allPagesText)
+  const hasFounderStory = /built by|founded by|i built|we built|our story|started when|founder/i.test(allPagesText)
+
   let trust = 2
-  if (hasSP)      trust += 3
-  if (hasTeam)    trust += 2
-  if (hasLogos)   trust += 2
-  if (hasNumbers) trust += 1
+  if (hasSP)           trust += 3
+  if (hasTeam)         trust += 2
+  if (hasLogos)        trust += 2
+  if (hasNumbers)      trust += 1
+  if (hasFounderStory) trust += 1  // founder story counts as trust signal
   trust = Math.min(10, trust)
 
-  const trustIssue = !hasSP
-    ? 'No testimonials or reviews found anywhere on the site — add social proof'
-    : !hasTeam
-      ? 'Social proof exists but no founder/team page — who built this?'
-      : `Trust signals present: social proof ${hasTeam ? '+ team page' : ''} ${hasLogos ? '+ logos' : ''}`
+  const trustIssue = !hasSP && !hasFounderStory
+    ? 'No social proof or founder story found — even 1 testimonial or a "why I built this" story doubles trust'
+    : !hasSP && hasFounderStory
+      ? 'Founder story exists (good!) but no user testimonials yet — add even 1-2 early user quotes'
+      : !hasTeam
+        ? 'Social proof exists but no team/about page — show who is behind this'
+        : `Trust signals present: social proof ${hasTeam ? '+ team' : ''} ${hasLogos ? '+ logos' : ''}`
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
   const hasPricing  = !!pricing
@@ -312,27 +319,32 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const bottleneck = [...dimensions].sort((a,b) => a.score - b.score)[0]
 
   // ── Category ─────────────────────────────────────────────────────────────────
-  const allForCat = (url + home.bestTitle + home.bestH1 + home.bestDesc + allH2s.join(' ')).toLowerCase()
+  const allForCat = (url + home.bestTitle + home.bestH1 + home.bestDesc + allH2s.join(' ') + allParas.join(' ')).toLowerCase()
   let category = 'App'
-  if (/health|wellness|fitness|nutrition|mental|medical|diet|baby|mother|parenting/.test(allForCat)) category = 'Health & Wellness'
-  else if (/legal|lawyer|law|attorney|court|contract|compliance/.test(allForCat))                    category = 'Legal'
-  else if (/finance|invest|money|bank|payment|fintech|budget|tax/.test(allForCat))                   category = 'Finance'
-  else if (/education|learn|course|school|teach|tutor|study/.test(allForCat))                        category = 'Education'
-  else if (/ecommerce|shop|store|product|buy|sell|cart/.test(allForCat))                             category = 'E-commerce'
-  else if (/saas|software|platform|dashboard|workflow|api|developer/.test(allForCat))                category = 'SaaS'
-  else if (/marketing|social|content|brand|seo|ads|campaign/.test(allForCat))                        category = 'Marketing'
-  else if (/productivity|task|project|manage|organise|team|collaborate/.test(allForCat))             category = 'Productivity'
+  if (/health|wellness|fitness|nutrition|mental|medical|diet|baby|tummy|tummies|mother|parenting|child|kid|toddler|infant|pregnant|pregnancy/.test(allForCat)) category = 'Health & Wellness'
+  else if (/legal|lawyer|law|attorney|court|contract|compliance|lawsuit|litigation/.test(allForCat))  category = 'Legal'
+  else if (/finance|invest|money|bank|payment|fintech|budget|tax|accounting|invoice/.test(allForCat)) category = 'Finance'
+  else if (/education|learn|course|school|teach|tutor|study|quiz|lesson|curriculum/.test(allForCat))  category = 'Education'
+  else if (/ecommerce|shop|store|product|buy|sell|cart|checkout|order|delivery/.test(allForCat))      category = 'E-commerce'
+  else if (/saas|software|platform|dashboard|workflow|api|developer|integration|b2b/.test(allForCat)) category = 'SaaS'
+  else if (/marketing|social|content|brand|seo|ads|campaign|instagram|twitter|tiktok/.test(allForCat)) category = 'Marketing'
+  else if (/productivity|task|project|manage|organise|team|collaborate|kanban|sprint/.test(allForCat)) category = 'Productivity'
+  else if (/food|recipe|cook|meal|restaurant|diet|calorie|nutrition|eat/.test(allForCat))             category = 'Health & Wellness'
+  else if (/travel|trip|hotel|flight|booking|itinerary|destination/.test(allForCat))                  category = 'Travel'
+  else if (/real.?estate|property|rent|mortgage|home|apartment|housing/.test(allForCat))              category = 'Real Estate'
 
   const teasers: Record<string,string> = {
-    'Health & Wellness': 'A "day in the life" transformation series gets 3× more saves than product demos in your niche. Sign up to get the exact 7-post sequence built for your app.',
-    'Legal':             'Weekly "myth vs fact" posts build authority faster than ads — lawyers and founders share them. Sign up for the exact post templates.',
-    'Finance':           '"Money mistake Monday" reels consistently outperform product demos in finance. Sign up to get the weekly content calendar tailored to your app.',
-    'Education':         '"Before/after learning" posts with specific outcomes convert cold audiences 5× faster than feature-first content. Sign up to get the templates.',
-    'SaaS':              'Founder-led "how I built this" content drives more inbound than product demos for B2B apps. Sign up to get the 30-day content plan for your app.',
-    'Marketing':         'Weekly teardowns of competitor campaigns build authority fast — your audience will tag you in every one. Sign up to get the format built for your niche.',
-    'Productivity':      '"My exact workflow" posts are the highest-saved content format in your category. Sign up to get the weekly templates built around your specific features.',
-    'E-commerce':        'Customer story reels with specific numbers convert 8× better than product showcases. Sign up for the templates.',
-    'App':               '"Problem → solution" posts showing the exact moment your app saves the day is the highest-converting format for mobile apps. Sign up to get 7 done-for-you templates.',
+    'Health & Wellness': `"Before & after" content showing real user transformations gets 3× more saves than product demos in health. For ${home.bestH1 ? `an app about "${home.bestH1.slice(0,40)}"` : 'your niche'}, a weekly win series builds trust fast. Sign up to get the exact 7-post sequence.`,
+    'Legal':             `Weekly "myth vs fact" posts demystifying ${home.bestH1 ? `"${home.bestH1.slice(0,40)}"` : 'legal topics'} build authority faster than ads — professionals share them. Sign up for the exact post templates.`,
+    'Finance':           `"Money mistake" reels showing the problems your app solves consistently outperform product demos. Sign up to get the weekly content calendar built for ${home.bestH1 ? `"${home.bestH1.slice(0,35)}"` : 'your app'}.`,
+    'Education':         `"Before/after learning" posts with specific skill outcomes convert cold audiences 5× faster than feature demos. Sign up to get templates built for ${home.bestH1 ? `"${home.bestH1.slice(0,35)}"` : 'your app'}.`,
+    'SaaS':              `Founder-led "how I solved X" content drives more inbound than product demos for B2B. For ${home.bestH1 ? `"${home.bestH1.slice(0,40)}"` : 'your app'}, a weekly problem-solving series builds pipeline. Sign up for the 30-day plan.`,
+    'Marketing':         `Weekly teardowns showing how ${home.bestH1 ? `"${home.bestH1.slice(0,35)}"` : 'your app'} outperforms competitors build authority fast — your audience will tag you. Sign up for the exact format.`,
+    'Productivity':      `"My exact workflow using ${home.bestTitle.split('—')[0].trim() || 'this app'}" posts are the highest-saved format in productivity. Sign up to get the weekly templates built around your specific features.`,
+    'E-commerce':        `Customer story reels with specific numbers ("saved ₹2,000 this month") convert 8× better than product showcases. Sign up to get the templates for ${home.bestH1 ? `"${home.bestH1.slice(0,35)}"` : 'your store'}.`,
+    'Travel':            `"Hidden gem" and "mistake I made" travel content consistently outperforms destination guides. Sign up to get the weekly content series built for your app.`,
+    'Real Estate':       `"What ₹X buys in [city]" content drives massive engagement in real estate. Sign up to get the weekly post series built around your specific market.`,
+    'App':               `"Problem → solution" posts showing the exact moment ${home.bestTitle.split('—')[0].trim() || 'your app'} saves the day is the highest-converting format. Sign up to get 7 done-for-you templates.`,
   }
 
   // ── Pages analysed summary ───────────────────────────────────────────────────
