@@ -43,6 +43,7 @@ interface AnalysisResult {
   scraped: { title: string; h1: string; metaDesc: string }
   isJSApp?: boolean
   note?: string | null
+  extraPagesRead?: boolean
 }
 
 export default function Landing() {
@@ -191,11 +192,13 @@ export default function Landing() {
                 </div>
               </div>
 
-              {/* JS App warning */}
+              {/* JS App note */}
               {result.isJSApp && (
                 <div style={{ padding:'10px 20px', background:'rgba(245,166,35,.06)', borderBottom:'1px solid rgba(255,255,255,.07)' }}>
                   <div style={{ fontSize:11, color:'#f5a623', lineHeight:1.5 }}>
-                    ⚠️ This appears to be a JavaScript app — scores are based on meta tags and page structure only. Static landing pages get more accurate results.
+                    {result.extraPagesRead
+                      ? '✓ JavaScript app — analyzed your about/features pages for more accurate results.'
+                      : '⚠️ JavaScript app — analysis based on meta tags. Add og:description for best results.'}
                   </div>
                 </div>
               )}
