@@ -603,6 +603,50 @@ export default function Landing() {
               </div>
             ))}
           </div>
+
+          {/* Swaroop's own testimonial — founder eating own cooking */}
+          <div style={{ marginTop:14, padding:'24px 28px', background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.25)', borderRadius:14, position:'relative' }}>
+            <div style={{ position:'absolute', top:-10, left:20, background:'linear-gradient(135deg,#7c6ff7,#e26faf)', borderRadius:20, padding:'3px 12px', fontSize:10, fontWeight:700, color:'#fff', fontFamily:D }}>
+              The founder's own discovery
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:24, alignItems:'center' }} className="two-col">
+              <div>
+                <div style={{ fontSize:24, color:'#a599ff', marginBottom:8, lineHeight:1 }}>"</div>
+                <div style={{ fontSize:14, color:'rgba(255,255,255,.75)', lineHeight:1.8, fontStyle:'italic', marginBottom:16 }}>
+                  I run Tiny Tummies — a meal planning app for young Indian mothers. I thought I had a decent landing page. Markr told me otherwise in 60 seconds: User Journey 4/10, Trust 4/10. No mentor, no agency had flagged this. I've since revised the landing page based on the feedback and I'm now collecting testimonials to fix the trust gap. I didn't know what I didn't know — until Markr showed me.
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>S</div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
+                    <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Tiny Tummies, Emrise & Mindprint</div>
+                  </div>
+                </div>
+              </div>
+              {/* Mini score card */}
+              <div style={{ background:'rgba(0,0,0,.3)', border:'1px solid rgba(255,255,255,.08)', borderRadius:12, padding:'16px 18px', minWidth:160, textAlign:'center' }}>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', marginBottom:8, fontFamily:D }}>Tiny Tummies score</div>
+                <div style={{ fontFamily:D, fontSize:42, fontWeight:800, color:'#f5a623', lineHeight:1 }}>4.6</div>
+                <div style={{ fontSize:10, color:'rgba(255,255,255,.3)', marginBottom:12, fontFamily:D }}>/10 before fixes</div>
+                {[
+                  { label:'User Journey', score:4, color:'#e55' },
+                  { label:'Trust',        score:4, color:'#e55' },
+                  { label:'Clarity',      score:7, color:'#34c98a' },
+                ].map(d=>(
+                  <div key={d.label} style={{ marginBottom:6 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:2 }}>
+                      <span style={{ fontSize:9, color:'rgba(255,255,255,.4)', fontFamily:D }}>{d.label}</span>
+                      <span style={{ fontSize:9, fontWeight:700, color:d.color, fontFamily:D }}>{d.score}/10</span>
+                    </div>
+                    <div style={{ height:3, background:'rgba(255,255,255,.06)', borderRadius:2 }}>
+                      <div style={{ height:'100%', width:`${d.score*10}%`, background:d.color, borderRadius:2 }} />
+                    </div>
+                  </div>
+                ))}
+                <div style={{ fontSize:9, color:'rgba(255,255,255,.25)', marginTop:8, fontFamily:D }}>Now being fixed ↑</div>
+              </div>
+            </div>
+          </div>
           {/* Mid-page CTA */}
           <div style={{ textAlign:'center', marginTop:40 }}>
             <a href="/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'12px 28px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:600, textDecoration:'none', fontFamily:B }}>
