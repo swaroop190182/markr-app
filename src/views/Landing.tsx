@@ -32,7 +32,7 @@ function VideoEmbed() {
   )
 }
 
-type AnalysisState = 'idle' | 'loading' | 'done' | 'error'
+type AnalysisState = 'idle' | 'loading' | 'done' | 'error' | 'blocked'
 interface AnalysisResult {
   overall: number
   headline: string
@@ -43,6 +43,8 @@ interface AnalysisResult {
   scraped: { title: string; h1: string; metaDesc: string }
   isJSApp?: boolean
   pagesRead?: string[]
+  confidence?: 'high' | 'medium' | 'low'
+  totalWords?: number
 }
 
 export default function Landing() {
@@ -77,6 +79,7 @@ export default function Landing() {
       const data = await res.json()
       clearInterval(interval)
       if (!res.ok) { setState('error'); setError(data.error || 'Something went wrong'); return }
+      if (data.blocked) { setState('blocked'); setError(data.message + ' ' + data.reason); return }
       setResult(data)
       setState('done')
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100)
@@ -137,7 +140,8 @@ export default function Landing() {
             onKeyDown={e=>e.key==='Enter'&&handleAnalyze()}
             placeholder="https://yourapp.com"
             disabled={state==='loading'}
-            style={{ flex:1, background:'transparent', border:'none', padding:'14px 16px', fontSize:14, color:'#fff', outline:'none', borderRadius:0, fontFamily:D, opacity: state==='loading'?.6:1 }} />
+            style={{ flex:1, background:'transparent', border:'none', padding:'14px 16px', fontSize:14, color:'#fff', outline:'none', borderRadius:0, fontFamily:D, opacity: state==='loading'?.6:1 }}
+            onChange={e=>{ setUrl(e.target.value); if(state==='blocked'||state==='error') setState('idle') }} />
           <button onClick={handleAnalyze} disabled={state==='loading'}
             style={{ padding:'14px 24px', background: state==='loading'?'rgba(124,111,247,.5)':'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', fontSize:14, fontWeight:600, cursor: state==='loading'?'not-allowed':'pointer', fontFamily:D, whiteSpace:'nowrap', letterSpacing:'-0.01em', transition:'all .2s' }}>
             {state==='loading' ? 'Analyzing…' : 'Analyze my app →'}
@@ -167,6 +171,23 @@ export default function Landing() {
           </div>
         )}
 
+        {/* Blocked state */}
+        {state === 'blocked' && (
+          <div style={{ maxWidth:520, width:'100%', marginBottom:32 }}>
+            <div style={{ background:'rgba(245,166,35,.08)', border:'1px solid rgba(245,166,35,.25)', borderRadius:12, padding:'20px 20px' }}>
+              <div style={{ fontSize:15, fontWeight:700, color:'#f5a623', marginBottom:8, fontFamily:D }}>
+                🛡️ This site blocked our analyzer
+              </div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,.6)', lineHeight:1.7, marginBottom:16, fontFamily:D }}>
+                Large sites like Canva, Stripe, and Notion use bot protection that prevents automated analysis. This is expected — our tool is designed for founders analyzing their own apps, not established giants.
+              </div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,.4)', fontFamily:D }}>
+                💡 Try analyzing <strong style={{ color:'rgba(255,255,255,.7)' }}>your own app's URL</strong> for accurate, actionable results.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Error state */}
         {state === 'error' && (
           <div style={{ maxWidth:520, width:'100%', marginBottom:32, padding:'12px 16px', background:'rgba(220,38,38,.08)', border:'1px solid rgba(220,38,38,.2)', borderRadius:10, fontSize:13, color:'#fca5a5' }}>
@@ -184,6 +205,14 @@ export default function Landing() {
                 <div>
                   <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', marginBottom:3, fontFamily:D }}>Analysis for</div>
                   <div style={{ fontSize:14, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>{url.replace(/^https?:\/\//,'').split('/')[0]}</div>
+                  {result.confidence && (
+                    <div style={{ marginTop:4, display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:600,
+                      background: result.confidence==='high' ? 'rgba(52,201,138,.12)' : result.confidence==='medium' ? 'rgba(245,166,35,.12)' : 'rgba(144,144,176,.12)',
+                      color: result.confidence==='high' ? '#34c98a' : result.confidence==='medium' ? '#f5a623' : '#9090b0'
+                    }}>
+                      {result.confidence==='high' ? '● High confidence' : result.confidence==='medium' ? '● Medium confidence' : '● Low confidence'}
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign:'center' }}>
                   <div style={{ fontFamily:D, fontSize:36, fontWeight:700, color: result.overall >= 7 ? '#34c98a' : result.overall >= 5 ? '#f5a623' : '#e55', lineHeight:1 }}>{result.overall}</div>
@@ -249,7 +278,7 @@ export default function Landing() {
 
         {/* Video — shown when idle or after result */}
         {/* Video — shown when idle or after result */}
-        {(state === 'idle' || state === 'done' || state === 'error') && (
+        {(state === 'idle' || state === 'done' || state === 'error' || state === 'blocked') && (
           <div style={{ maxWidth:820, width:'100%' }}>
             <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,.3)', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:12, fontFamily:D }}>
               See the outcome in 6 minutes
