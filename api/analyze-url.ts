@@ -43,6 +43,10 @@ async function scrapeUrl(url: string): Promise<Record<string, string>> {
     const youCount = (bodyText.match(/\byou\b|\byour\b/gi) ?? []).length
     const weCount  = (bodyText.match(/\bwe\b|\bour\b|\bwe've\b/gi) ?? []).length
 
+    // Detect if this is a JS-rendered SPA (very little visible text)
+    const visibleText = html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()
+    const isJSApp = visibleText.length < 500 || h1 === ''
+
     return {
       title, metaDesc, h1, h2s: h2s.join(' | '), ogTitle,
       hasViewport:    String(/<meta[^>]+name=["']viewport["']/i.test(html)),
@@ -52,6 +56,7 @@ async function scrapeUrl(url: string): Promise<Record<string, string>> {
       ctaText:        get(/<(?:button|a)[^>]*(?:hero|primary|cta|action|signup|get-started)[^>]*>([^<]{1,60})<\/(?:button|a)>/i),
       youCount:       String(youCount),
       weCount:        String(weCount),
+      isJSApp:        String(isJSApp),
     }
   } catch (e) {
     throw new Error(`Could not reach this URL — make sure it is public and accessible.`)
@@ -105,11 +110,13 @@ function scoreApp(data: Record<string, string>, url: string) {
   if (hasNums)                                                        emotion += 2
   if (hasUrg)                                                         emotion += 2
   emotion = Math.min(10, emotion)
-  const emotionIssue = youCount <= weCount
-    ? `Page says "we/our" ${weCount}× vs "you/your" ${youCount}× — users don\'t care about you, they care about their outcome`
-    : !hasUrg
-      ? 'No urgency language — add a reason to act today, not someday'
-      : 'Speaks to the user and creates momentum'
+  const emotionIssue = (weCount > 0 && youCount < weCount)
+    ? `Page says "we/our" ${weCount}× vs "you/your" ${youCount}× — flip this ratio to speak to the user`
+    : (youCount === 0 && weCount === 0)
+      ? 'Could not read page copy — this may be a JavaScript-rendered app. Analysis based on meta tags only.'
+      : !hasUrg
+        ? 'Good user focus but missing urgency — add a specific reason to act today'
+        : 'Speaks to the user and creates momentum'
 
   // ── 4. Trust ─────────────────────────────────────────────────────────────────
   let trust = 3
@@ -174,6 +181,8 @@ function scoreApp(data: Record<string, string>, url: string) {
     'App':               '"Problem → solution" posts showing the exact moment your app saves the day is the highest-converting format for mobile apps. Sign up to get 7 done-for-you templates.',
   }
 
+  const isJSApp = data.isJSApp === 'true'
+
   return {
     overall,
     headline: headline.slice(0, 80) || 'No headline detected',
@@ -182,6 +191,8 @@ function scoreApp(data: Record<string, string>, url: string) {
     bottleneck: { label: bottleneck.label, issue: bottleneck.issue },
     growth_teaser: teasers[category] ?? teasers['App'],
     scraped: { title: title.slice(0,80), h1: h1.slice(0,80), metaDesc: metaDesc.slice(0,120) },
+    isJSApp,
+    note: isJSApp ? 'This appears to be a JavaScript app — scores are based on meta tags and page structure only. Static landing pages get more accurate results.' : null,
   }
 }
 
