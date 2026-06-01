@@ -30,16 +30,17 @@ export interface ProductTestBug {
 }
 
 export interface ProductTest {
-  overall_score: number
-  verdict: string
-  verdict_emoji: string
-  executive_summary: string
-  tester_recommendation: string
-  first_impression: string
-  tested_flows: ProductTestFlow[]
-  features_found: ProductTestFeature[]
-  bugs_and_issues: ProductTestBug[]
-  ux_ratings: {
+  // Legacy AI format
+  overall_score?: number
+  verdict?: string
+  verdict_emoji?: string
+  executive_summary?: string
+  tester_recommendation?: string
+  first_impression?: string
+  tested_flows?: ProductTestFlow[]
+  features_found?: ProductTestFeature[]
+  bugs_and_issues?: ProductTestBug[]
+  ux_ratings?: {
     onboarding: number
     navigation: number
     visual_design: number
@@ -47,13 +48,26 @@ export interface ProductTest {
     mobile_responsiveness: number
     error_handling: number
   }
-  what_works_well: string[]
-  what_needs_fixing: string[]
-  content_implications: string[]
-  ux_observations: string
-  onboarding_verdict: string
-  competitive_edge_from_test: string
+  what_works_well?: string[]
+  what_needs_fixing?: string[]
+  content_implications?: string[]
+  ux_observations?: string
+  onboarding_verdict?: string
+  competitive_edge_from_test?: string
+  // New rule-based format
+  score?: number
+  loadTime?: number
+  runAt?: string
+  checks?: Array<{
+    id: string; category: string; label: string
+    status: 'pass'|'warn'|'fail'; detail: string; impact: 'High'|'Medium'|'Low'
+  }>
+  byCategory?: Record<string, any[]>
+  summary?: { pass: number; warn: number; fail: number; total: number; highFails: number }
+  // Shared
   error?: string
+  url?: string
+  appName?: string
 }
 
 export interface AppData {
