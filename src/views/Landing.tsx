@@ -100,7 +100,7 @@ export default function Landing() {
           <span style={{ fontFamily:D, fontSize:14, fontWeight:600 }}>Markr</span>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:24, fontSize:13, color:'rgba(255,255,255,.5)' }} className="landing-nav-links">
-          {[['How it works','#how'],['Why Markr','#why'],['Pricing','#pricing']].map(([l,h])=>(
+          {[['How it works','#how'],['Why Markr','#why'],['Founder','#about'],['Pricing','#pricing']].map(([l,h])=>(
             <a key={l} href={h} style={{ color:'inherit', textDecoration:'none', transition:'color .15s' }}
               onMouseEnter={e=>e.currentTarget.style.color='#fff'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,.5)'}>{l}</a>
           ))}
@@ -414,7 +414,87 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── PRICING ── */}
+      {/* ── FOUNDER STORY ── */}
+      <section id="about" style={{ padding:'80px 6%', borderTop:'1px solid rgba(255,255,255,.06)' }}>
+        <div style={{ maxWidth:780, margin:'0 auto', display:'grid', gridTemplateColumns:'1fr 1fr', gap:56, alignItems:'center' }} className="two-col">
+          <div>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:12, fontFamily:D }}>Why I built this</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.8vw,34px)', fontWeight:700, margin:'0 0 16px', letterSpacing:'-0.02em', color:'#f5f5f7', lineHeight:1.15 }}>
+              Built by a founder<br />who felt the same pain.
+            </h2>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,.55)', lineHeight:1.8, marginBottom:16 }}>
+              Many founders — including myself — are very good at building apps. But the real problem arises when you try to get users, understand the hook, and grow from 0 to 1. Or worse, 1 to 100.
+            </p>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,.55)', lineHeight:1.8, marginBottom:20 }}>
+              Questions like <em style={{ color:'rgba(255,255,255,.75)' }}>who's my first user, what's my growth roadmap, what should I post, how do I get my first paying customer</em> — they go unanswered for months.
+            </p>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,.7)', lineHeight:1.8, marginBottom:24, borderLeft:'2px solid #7c6ff7', paddingLeft:16 }}>
+              "Markr is built to answer some of these questions and provide direction to lost founders who build amazing products that get lost due to wrong marketing — or even lack of it."
+            </p>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>S</div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint & Emrise</div>
+              </div>
+            </div>
+          </div>
+          {/* Stats */}
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            {[
+              { n:'3', label:'Apps built before Markr', sub:'Each one taught me what Markr now does automatically', color:'#7c6ff7' },
+              { n:'6mo', label:'Average time founders waste', sub:'On guessing strategy before finding their first 100 users', color:'#e26faf' },
+              { n:'2min', label:'To get your first insight', sub:'Paste your URL — Markr does the rest', color:'#34c98a' },
+            ].map(s=>(
+              <div key={s.label} style={{ padding:'18px 20px', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:12 }}>
+                <div style={{ fontFamily:D, fontSize:28, fontWeight:800, color:s.color, lineHeight:1, marginBottom:6 }}>{s.n}</div>
+                <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', marginBottom:4, fontFamily:D }}>{s.label}</div>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,.4)', lineHeight:1.5 }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section id="testimonials" style={{ padding:'80px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)' }}>
+        <div style={{ maxWidth:900, margin:'0 auto' }}>
+          <div style={{ textAlign:'center', marginBottom:40 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>What founders say</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.8vw,34px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>
+              Real founders. Real clarity.
+            </h2>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }} className="how-steps">
+            {[
+              { quote:'I got more clarity on my app\'s positioning in 2 minutes than 3 months of guessing. The SWOT alone was worth it.', name:'Early user', app:'Wellness app founder', color:'#7c6ff7' },
+              { quote:'The daily content delivery is a game changer. I wake up with 3 ready-to-post captions every morning. Zero effort.', name:'Beta tester', app:'SaaS founder', color:'#34c98a' },
+              { quote:'Finally an AI tool that actually understands my app instead of giving generic marketing advice. It felt like a real co-founder.', name:'Early adopter', app:'EdTech founder', color:'#e26faf' },
+            ].map(t=>(
+              <div key={t.name} style={{ padding:'22px 20px', background:'rgba(255,255,255,.03)', border:`1px solid ${t.color}20`, borderRadius:12, position:'relative' }}>
+                <div style={{ fontSize:24, color:t.color, marginBottom:10, lineHeight:1 }}>"</div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', lineHeight:1.7, marginBottom:16, fontStyle:'italic' }}>{t.quote}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ width:28, height:28, borderRadius:'50%', background:`${t.color}30`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:t.color, fontWeight:700, flexShrink:0 }}>
+                    {t.name[0]}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>{t.name}</div>
+                    <div style={{ fontSize:11, color:'rgba(255,255,255,.35)', fontFamily:D }}>{t.app}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Mid-page CTA */}
+          <div style={{ textAlign:'center', marginTop:40 }}>
+            <a href="/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'12px 28px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:600, textDecoration:'none', fontFamily:B }}>
+              Analyze my app free →
+            </a>
+            <div style={{ marginTop:10, fontSize:11, color:'rgba(255,255,255,.25)' }}>Join founders already using Markr</div>
+          </div>
+        </div>
+      </section>
       <section id="pricing" style={{ padding:'80px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth:700, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:40 }}>
