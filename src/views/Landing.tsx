@@ -42,8 +42,7 @@ interface AnalysisResult {
   growth_teaser: string
   scraped: { title: string; h1: string; metaDesc: string }
   isJSApp?: boolean
-  note?: string | null
-  extraPagesRead?: boolean
+  pagesRead?: string[]
 }
 
 export default function Landing() {
@@ -192,14 +191,14 @@ export default function Landing() {
                 </div>
               </div>
 
-              {/* JS App note */}
-              {result.isJSApp && (
-                <div style={{ padding:'10px 20px', background:'rgba(245,166,35,.06)', borderBottom:'1px solid rgba(255,255,255,.07)' }}>
-                  <div style={{ fontSize:11, color:'#f5a623', lineHeight:1.5 }}>
-                    {result.extraPagesRead
-                      ? '✓ JavaScript app — analyzed your about/features pages for more accurate results.'
-                      : '⚠️ JavaScript app — analysis based on meta tags. Add og:description for best results.'}
-                  </div>
+              {/* Pages analyzed */}
+              {result.pagesRead && result.pagesRead.length > 0 && (
+                <div style={{ padding:'10px 20px', background:'rgba(52,201,138,.04)', borderBottom:'1px solid rgba(255,255,255,.07)', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' as const }}>
+                  <span style={{ fontSize:11, color:'#34c98a', fontWeight:600 }}>✓ Analyzed:</span>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>Home</span>
+                  {result.pagesRead.map(p => (
+                    <span key={p} style={{ fontSize:11, color:'rgba(255,255,255,.4)' }}>· {p.charAt(0).toUpperCase() + p.slice(1)}</span>
+                  ))}
                 </div>
               )}
               <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(255,255,255,.07)' }}>
