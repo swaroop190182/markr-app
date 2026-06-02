@@ -77,3 +77,4 @@ Describe the change to Claude, copy the updated file, push to GitHub. Vercel aut
 "Make the sidebar collapsible on mobile"
 ```
 test deploy trigger
+trigger production deploy
