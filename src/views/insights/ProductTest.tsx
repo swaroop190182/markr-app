@@ -19,7 +19,8 @@ const SBG: Record<Severity,string> = { pass:'rgba(52,201,138,.1)', warn:'rgba(24
 const SI: Record<Severity,string>  = { pass:'✓', warn:'⚠', fail:'✗' }
 
 export default function ProductTest() {
-  const { currentApp, updateApp, plan, canUseProductTest } = useStore()
+  const { currentApp, updateApp, plan, canUseProductTest, userEmail } = useStore()
+  const isAdmin = userEmail === 'swaroop.raghu@gmail.com'
   const [running, setRunning]     = useState(false)
   const [aiRunning, setAiRunning] = useState(false)
   const [testEmail, setTestEmail]   = useState('')
@@ -210,9 +211,20 @@ export default function ProductTest() {
             <div style={{ padding:'32px', textAlign:'center' }}>
               <div style={{ fontSize:40, marginBottom:12 }}>🔒</div>
               <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:8 }}>Deep AI Product Test — Pro only</div>
-              <div style={{ fontSize:13, color:'var(--text3)', maxWidth:380, margin:'0 auto 20px', lineHeight:1.7 }}>
-                Simulates a real user testing every feature of your app. Generates a full QA report with bugs, UX scores, flow analysis and content implications.
+              <div style={{ fontSize:13, color:'var(--text3)', maxWidth:380, margin:'0 auto', lineHeight:1.7 }}>Upgrade to Pro to access real browser QA testing.</div>
+            </div>
+          ) : !isAdmin ? (
+            <div style={{ padding:'40px 24px', textAlign:'center' }}>
+              <div style={{ fontSize:48, marginBottom:16 }}>🔬</div>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 14px', borderRadius:20, background:'rgba(124,111,247,.12)', border:'1px solid rgba(124,111,247,.3)', fontSize:11, fontWeight:700, color:'var(--accent2)', marginBottom:16, letterSpacing:'.06em', textTransform:'uppercase' as const }}>Coming Soon</div>
+              <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:10 }}>Real Browser QA Testing</div>
+              <div style={{ fontSize:13, color:'var(--text3)', maxWidth:420, margin:'0 auto 20px', lineHeight:1.8 }}>Markr will open a real browser, log into your app, navigate every screen, take screenshots, and send them to Claude Vision for a genuine QA report — not simulated.</div>
+              <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r2)', padding:'16px 20px', maxWidth:400, margin:'0 auto', textAlign:'left' as const }}>
+                {['🌐 Opens real headless browser','🔐 Logs in with your test credentials','📸 Screenshots every screen it visits','👁️ Claude Vision analyzes what it sees','🐛 Reports real bugs — not AI guesses'].map(s=>(
+                  <div key={s} style={{ fontSize:12, color:'var(--text2)', display:'flex', gap:8, marginBottom:8 }}><span>{s.split(' ')[0]}</span><span>{s.slice(3)}</span></div>
+                ))}
               </div>
+              <div style={{ marginTop:20, fontSize:11, color:'var(--text3)', opacity:.6 }}>Available in the next update · Add test credentials in Edit App to be ready</div>
             </div>
           ) : !currentApp.testCreds ? (
             <div style={{ padding:'32px', textAlign:'center' }}>
