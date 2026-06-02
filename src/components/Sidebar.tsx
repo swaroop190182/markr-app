@@ -86,6 +86,30 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, use
             )}
           </div>
         ))}
+
+        {/* Admin tab — only for swaroop.raghu@gmail.com */}
+        {userEmail === 'swaroop.raghu@gmail.com' && (
+          <div
+            onClick={() => setView('admin')}
+            className="flex items-center gap-2 cursor-pointer select-none"
+            style={{
+              padding: '8px 10px', borderRadius: 7, fontSize: 13,
+              color: view === 'admin' ? '#f5a623' : 'var(--text2)',
+              background: view === 'admin' ? 'rgba(245,166,35,.12)' : 'transparent',
+              transition: 'all .15s', marginBottom: 2, marginTop: 4,
+              borderTop: '1px solid var(--border)', paddingTop: 10,
+            }}
+            onMouseEnter={e => {
+              if (view !== 'admin') (e.currentTarget as HTMLElement).style.background = 'var(--surface2)'
+            }}
+            onMouseLeave={e => {
+              if (view !== 'admin') (e.currentTarget as HTMLElement).style.background = 'transparent'
+            }}
+          >
+            <i className="ti ti-shield-lock" style={{ fontSize: 15 }} />
+            <span style={{ flex: 1 }}>Admin</span>
+          </div>
+        )}
       </div>
 
       {/* Apps */}
