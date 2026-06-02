@@ -64,12 +64,12 @@
     </noscript>
     <script>
       // Must run before React mounts — flag admin path so App.tsx never redirects
-      if (window.location.pathname === '/admin') {
+      if (window.location.pathname === '/mx-control') {
         window.__MARKR_ADMIN__ = true;
         // Prevent any framework from redirecting us
         const _pushState = history.pushState.bind(history);
         history.pushState = function(state, title, url) {
-          if (window.__MARKR_ADMIN__ && url && !String(url).includes('/admin')) return;
+          if (window.__MARKR_ADMIN__ && url && !String(url).includes('/mx-control')) return;
           return _pushState(state, title, url);
         };
       }
