@@ -82,7 +82,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
           { label:'Your Apps',      value: String(apps.length),  change: plan==='pro'?'Pro — unlimited':'Free — 1 app', c: plan==='pro'?'var(--green)':'var(--accent2)' },
           { label:'Content Pillars', value: String(currentApp.pillars?.length ?? 0), change:`for ${currentApp.name}`, c:'var(--text3)' },
           { label:'Plan',           value: plan==='pro'?'Pro':'Free', change: plan==='pro'?'All features unlocked':'7-day trial', c: plan==='pro'?'var(--green)':'var(--amber)' },
-          { label:'Product Test',   value: currentApp.productTest && !currentApp.productTest.error ? `${currentApp.productTest.overall_score}/100` : '—', change: currentApp.productTest && !currentApp.productTest.error ? currentApp.productTest.verdict : 'Not run yet', c: currentApp.productTest && !currentApp.productTest.error ? 'var(--green)' : 'var(--text3)' },
+          { label:'Product Test', value: currentApp.productTest && !currentApp.productTest.error ? `${(currentApp.productTest as any).score ?? currentApp.productTest.overall_score ?? '—'}/100` : '—', change: currentApp.productTest && !currentApp.productTest.error ? ((currentApp.productTest as any).verdict ?? '') : 'Not run yet', c: currentApp.productTest && !currentApp.productTest.error ? 'var(--green)' : 'var(--text3)' },
         ].map(m => (
           <div key={m.label} className="card">
             <div style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>{m.label}</div>
@@ -111,8 +111,12 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
         <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
           <span>🧪</span>
           <div style={{ flex:1, fontSize:12 }}>
-            <strong style={{ color:'var(--green)' }}>Product test active</strong> — Score: {pt.overall_score}/100 · {pt.verdict}
-            <span style={{ color:'var(--text3)', marginLeft:8 }}>Features: {(pt.features_found??[]).map(f=>f.name).join(', ')}</span>
+            <strong style={{ color:'var(--green)' }}>Product test active</strong>
+            {' '}— Score: {(pt as any).score ?? pt.overall_score ?? '—'}/100
+            {(pt as any).verdict ? ` · ${(pt as any).verdict}` : ''}
+            {(pt.features_found??[]).length > 0 && (
+              <span style={{ color:'var(--text3)', marginLeft:8 }}>Features: {(pt.features_found??[]).map((f:any)=>f.name).join(', ')}</span>
+            )}
           </div>
           <button className="vbtn" onClick={() => setView('insights')}>View QA report</button>
         </div>
