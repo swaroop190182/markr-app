@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 
 const ADMIN = 'swaroop.raghu@gmail.com'
@@ -91,10 +92,10 @@ export default function Admin() {
     setUsers(p => p.map(u => u.id===userId ? {...u, apps:0} : u))
   }
 
-  const s: React.CSSProperties = { fontFamily:'Inter,-apple-system,sans-serif', fontSize:13 }
-  const card: React.CSSProperties = { background:'#fff', border:'1px solid #e4e4f0', borderRadius:10, padding:'16px 18px' }
-  const th: React.CSSProperties = { padding:'10px 14px', fontSize:10, fontWeight:600, color:'#888', textAlign:'left', textTransform:'uppercase', letterSpacing:'.06em', borderBottom:'1px solid #e4e4f0', background:'#f8f8fc' }
-  const td: React.CSSProperties = { padding:'10px 14px', borderBottom:'1px solid #f4f4f8', fontSize:13 }
+  const s: CSSProperties = { fontFamily:'Inter,-apple-system,sans-serif', fontSize:13 }
+  const card: CSSProperties = { background:'#fff', border:'1px solid #e4e4f0', borderRadius:10, padding:'16px 18px' }
+  const th: CSSProperties = { padding:'10px 14px', fontSize:10, fontWeight:600, color:'#888', textAlign:'left', textTransform:'uppercase', letterSpacing:'.06em', borderBottom:'1px solid #e4e4f0', background:'#f8f8fc' }
+  const td: CSSProperties = { padding:'10px 14px', borderBottom:'1px solid #f4f4f8', fontSize:13 }
 
   if (!authed && !loading) return (
     <div style={{ ...s, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:12 }}>
