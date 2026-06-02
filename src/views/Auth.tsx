@@ -25,13 +25,21 @@ export default function Auth() {
         if (urlParam) markLeadConverted(urlParam)
         window.location.href = appTarget
       } else if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email, password,
           options: { emailRedirectTo: `${window.location.origin}${appTarget}` }
         })
         if (error) throw error
         // Mark lead as converted
         if (urlParam) markLeadConverted(urlParam)
+        // Send welcome email
+        if (data.user) {
+          fetch('/api/welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-webhook-secret': 'markr_cron_2026' },
+            body: JSON.stringify({ email, name: data.user.user_metadata?.full_name || '' })
+          }).catch(() => {}) // fire and forget
+        }
         setMessage('Check your email for a confirmation link!')
       } else {
         const { error } = await supabase.auth.resetPasswordForEmail(email)
