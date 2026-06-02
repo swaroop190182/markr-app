@@ -106,8 +106,8 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        // Never redirect away from admin
-        if (window.location.pathname === '/admin') return
+        // Never redirect if we're on admin
+        if (window.location.pathname === '/admin' || (window as any).__MARKR_ADMIN__) return
 
         // Send welcome email on first ever session — fires on email confirmation redirect too
         const welcomeKey = `markr_welcomed_${session.user.id}`
