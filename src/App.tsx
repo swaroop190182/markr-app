@@ -97,7 +97,9 @@ function AppInner({ session }: { session: Session }) {
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const [path,    setPath]    = useState(window.location.pathname)
+  const [path,    setPath]    = useState(() => window.location.pathname)
+
+  const isAdmin = path === '/admin' || window.location.pathname === '/admin'
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -107,30 +109,28 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        // Don't redirect away from admin
+        // Never redirect away from admin
         if (window.location.pathname === '/admin') return
-        setPath('/app')
-        window.history.pushState({}, '', '/app')
 
-        // Send welcome email only on first ever sign in
-        // Check localStorage so we only send once per account
+        // Send welcome email on first sign in
         if (event === 'SIGNED_IN') {
           const welcomeKey = `markr_welcomed_${session.user.id}`
           if (!localStorage.getItem(welcomeKey)) {
             localStorage.setItem(welcomeKey, '1')
             fetch('/api/welcome', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-webhook-secret': 'markr_cron_2026',
-              },
-              body: JSON.stringify({
-                email: session.user.email,
-                name:  session.user.user_metadata?.full_name || '',
-              }),
+              headers: { 'Content-Type': 'application/json', 'x-webhook-secret': 'markr_cron_2026' },
+              body: JSON.stringify({ email: session.user.email, name: session.user.user_metadata?.full_name || '' }),
             }).catch(() => {})
           }
         }
+
+        setPath(p => {
+          // Don't overwrite admin path
+          if (p === '/admin') return p
+          window.history.pushState({}, '', '/app')
+          return '/app'
+        })
       } else if (event === 'SIGNED_OUT') {
         setPath('/')
         window.history.pushState({}, '', '/')
@@ -150,8 +150,8 @@ export default function App() {
     )
   }
 
-  // Admin always takes priority — check path from window directly to avoid stale state
-  if (window.location.pathname === '/admin') return <Admin />
+  // Admin always takes priority
+  if (isAdmin) return <Admin />
 
   if (session && (path === '/' || path === '/login' || path === '')) {
     return (
