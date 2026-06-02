@@ -105,7 +105,7 @@ export interface AppData {
   pricing_analyzed_at?:     string | null
 }
 
-export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights'
+export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'
 
 export interface AgentPost {
   caption: string
