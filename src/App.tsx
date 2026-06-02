@@ -110,6 +110,26 @@ export default function App() {
         if (window.location.pathname === '/admin') return
         setPath('/app')
         window.history.pushState({}, '', '/app')
+
+        // Send welcome email only on first ever sign in
+        // Check localStorage so we only send once per account
+        if (event === 'SIGNED_IN') {
+          const welcomeKey = `markr_welcomed_${session.user.id}`
+          if (!localStorage.getItem(welcomeKey)) {
+            localStorage.setItem(welcomeKey, '1')
+            fetch('/api/welcome', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-webhook-secret': 'markr_cron_2026',
+              },
+              body: JSON.stringify({
+                email: session.user.email,
+                name:  session.user.user_metadata?.full_name || '',
+              }),
+            }).catch(() => {})
+          }
+        }
       } else if (event === 'SIGNED_OUT') {
         setPath('/')
         window.history.pushState({}, '', '/')
