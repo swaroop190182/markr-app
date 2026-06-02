@@ -21,7 +21,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {error:
 
 const root = ReactDOM.createRoot(document.getElementById('root')!)
 
-if (window.location.pathname === '/admin') {
+if (window.location.pathname === '/mx-control') {
   root.render(
     <React.StrictMode>
       <ErrorBoundary>
