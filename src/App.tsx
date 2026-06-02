@@ -106,6 +106,8 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+        // Don't redirect away from admin
+        if (window.location.pathname === '/admin') return
         setPath('/app')
         window.history.pushState({}, '', '/app')
       } else if (event === 'SIGNED_OUT') {
@@ -135,12 +137,7 @@ export default function App() {
     )
   }
 
-  if (path === '/' || path === '') return <Landing />
-  if (path === '/login') return <Auth />
-
-  if (path === '/admin') {
-    return <Admin />
-  }
+  if (path === '/admin') return <Admin />
 
   if (path.startsWith('/app')) {
     if (!session) {
