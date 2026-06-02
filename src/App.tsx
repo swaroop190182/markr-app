@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import Admin from './views/Admin'
 import { supabase } from './lib/supabase'
 import type { Session } from './lib/supabase'
 import { StoreProvider, useStore } from './lib/store'
@@ -99,8 +98,6 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [path,    setPath]    = useState(() => window.location.pathname)
 
-  const isAdmin = path === '/admin' || window.location.pathname === '/admin'
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
@@ -149,9 +146,6 @@ export default function App() {
       </div>
     )
   }
-
-  // Admin always takes priority
-  if (isAdmin) return <Admin />
 
   if (session && (path === '/' || path === '/login' || path === '')) {
     return (
