@@ -62,6 +62,18 @@
         </section>
       </main>
     </noscript>
+    <script>
+      // Must run before React mounts — flag admin path so App.tsx never redirects
+      if (window.location.pathname === '/admin') {
+        window.__MARKR_ADMIN__ = true;
+        // Prevent any framework from redirecting us
+        const _pushState = history.pushState.bind(history);
+        history.pushState = function(state, title, url) {
+          if (window.__MARKR_ADMIN__ && url && !String(url).includes('/admin')) return;
+          return _pushState(state, title, url);
+        };
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
