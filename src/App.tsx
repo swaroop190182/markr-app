@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Admin from './views/Admin'
+import { supabase } from './lib/supabase'
 import type { Session } from './lib/supabase'
 import { StoreProvider, useStore } from './lib/store'
 import Sidebar from './components/Sidebar'
