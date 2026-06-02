@@ -9,6 +9,8 @@ import ContentStudio from './views/ContentStudio'
 import Strategy from './views/Strategy'
 import Calendar from './views/Calendar'
 import Insights from './views/Insights'
+import Admin from './views/Admin'
+const AdminView = Admin
 import Auth from './views/Auth'
 import Landing from './views/Landing'
 import AddAppModal from './components/AddAppModal'
@@ -82,6 +84,7 @@ function AppInner({ session }: { session: Session }) {
           {view === 'strategy'  && <Strategy />}
           {view === 'calendar'  && <Calendar />}
           {view === 'insights'  && <Insights />}
+          {view === 'admin'     && <AdminView />}
         </main>
       </div>
 
