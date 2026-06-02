@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from './lib/supabase'
+import Admin from './views/Admin'
 import type { Session } from './lib/supabase'
 import { StoreProvider, useStore } from './lib/store'
 import Sidebar from './components/Sidebar'
@@ -137,6 +137,10 @@ export default function App() {
 
   if (path === '/' || path === '') return <Landing />
   if (path === '/login') return <Auth />
+
+  if (path === '/admin') {
+    return <Admin />
+  }
 
   if (path.startsWith('/app')) {
     if (!session) {
