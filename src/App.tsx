@@ -109,17 +109,15 @@ export default function App() {
         // Never redirect away from admin
         if (window.location.pathname === '/admin') return
 
-        // Send welcome email on first sign in
-        if (event === 'SIGNED_IN') {
-          const welcomeKey = `markr_welcomed_${session.user.id}`
-          if (!localStorage.getItem(welcomeKey)) {
-            localStorage.setItem(welcomeKey, '1')
-            fetch('/api/welcome', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'x-webhook-secret': 'markr_cron_2026' },
-              body: JSON.stringify({ email: session.user.email, name: session.user.user_metadata?.full_name || '' }),
-            }).catch(() => {})
-          }
+        // Send welcome email on first ever session — fires on email confirmation redirect too
+        const welcomeKey = `markr_welcomed_${session.user.id}`
+        if (!localStorage.getItem(welcomeKey)) {
+          localStorage.setItem(welcomeKey, '1')
+          fetch('/api/welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-webhook-secret': 'markr_cron_2026' },
+            body: JSON.stringify({ email: session.user.email, name: session.user.user_metadata?.full_name || '' }),
+          }).catch(() => {})
         }
 
         setPath(p => {
