@@ -107,7 +107,7 @@ export default function App() {
       setSession(session)
       if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
         // Never redirect if we're on admin
-        if (window.location.pathname === '/admin' || (window as any).__MARKR_ADMIN__) return
+        if (window.location.pathname === '/mx-control' || (window as any).__MARKR_ADMIN__) return
 
         // Send welcome email on first ever session — fires on email confirmation redirect too
         const welcomeKey = `markr_welcomed_${session.user.id}`
@@ -122,7 +122,7 @@ export default function App() {
 
         setPath(p => {
           // Don't overwrite admin path
-          if (p === '/admin') return p
+          if (p === '/mx-control') return p
           window.history.pushState({}, '', '/app')
           return '/app'
         })
