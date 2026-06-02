@@ -149,6 +149,9 @@ export default function App() {
     )
   }
 
+  // Admin always takes priority — check path from window directly to avoid stale state
+  if (window.location.pathname === '/admin') return <Admin />
+
   if (session && (path === '/' || path === '/login' || path === '')) {
     return (
       <StoreProvider userId={session.user.id} userEmail={session.user.email ?? ''}>
@@ -156,8 +159,6 @@ export default function App() {
       </StoreProvider>
     )
   }
-
-  if (path === '/admin') return <Admin />
 
   if (path.startsWith('/app')) {
     if (!session) {
