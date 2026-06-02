@@ -103,13 +103,12 @@ export default function Admin() {
   const TH: CSSProperties = { padding:'10px 14px', fontSize:10, fontWeight:600, color:'#888', textAlign:'left' as const, textTransform:'uppercase' as const, letterSpacing:'.06em', borderBottom:'1px solid #e4e4f0', background:'#f8f8fc' }
   const TD: CSSProperties = { padding:'10px 14px', borderBottom:'1px solid #f4f4f8', fontSize:13 }
 
-  // Not authed
+  // Inside the app — user is already signed in
+  // The sidebar only shows this view for the admin email
   if (!authed && !loading) return (
-    <div style={{ ...f, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:12 }}>
-      <div style={{ fontSize:40 }}>🔒</div>
-      <div style={{ fontWeight:700, fontSize:16 }}>Admin access only</div>
-      <div style={{ color:'#888' }}>Sign in as {ADMIN}</div>
-      <a href="/login" style={{ marginTop:8, padding:'10px 24px', background:'#7c6ff7', color:'#fff', borderRadius:8, textDecoration:'none', fontWeight:600 }}>Sign in</a>
+    <div style={{ padding:40, textAlign:'center', color:'#888' }}>
+      <div style={{ fontSize:32, marginBottom:12 }}>🔒</div>
+      <div>Admin access only</div>
     </div>
   )
 
@@ -123,7 +122,7 @@ export default function Admin() {
   ] as const
 
   return (
-    <div style={{ ...f, minHeight:'100vh', background:'#f4f4f8', fontSize:13 }}>
+    <div style={{ ...f, fontSize:13, padding:4 }}>
 
       {/* Toast */}
       {toast && (
@@ -132,23 +131,12 @@ export default function Admin() {
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ background:'#fff', borderBottom:'1px solid #e4e4f0', padding:'12px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ width:30, height:30, borderRadius:7, background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, color:'#fff', fontSize:15 }}>M</div>
-          <div>
-            <div style={{ fontWeight:700, fontSize:14 }}>Markr Admin</div>
-            <div style={{ fontSize:11, color:'#888' }}>{ADMIN}</div>
-          </div>
-        </div>
-        <div style={{ display:'flex', gap:8 }}>
-          <button onClick={load} style={{ padding:'7px 14px', borderRadius:7, border:'1px solid #e4e4f0', background:'#fff', cursor:'pointer', fontSize:12, display:'flex', alignItems:'center', gap:5 }}>
-             Refresh
-          </button>
-          <a href="/app" style={{ padding:'7px 14px', borderRadius:7, border:'1px solid #e4e4f0', background:'#fff', fontSize:12, textDecoration:'none', color:'#111', display:'flex', alignItems:'center', gap:5 }}>
-             App
-          </a>
-        </div>
+      {/* Admin header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div style={{ fontSize:17, fontWeight:700 }}>Admin Dashboard</div>
+        <button onClick={load} style={{ padding:'6px 14px', borderRadius:7, border:'1px solid #e4e4f0', background:'#fff', cursor:'pointer', fontSize:12 }}>
+          Refresh
+        </button>
       </div>
 
       <div style={{ display:'flex' }}>
@@ -342,7 +330,6 @@ export default function Admin() {
               )}
             </>
           )}
-        </div>
       </div>
     </div>
   )
