@@ -143,10 +143,10 @@ export default function Admin() {
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={load} style={{ padding:'7px 14px', borderRadius:7, border:'1px solid #e4e4f0', background:'#fff', cursor:'pointer', fontSize:12, display:'flex', alignItems:'center', gap:5 }}>
-            <i className="ti ti-refresh" style={{ fontSize:13 }} /> Refresh
+             Refresh
           </button>
           <a href="/app" style={{ padding:'7px 14px', borderRadius:7, border:'1px solid #e4e4f0', background:'#fff', fontSize:12, textDecoration:'none', color:'#111', display:'flex', alignItems:'center', gap:5 }}>
-            <i className="ti ti-arrow-left" style={{ fontSize:13 }} /> App
+             App
           </a>
         </div>
       </div>
@@ -158,7 +158,7 @@ export default function Admin() {
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ width:'100%', padding:'9px 12px', borderRadius:7, border:'none', background:tab===t.id?'rgba(124,111,247,.1)':'transparent', cursor:'pointer', display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:tab===t.id?600:400, color:tab===t.id?'#7c6ff7':'#555', marginBottom:2, textAlign:'left' as const }}>
-              <i className={`ti ${t.icon}`} style={{ fontSize:15 }} />
+              
               {t.label}
             </button>
           ))}
@@ -190,7 +190,7 @@ export default function Admin() {
                         <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
                           <div style={{ fontSize:11, color:'#888' }}>{x.l}</div>
                           <div style={{ width:26, height:26, borderRadius:6, background:x.c+'18', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            <i className={`ti ${x.i}`} style={{ fontSize:13, color:x.c }} />
+                            
                           </div>
                         </div>
                         <div style={{ fontSize:26, fontWeight:700 }}>{x.v}</div>
@@ -262,7 +262,7 @@ export default function Admin() {
                                   : <button onClick={()=>setPlan(u.id,'free')} style={{ padding:'4px 10px', borderRadius:6, border:'1px solid rgba(220,38,38,.2)', background:'rgba(220,38,38,.06)', color:'#dc2626', fontSize:11, fontWeight:600, cursor:'pointer' }}>Revoke Pro</button>
                                 }
                                 <button onClick={()=>deleteApps(u.id)} style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #e4e4f0', background:'#fff', color:'#888', fontSize:11, cursor:'pointer' }}>
-                                  <i className="ti ti-trash" style={{ fontSize:12 }} />
+                                  
                                 </button>
                               </div>
                             </td>
