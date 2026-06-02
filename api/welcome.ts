@@ -5,6 +5,7 @@ const RESEND_API = 'https://api.resend.com/emails'
 const FROM       = 'Swaroop from Markr <markr@journaljoy.org>'
 const REPLY_TO   = 'swaroop.alwar@journaljoy.org'
 const APP_URL    = 'https://markr.mindprintjournal.com'
+// v2
 
 function welcomeHtml(firstName: string): string {
   return `<!DOCTYPE html>
