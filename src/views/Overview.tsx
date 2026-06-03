@@ -62,16 +62,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
       // First try: use competitor identified during URL analysis (based on actual content)
       let topComp = (ua as any)?.closestCompetitor ?? null
 
-      // Second try: use existing competitive analysis cache
-      if (!topComp?.url && currentApp?.competitive_analysis) {
-        try {
-          const parsed = JSON.parse(currentApp.competitive_analysis)
-          const c = parsed.comps?.[0]
-          if (c?.url) topComp = { name: c.name, url: c.url }
-        } catch {}
-      }
-
-      // Third try: ask Claude based on actual website headline, not category
+      // Second try: ask Claude based on actual website headline
       if (!topComp?.url) {
         const appDesc = ua?.headline || currentApp?.desc || currentApp?.name || ''
         const raw = await callClaude(
