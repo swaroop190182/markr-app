@@ -46,6 +46,7 @@ export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: (
       // Step 0 — real URL analysis
       setStep(0, 'active')
       let urlContext = ''
+      let savedUrlAnalysis: any = null
       let detectedCategory = category
       if (url) {
         try {
@@ -145,10 +146,11 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         name, platform: platform as AppData['platform'],
         color: COLORS[apps.length % COLORS.length],
         stage: stage as AppData['stage'],
-        category, url, desc, brand, pillars, features,
+        category: detectedCategory || category, url, desc, brand, pillars, features,
         audience, problem, diff,
         testCreds: hasCreds ? { user: testUser, password: testPass, loginUrl: loginUrl || url, flows: testFlows } : null,
         productTest,
+        url_analysis: savedUrlAnalysis,
         analyzed: true
       }
       addApp(newApp)
