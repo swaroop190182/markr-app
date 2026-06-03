@@ -112,7 +112,7 @@ ${rc.trim()}
                   const prompt = `List 5 real competitors for "${currentApp.name}" (${currentApp.category}).${currentApp.desc ? ' '+currentApp.desc : ''}${rcCtx}
 
 JSON only, no markdown:
-{"comps":[{"name":"X","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins"}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
+{"comps":[{"name":"X","url":"https://example.com","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins"}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2000)
       const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/}[^}]*$/,'}').trim()
