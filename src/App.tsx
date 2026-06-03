@@ -148,7 +148,8 @@ export default function App() {
     )
   }
 
-  if (session && (path === '/' || path === '/login' || path === '')) {
+  // If session exists, always show the app
+  if (session) {
     return (
       <StoreProvider userId={session.user.id} userEmail={session.user.email ?? ''}>
         <AppInner session={session} />
@@ -156,18 +157,8 @@ export default function App() {
     )
   }
 
-  if (path.startsWith('/app')) {
-    if (!session) {
-      window.history.pushState({}, '', '/login')
-      setPath('/login')
-      return <Auth />
-    }
-    return (
-      <StoreProvider userId={session.user.id} userEmail={session.user.email ?? ''}>
-        <AppInner session={session} />
-      </StoreProvider>
-    )
-  }
+  // No session — show auth or landing based on path
+  if (path === '/login') return <Auth />
 
   return <Landing />
 }
