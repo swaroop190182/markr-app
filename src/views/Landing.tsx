@@ -291,15 +291,71 @@ export default function Landing() {
                 <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', lineHeight:1.6, fontFamily:D }}>{result.growth_teaser}</div>
               </div>
 
-              {/* CTA */}
-              <div style={{ padding:'16px 20px', background:'rgba(255,255,255,.03)', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
-                <div style={{ fontSize:12, color:'rgba(255,255,255,.4)', fontFamily:D }}>
+              {/* CTA — email capture + share */}
+              <div style={{ padding:'16px 20px', background:'rgba(255,255,255,.03)' }}>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,.4)', fontFamily:D, marginBottom:12 }}>
                   Full analysis: Competitive · SWOT · BMC · Growth · Pricing + Daily posts
                 </div>
-                <a href={`/login?url=${encodeURIComponent(url)}`}
-                  style={{ padding:'10px 20px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none', fontFamily:D, whiteSpace:'nowrap', boxShadow:'0 4px 14px rgba(124,111,247,.35)' }}>
-                  Get full analysis free →
-                </a>
+
+                {/* Email capture */}
+                <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap' as const }}>
+                  <input
+                    type="email"
+                    placeholder="Enter your email to get full analysis"
+                    id="landing-email-capture"
+                    style={{ flex:1, minWidth:200, padding:'10px 14px', borderRadius:8, border:'1px solid rgba(124,111,247,.3)', background:'rgba(255,255,255,.05)', color:'#fff', fontSize:13, outline:'none', fontFamily:D }}
+                  />
+                  <a
+                    href="#"
+                    onClick={e => {
+                      e.preventDefault()
+                      const emailEl = document.getElementById('landing-email-capture') as HTMLInputElement
+                      const emailVal = emailEl?.value?.trim()
+                      if (emailVal) {
+                        // Save email to localStorage for post-signup conversion
+                        localStorage.setItem('markr_lead_email', emailVal)
+                        window.location.href = `/login?url=${encodeURIComponent(url)}&email=${encodeURIComponent(emailVal)}`
+                      } else {
+                        window.location.href = `/login?url=${encodeURIComponent(url)}`
+                      }
+                    }}
+                    style={{ padding:'10px 20px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none', fontFamily:D, whiteSpace:'nowrap' as const, boxShadow:'0 4px 14px rgba(124,111,247,.35)', display:'flex', alignItems:'center' }}>
+                    Get full analysis free →
+                  </a>
+                </div>
+
+                {/* Share score */}
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,.3)', fontFamily:D }}>Share your score:</span>
+                  <button
+                    onClick={() => {
+                      const text = `My app scored ${result.overall}/10 on Markr's landing page analyzer 🚀\n\nBiggest gap: ${result.bottleneck.label}\n\nAnalyze your app free → https://markr.mindprintjournal.com`
+                      if (navigator.share) {
+                        navigator.share({ text, url: 'https://markr.mindprintjournal.com' }).catch(() => {})
+                      } else {
+                        navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'))
+                      }
+                    }}
+                    style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D, display:'flex', alignItems:'center', gap:5 }}>
+                    🐦 Twitter/X
+                  </button>
+                  <button
+                    onClick={() => {
+                      const text = `I analyzed my app's landing page with Markr and scored ${result.overall}/10.\n\nBiggest bottleneck: ${result.bottleneck.label}\n\nGet your free analysis → https://markr.mindprintjournal.com`
+                      window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://markr.mindprintjournal.com')}&summary=${encodeURIComponent(text)}`, '_blank')
+                    }}
+                    style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D, display:'flex', alignItems:'center', gap:5 }}>
+                    💼 LinkedIn
+                  </button>
+                  <button
+                    onClick={() => {
+                      const text = `My app scored ${result.overall}/10 on Markr 🚀 Biggest gap: ${result.bottleneck.label}. Analyze yours free → https://markr.mindprintjournal.com`
+                      navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'))
+                    }}
+                    style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D, display:'flex', alignItems:'center', gap:5 }}>
+                    📋 Copy
+                  </button>
+                </div>
               </div>
             </div>
           </div>
