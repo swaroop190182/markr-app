@@ -220,7 +220,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
 
             {/* Hook */}
             {hook && (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'6px 10px', background:'rgba(255,220,60,.07)', border:'1px solid rgba(255,220,60,.15)', borderRadius:'var(--r)', fontSize:11, color:'#fbbf24' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'6px 10px', background:'rgba(180,120,0,.08)', border:'1px solid rgba(180,120,0,.2)', borderRadius:'var(--r)', fontSize:11, color:'#92610a' }}>
                 <span>💡 Hook: <em>"{hook}"</em></span>
                 <CopyButton text={hook} label="Copy" />
               </div>
