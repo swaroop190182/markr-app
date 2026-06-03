@@ -102,7 +102,7 @@ export default function Landing() {
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) { inputRef.current?.focus(); return }
-    setState('loading'); setError(''); setStep(0); setResult(null)
+    setState('loading'); setError(''); setStep(0); setResult(null); setSent(false); setSending(false); setLeadEmail('')
     // Step animation
     const interval = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 900)
     try {
