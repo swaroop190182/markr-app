@@ -43,18 +43,47 @@ export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: (
     setRunning(true)
 
     try {
-      // Step 0
+      // Step 0 — real URL analysis
       setStep(0, 'active')
-      await new Promise(r => setTimeout(r, 300))
+      let urlContext = ''
+      let detectedCategory = category
+      if (url) {
+        try {
+          const urlRes = await fetch('/api/analyze-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+          })
+          if (urlRes.ok) {
+            const urlData = await urlRes.json()
+            if (!urlData.error) {
+              // Use real website data
+              urlContext = `
+WEBSITE HEADLINE: ${urlData.headline || ''}
+WEBSITE CATEGORY: ${urlData.category || ''}
+WEBSITE DESCRIPTION: ${urlData.scraped?.metaDesc || ''}
+WEBSITE H1: ${urlData.scraped?.h1 || ''}
+GROWTH TEASER: ${urlData.growth_teaser || ''}
+BOTTLENECK: ${urlData.bottleneck?.label || ''} — ${urlData.bottleneck?.issue || ''}
+SCORE: ${urlData.overall || ''}/10`
+              // Auto-set category from URL analysis if user left default
+              if (urlData.category && category === 'Productivity') {
+                detectedCategory = urlData.category
+              }
+            }
+          }
+        } catch { /* non-blocking — continue without URL data */ }
+      }
       setStep(0, 'done')
 
-      // Step 1 — analyse
+      // Step 1 — analyse with real website context
       setStep(1, 'active')
       const analysisRaw = await callClaude(
         `Analyze this app for Instagram content strategy.
-App: "${name}" | Platform: ${platform} | Category: ${category} | Stage: ${stage}
-${url   ? 'URL: ' + url   : ''}
-${extra ? 'Context: ' + extra : ''}
+App: "${name}" | Platform: ${platform} | Category: ${detectedCategory} | Stage: ${stage}
+${url       ? 'URL: ' + url       : ''}
+${urlContext ? urlContext          : ''}
+${extra     ? 'Context: ' + extra : ''}
 Output exactly:
 DESCRIPTION: [2 sentences — what it does and who it's for]
 AUDIENCE: [primary audience in 10 words]
@@ -67,7 +96,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         'You are a product analyst. Be specific and infer intelligently.'
       )
       const gf = (k: string) => (analysisRaw.match(new RegExp(k + ':\\s*([^\\n]+)')) ?? [])[1]?.trim() ?? ''
-      const desc       = gf('DESCRIPTION')    || `${name} is a ${category} app.`
+      const desc       = gf('DESCRIPTION')    || `${name} is a ${detectedCategory} app.`
       const audience   = gf('AUDIENCE')       || ''
       const tone       = gf('TONE')           || ''
       const problem    = gf('PROBLEM')        || ''
