@@ -50,7 +50,6 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
 
       // If no competitive analysis yet, run it now using Claude
       if (!compData?.comps?.[0]?.url) {
-        const { callClaude } = await import('../lib/claude')
         const raw = await callClaude(
           `List 3 real competitors for "${currentApp?.name}" (${currentApp?.category}).${currentApp?.desc ? ' '+currentApp.desc : ''}
 JSON only: {"comps":[{"name":"X","url":"https://example.com","cat":"direct","strengths":["s1"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp?.name} wins"}]}`,
