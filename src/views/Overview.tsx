@@ -452,18 +452,37 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
                     Based on your app: <strong>{ua.headline}</strong>
                     <br/>Suggested themes: {ua.growth_teaser ? ua.growth_teaser.split('.')[0] : 'emotional wellness, mindfulness, stress relief'}
                   </div>
-                  <button className="gen-btn" style={{ width:'100%', justifyContent:'center', fontSize:12 }}
+                  <div style={{ fontSize:11, color:'var(--accent)', fontWeight:600, marginBottom:6 }}>
+                    💡 Pillars will target your weakest dimensions to improve your scores
+                  </div>
+                  {(ua.dimensions ?? []).slice().sort((a:any,b:any) => a.score - b.score).slice(0,3).map((d:any) => (
+                    <div key={d.label} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4, fontSize:11, color:'var(--text2)' }}>
+                      <span style={{ color: d.score < 5 ? 'var(--red)' : 'var(--amber)', fontWeight:700 }}>{d.score}/10</span>
+                      <span>{d.label} → content to improve this</span>
+                    </div>
+                  ))}
+                  <button className="gen-btn" style={{ width:'100%', justifyContent:'center', fontSize:12, marginTop:8 }}
                     onClick={async () => {
                       setPillarsLoading(true)
                       try {
+                        const dims = (ua.dimensions ?? []).slice().sort((a:any,b:any) => a.score - b.score)
+                        const dimContext = dims.map((d:any) => `${d.label}: ${d.score}/10 — ${d.issue}`).join('\n')
                         const raw = await callClaude(
-                          `Generate 6 Instagram content pillars for this app.
-App headline: "${ua.headline}"
-App URL: ${currentApp.url}
-Growth opportunity: "${ua.growth_teaser || ''}"
+                          `Generate 6 Instagram content pillars for this app. Each pillar should target improving a weak area identified in the landing page analysis.
 
-Output exactly 6 pillars, one per line, 2-4 words each, no bullets or numbers. Make them specific to what this app actually does.`,
-                          'Output ONLY the 6 pillar names, one per line.', 200
+App: "${ua.headline}"
+App URL: ${currentApp.url}
+
+Landing page scores (lower = needs more content focus):
+${dimContext}
+
+Rules:
+- Name each pillar to address the weak dimension (e.g. Trust 2/10 → "Real User Results")
+- Make pillar names specific to what this app does, not generic
+- Each pillar should produce content that improves the landing page score
+
+Output exactly 6 pillar names, one per line, 2-5 words each, no bullets, no numbers, no explanations.`,
+                          'Output ONLY the 6 pillar names, one per line.', 300
                         )
                         const pillars = raw.split('\n').map((s: string) => s.trim()).filter(Boolean).slice(0, 6)
                         if (pillars.length > 0) {
@@ -472,7 +491,7 @@ Output exactly 6 pillars, one per line, 2-4 words each, no bullets or numbers. M
                       } catch {}
                       setPillarsLoading(false)
                     }}>
-                    <i className="ti ti-bolt" style={{ fontSize:13 }} /> Generate pillars from my app →
+                    <i className="ti ti-bolt" style={{ fontSize:13 }} /> Generate score-improving pillars →
                   </button>
                 </>
               ) : (
