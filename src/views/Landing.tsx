@@ -69,18 +69,34 @@ export default function Landing() {
   }, [])
 
   const handleSendReport = useCallback(async () => {
-    if (!leadEmail.trim() || !result) return
+    if (!result) return
+    if (!leadEmail.trim()) {
+      alert('Please enter your email address first')
+      return
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(leadEmail.trim())) {
+      alert('Please enter a valid email address')
+      return
+    }
     setSending(true)
     try {
-      await fetch('/api/report-email', {
+      const res = await fetch('/api/report-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: leadEmail.trim(), url, result }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert('Could not send email: ' + (data.error ?? 'Unknown error'))
+        setSending(false)
+        return
+      }
       setSent(true)
-      // Save lead
       localStorage.setItem('markr_lead_email', leadEmail.trim())
-    } catch { setSent(true) } // still show success
+    } catch(e) {
+      alert('Network error — please try again')
+    }
     setSending(false)
   }, [leadEmail, result, url])
 
