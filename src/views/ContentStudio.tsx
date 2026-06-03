@@ -131,7 +131,7 @@ Output ONLY valid JSON:
       </div>
 
       {/* Agent cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:14 }}>
         {(['morning','midday','evening'] as SlotKey[]).map(type => (
           <AgentCard
             key={type}
