@@ -440,7 +440,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       supabase.from('markr_url_leads').insert({ url }).catch(() => {})
     } catch {}
 
-    res.status(200).json(result)
+    // Find closest competitor based on actual website content
+    let closestCompetitor = null
+    try {
+      const apiKey = process.env.ANTHROPIC_API_KEY
+      if (apiKey && result.scraped?.h1) {
+        const compPrompt = `Based on this app's actual content, identify the single closest direct competitor.
+
+App headline: "${result.scraped.h1}"
+App description: "${result.scraped.metaDesc}"
+App URL: ${url}
+
+Return ONLY valid JSON, no markdown:
+{"name":"CompetitorName","url":"https://competitor.com","reason":"one sentence why this is the closest competitor"}`
+
+        const compRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 200,
+            messages: [{ role: 'user', content: compPrompt }]
+          })
+        })
+        if (compRes.ok) {
+          const compData = await compRes.json()
+          const raw = compData.content?.[0]?.text ?? ''
+          const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim()
+          closestCompetitor = JSON.parse(cleaned)
+        }
+      }
+    } catch { /* non-blocking */ }
+
+    res.status(200).json({ ...result, closestCompetitor })
   } catch (e) {
     res.status(422).json({ error: (e as Error).message })
   }
