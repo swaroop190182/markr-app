@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/mx-control", "destination": "/admin.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "crons": [
