@@ -6,12 +6,76 @@ import DeliverySettings from './DeliverySettings'
 
 export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const { apps, currentApp, setView, plan } = useStore()
-  const [insight, setInsight] = useState<string | null>(null)
-  const [loading, setLoading]  = useState(false)
+  const [insight,    setInsight]    = useState<string | null>(null)
+  const [loading,    setLoading]    = useState(false)
+  const [uaLoading,  setUaLoading]  = useState(false)
+  const [compLoading,setCompLoading]= useState(false)
   const pt  = currentApp?.productTest
   const ua  = (currentApp as any)?.url_analysis
   const ca  = (currentApp as any)?.competitor_url_analysis
   const hasApps = apps.length > 0
+
+  // Auto-fetch URL analysis if app has URL but no analysis
+  const { updateApp } = useStore()
+  useEffect(() => {
+    if (!currentApp?.url || (currentApp as any)?.url_analysis) return
+    setUaLoading(true)
+    fetch('/api/analyze-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
+      body: JSON.stringify({ url: currentApp.url })
+    }).then(r => r.ok ? r.json() : null).then(result => {
+      if (result && !result.error) {
+        updateApp(currentApp.id, {
+          url_analysis: {
+            overall: result.overall,
+            headline: result.headline,
+            category: result.category,
+            dimensions: result.dimensions,
+            bottleneck: result.bottleneck,
+            growth_teaser: result.growth_teaser,
+            pagesRead: result.pagesRead ?? [],
+            analyzed_at: new Date().toISOString()
+          }
+        } as any)
+      }
+    }).catch(() => {}).finally(() => setUaLoading(false))
+  }, [currentApp?.id])
+
+  async function runCompetitorAnalysis() {
+    if (!currentApp?.competitive_analysis) {
+      setView('insights')
+      return
+    }
+    try {
+      const parsed = JSON.parse(currentApp.competitive_analysis)
+      const topComp = parsed.comps?.[0]
+      if (!topComp?.url) { setView('insights'); return }
+      setCompLoading(true)
+      const r = await fetch('/api/analyze-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
+        body: JSON.stringify({ url: topComp.url })
+      })
+      if (r.ok) {
+        const result = await r.json()
+        if (!result.error) {
+          updateApp(currentApp.id, {
+            competitor_url_analysis: {
+              name: topComp.name,
+              url: topComp.url,
+              overall: result.overall,
+              headline: result.headline,
+              dimensions: result.dimensions,
+              bottleneck: result.bottleneck,
+              analyzed_at: new Date().toISOString()
+            }
+          } as any)
+        }
+      }
+    } catch {}
+    setCompLoading(false)
+  }
 
   async function generateInsight() {
     setLoading(true); setInsight('')
@@ -168,15 +232,46 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
               </div>
               {/* Bottleneck */}
               {ua.bottleneck && (
-                <div style={{ fontSize:11, padding:'8px 10px', background:'rgba(220,38,38,.05)', border:'1px solid rgba(220,38,38,.12)', borderRadius:'var(--r)', color:'var(--text)' }}>
+                <div style={{ fontSize:11, padding:'8px 10px', background:'rgba(220,38,38,.05)', border:'1px solid rgba(220,38,38,.12)', borderRadius:'var(--r)', color:'var(--text)', marginBottom:10 }}>
                   <span style={{ color:'var(--red)', fontWeight:700 }}>↑ Fix: </span>{ua.bottleneck.label} — {ua.bottleneck.issue}
                 </div>
+              )}
+              {/* Competitor analysis button */}
+              {!ca && (
+                <button className="vbtn" style={{ width:'100%', justifyContent:'center', fontSize:11 }}
+                  onClick={runCompetitorAnalysis} disabled={compLoading}>
+                  {compLoading ? <><span className="spinner" style={{ color:'var(--accent)' }} /> Analyzing competitor…</> : '⚔ Compare with closest competitor →'}
+                </button>
               )}
             </>
           ) : (
             <div style={{ padding:'20px 0', textAlign:'center' as const }}>
-              <div style={{ fontSize:12, color:'var(--text3)', marginBottom:10 }}>No analysis yet</div>
-              <button className="vbtn" onClick={() => setView('insights')}>Run Deep Analysis →</button>
+              {uaLoading ? (
+                <>
+                  <span className="spinner" style={{ color:'var(--accent)' }} />
+                  <div style={{ fontSize:12, color:'var(--text3)', marginTop:8 }}>Analyzing your landing page…</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize:12, color:'var(--text3)', marginBottom:10 }}>
+                    {currentApp?.url ? 'Analysis will appear shortly' : 'Add a URL to your app to get landing page analysis'}
+                  </div>
+                  {currentApp?.url && (
+                    <button className="vbtn" onClick={() => {
+                      setUaLoading(true)
+                      fetch('/api/analyze-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
+                        body: JSON.stringify({ url: currentApp.url })
+                      }).then(r => r.ok ? r.json() : null).then(result => {
+                        if (result && !result.error) {
+                          updateApp(currentApp.id, { url_analysis: { ...result, analyzed_at: new Date().toISOString() } } as any)
+                        }
+                      }).catch(() => {}).finally(() => setUaLoading(false))
+                    }}>Analyze now →</button>
+                  )}
+                </>
+              )}
             </div>
           )}
         </Card>
