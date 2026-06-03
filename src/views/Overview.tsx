@@ -10,6 +10,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const [loading, setLoading]  = useState(false)
   const pt  = currentApp?.productTest
   const ua  = (currentApp as any)?.url_analysis
+  const ca  = (currentApp as any)?.competitor_url_analysis
   const hasApps = apps.length > 0
 
   async function generateInsight() {
@@ -187,6 +188,86 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
               <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>{ua.growth_teaser}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Competitor Comparison */}
+      {ua && ca && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r)', padding:'18px 20px', marginBottom:14 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:16 }}>
+            vs {ca.name}
+            <span style={{ marginLeft:8, fontSize:11, color:'var(--text3)', fontWeight:400 }}>
+              Closest competitor · {ca.url.replace(/^https?:\/\//,'')}
+            </span>
+          </div>
+
+          {/* Comparison table */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr auto auto', gap:'6px 12px', alignItems:'center', marginBottom:16 }}>
+            {/* Header */}
+            <div style={{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase' as const, letterSpacing:'.06em' }}>Dimension</div>
+            <div style={{ fontSize:10, fontWeight:700, color:'var(--accent)', textTransform:'uppercase' as const, letterSpacing:'.06em', textAlign:'center' as const }}>You</div>
+            <div style={{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase' as const, letterSpacing:'.06em', textAlign:'center' as const }}>{ca.name.split(' ')[0]}</div>
+
+            {/* Rows */}
+            {(ua.dimensions ?? []).map((d: any) => {
+              const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)
+              const compScore = comp?.score ?? 0
+              const diff = d.score - compScore
+              const youColor = d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)'
+              const compColor = compScore >= 7 ? 'var(--green)' : compScore >= 5 ? 'var(--amber)' : 'var(--red)'
+              return [
+                <div key={`${d.label}-l`} style={{ fontSize:12, color:'var(--text2)', display:'flex', alignItems:'center', gap:6 }}>
+                  {diff > 0 ? '✓' : diff < -1 ? '↑' : '·'}
+                  <span style={{ fontWeight: diff < -1 ? 600 : 400 }}>{d.label}</span>
+                </div>,
+                <div key={`${d.label}-y`} style={{ fontSize:13, fontWeight:700, color:youColor, textAlign:'center' as const }}>{d.score}</div>,
+                <div key={`${d.label}-c`} style={{ fontSize:13, fontWeight:700, color:compColor, textAlign:'center' as const }}>{compScore}</div>
+              ]
+            })}
+
+            {/* Overall */}
+            <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', borderTop:'1px solid var(--border)', paddingTop:8, marginTop:4 }}>Overall</div>
+            <div style={{ fontSize:14, fontWeight:800, color: ua.overall >= ca.overall ? 'var(--green)' : 'var(--red)', textAlign:'center' as const, borderTop:'1px solid var(--border)', paddingTop:8, marginTop:4 }}>{ua.overall}</div>
+            <div style={{ fontSize:14, fontWeight:800, color:'var(--text3)', textAlign:'center' as const, borderTop:'1px solid var(--border)', paddingTop:8, marginTop:4 }}>{ca.overall}</div>
+          </div>
+
+          {/* Key insight */}
+          {(() => {
+            const gaps = (ua.dimensions ?? [])
+              .map((d: any) => ({ ...d, comp: ca.dimensions?.find((cd: any) => cd.label === d.label)?.score ?? 0 }))
+              .filter((d: any) => d.comp - d.score > 1)
+              .sort((a: any, b: any) => (b.comp - b.score) - (a.comp - a.score))
+            const biggestGap = gaps[0]
+            const wins = (ua.dimensions ?? []).filter((d: any) => {
+              const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)?.score ?? 0
+              return d.score > comp
+            })
+            return biggestGap ? (
+              <div style={{ background:'rgba(220,38,38,.05)', border:'1px solid rgba(220,38,38,.15)', borderRadius:'var(--r)', padding:'10px 12px', marginBottom:8 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--red)', marginBottom:3 }}>
+                  Biggest gap — {biggestGap.label} ({biggestGap.score} vs {biggestGap.comp})
+                </div>
+                <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>{biggestGap.issue}</div>
+              </div>
+            ) : null
+          })()}
+
+          {(() => {
+            const wins = (ua.dimensions ?? []).filter((d: any) => {
+              const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)?.score ?? 0
+              return d.score > comp
+            })
+            return wins.length > 0 ? (
+              <div style={{ background:'rgba(22,168,112,.05)', border:'1px solid rgba(22,168,112,.2)', borderRadius:'var(--r)', padding:'10px 12px' }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--green)', marginBottom:3 }}>
+                  ✓ You're ahead on {wins.map((w: any) => w.label).join(', ')}
+                </div>
+                <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>
+                  {wins[0]?.issue}
+                </div>
+              </div>
+            ) : null
+          })()}
         </div>
       )}
 
