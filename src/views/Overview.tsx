@@ -124,154 +124,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
         </div>
       )}
 
-      {/* Deep URL Analysis Scores */}
-      {ua && !ua.error && (
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r)', padding:'18px 20px', marginBottom:14 }}>
-          {/* Header */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:2 }}>
-                Landing Page Analysis
-                <span style={{ marginLeft:8, fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700,
-                  background: ua.overall >= 7 ? 'rgba(22,168,112,.1)' : ua.overall >= 5 ? 'rgba(212,138,10,.1)' : 'rgba(220,38,38,.1)',
-                  color: ua.overall >= 7 ? 'var(--green)' : ua.overall >= 5 ? 'var(--amber)' : 'var(--red)'
-                }}>
-                  {ua.overall}/10
-                </span>
-              </div>
-              <div style={{ fontSize:11, color:'var(--text3)' }}>
-                {ua.pagesRead?.length > 0 ? `Pages analyzed: Home${ua.pagesRead.map((p: string) => ` · ${p}`).join('')}` : 'Homepage analyzed'}
-                {ua.analyzed_at ? ` · ${new Date(ua.analyzed_at).toLocaleDateString('en-IN')}` : ''}
-              </div>
-            </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:32, fontWeight:800, lineHeight:1,
-                color: ua.overall >= 7 ? 'var(--green)' : ua.overall >= 5 ? 'var(--amber)' : 'var(--red)'
-              }}>{ua.overall}</div>
-              <div style={{ fontSize:10, color:'var(--text3)' }}>out of 10</div>
-            </div>
-          </div>
-
-          {/* Score bars */}
-          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
-            {(ua.dimensions ?? []).map((d: any) => {
-              const c = d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)'
-              return (
-                <div key={d.label}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-                    <span style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{d.label}</span>
-                    <span style={{ fontSize:12, fontWeight:700, color:c }}>{d.score}/10</span>
-                  </div>
-                  <div style={{ height:6, background:'var(--surface2)', borderRadius:3, overflow:'hidden', marginBottom:3 }}>
-                    <div style={{ height:'100%', width:`${d.score * 10}%`, background:c, borderRadius:3, transition:'width .5s' }} />
-                  </div>
-                  <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5 }}>{d.issue}</div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Bottleneck */}
-          {ua.bottleneck && (
-            <div style={{ background:'rgba(220,38,38,.05)', border:'1px solid rgba(220,38,38,.15)', borderRadius:'var(--r)', padding:'10px 12px', marginBottom:12 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--red)', marginBottom:4 }}>
-                🚨 Biggest Bottleneck — {ua.bottleneck.label}
-              </div>
-              <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>{ua.bottleneck.issue}</div>
-            </div>
-          )}
-
-          {/* Growth opportunity */}
-          {ua.growth_teaser && (
-            <div style={{ background:'rgba(124,111,247,.05)', border:'1px solid rgba(124,111,247,.15)', borderRadius:'var(--r)', padding:'10px 12px' }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', marginBottom:4 }}>💡 Content Opportunity</div>
-              <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>{ua.growth_teaser}</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Competitor Comparison */}
-      {ua && ca && (
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r)', padding:'18px 20px', marginBottom:14 }}>
-          <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:16 }}>
-            vs {ca.name}
-            <span style={{ marginLeft:8, fontSize:11, color:'var(--text3)', fontWeight:400 }}>
-              Closest competitor · {ca.url.replace(/^https?:\/\//,'')}
-            </span>
-          </div>
-
-          {/* Comparison table */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr auto auto', gap:'6px 12px', alignItems:'center', marginBottom:16 }}>
-            {/* Header */}
-            <div style={{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase' as const, letterSpacing:'.06em' }}>Dimension</div>
-            <div style={{ fontSize:10, fontWeight:700, color:'var(--accent)', textTransform:'uppercase' as const, letterSpacing:'.06em', textAlign:'center' as const }}>You</div>
-            <div style={{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase' as const, letterSpacing:'.06em', textAlign:'center' as const }}>{ca.name.split(' ')[0]}</div>
-
-            {/* Rows */}
-            {(ua.dimensions ?? []).map((d: any) => {
-              const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)
-              const compScore = comp?.score ?? 0
-              const diff = d.score - compScore
-              const youColor = d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)'
-              const compColor = compScore >= 7 ? 'var(--green)' : compScore >= 5 ? 'var(--amber)' : 'var(--red)'
-              return [
-                <div key={`${d.label}-l`} style={{ fontSize:12, color:'var(--text2)', display:'flex', alignItems:'center', gap:6 }}>
-                  {diff > 0 ? '✓' : diff < -1 ? '↑' : '·'}
-                  <span style={{ fontWeight: diff < -1 ? 600 : 400 }}>{d.label}</span>
-                </div>,
-                <div key={`${d.label}-y`} style={{ fontSize:13, fontWeight:700, color:youColor, textAlign:'center' as const }}>{d.score}</div>,
-                <div key={`${d.label}-c`} style={{ fontSize:13, fontWeight:700, color:compColor, textAlign:'center' as const }}>{compScore}</div>
-              ]
-            })}
-
-            {/* Overall */}
-            <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', borderTop:'1px solid var(--border)', paddingTop:8, marginTop:4 }}>Overall</div>
-            <div style={{ fontSize:14, fontWeight:800, color: ua.overall >= ca.overall ? 'var(--green)' : 'var(--red)', textAlign:'center' as const, borderTop:'1px solid var(--border)', paddingTop:8, marginTop:4 }}>{ua.overall}</div>
-            <div style={{ fontSize:14, fontWeight:800, color:'var(--text3)', textAlign:'center' as const, borderTop:'1px solid var(--border)', paddingTop:8, marginTop:4 }}>{ca.overall}</div>
-          </div>
-
-          {/* Key insight */}
-          {(() => {
-            const gaps = (ua.dimensions ?? [])
-              .map((d: any) => ({ ...d, comp: ca.dimensions?.find((cd: any) => cd.label === d.label)?.score ?? 0 }))
-              .filter((d: any) => d.comp - d.score > 1)
-              .sort((a: any, b: any) => (b.comp - b.score) - (a.comp - a.score))
-            const biggestGap = gaps[0]
-            const wins = (ua.dimensions ?? []).filter((d: any) => {
-              const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)?.score ?? 0
-              return d.score > comp
-            })
-            return biggestGap ? (
-              <div style={{ background:'rgba(220,38,38,.05)', border:'1px solid rgba(220,38,38,.15)', borderRadius:'var(--r)', padding:'10px 12px', marginBottom:8 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:'var(--red)', marginBottom:3 }}>
-                  Biggest gap — {biggestGap.label} ({biggestGap.score} vs {biggestGap.comp})
-                </div>
-                <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>{biggestGap.issue}</div>
-              </div>
-            ) : null
-          })()}
-
-          {(() => {
-            const wins = (ua.dimensions ?? []).filter((d: any) => {
-              const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)?.score ?? 0
-              return d.score > comp
-            })
-            return wins.length > 0 ? (
-              <div style={{ background:'rgba(22,168,112,.05)', border:'1px solid rgba(22,168,112,.2)', borderRadius:'var(--r)', padding:'10px 12px' }}>
-                <div style={{ fontSize:11, fontWeight:700, color:'var(--green)', marginBottom:3 }}>
-                  ✓ You're ahead on {wins.map((w: any) => w.label).join(', ')}
-                </div>
-                <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>
-                  {wins[0]?.issue}
-                </div>
-              </div>
-            ) : null
-          })()}
-        </div>
-      )}
-
-      {/* First-time hint — app added but nothing generated yet */}
+            {/* First-time hint — app added but nothing generated yet */}
       {apps.length > 0 && !currentApp.analyzed && (
         <div style={{ background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.25)', borderRadius:'var(--r)', padding:'14px 16px', marginBottom:14, display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ fontSize:20 }}>👆</span>
@@ -285,38 +138,86 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
       )}
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+
+        {/* Landing Page Analysis — left column */}
         <Card>
-          <CardHeader title="Today's Posts" action={<button className="vbtn" onClick={() => setView('studio')}>Open studio →</button>} />
-          {[
-            { t:'morning', emoji:'🌅', label:'Morning Post', time:'7:00–9:00 AM',  color:'var(--morning-c)' },
-            { t:'midday',  emoji:'💡', label:'Midday Post',  time:'12:00–1:30 PM', color:'var(--midday-c)'  },
-            { t:'evening', emoji:'🌙', label:'Evening Post', time:'7:00–9:00 PM',  color:'var(--evening-c)' },
-          ].map(c => (
-            <div key={c.t} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 0', borderBottom:'1px solid var(--border)' }}>
-              <span style={{ fontSize:16 }}>{c.emoji}</span>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:12, fontWeight:600, color:c.color }}>{c.label}</div>
-                <div style={{ fontSize:11, color:'var(--text3)' }}>{c.time}</div>
+          <CardHeader title="Landing Page Analysis" action={
+            ua ? <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700,
+              background: ua.overall >= 7 ? 'rgba(22,168,112,.1)' : ua.overall >= 5 ? 'rgba(212,138,10,.1)' : 'rgba(220,38,38,.1)',
+              color: ua.overall >= 7 ? 'var(--green)' : ua.overall >= 5 ? 'var(--amber)' : 'var(--red)'
+            }}>{ua.overall}/10</span> : undefined
+          } />
+          {ua ? (
+            <>
+              {/* Score bars */}
+              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
+                {(ua.dimensions ?? []).map((d: any) => {
+                  const c = d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)'
+                  return (
+                    <div key={d.label}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                        <span style={{ fontSize:11, color:'var(--text2)' }}>{d.label}</span>
+                        <span style={{ fontSize:11, fontWeight:700, color:c }}>{d.score}/10</span>
+                      </div>
+                      <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
+                        <div style={{ height:'100%', width:`${d.score*10}%`, background:c, borderRadius:3 }} />
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-              <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:600, background:'rgba(90,90,114,.15)', color:'var(--text3)' }}>Idle</span>
+              {/* Bottleneck */}
+              {ua.bottleneck && (
+                <div style={{ fontSize:11, padding:'8px 10px', background:'rgba(220,38,38,.05)', border:'1px solid rgba(220,38,38,.12)', borderRadius:'var(--r)', color:'var(--text)' }}>
+                  <span style={{ color:'var(--red)', fontWeight:700 }}>↑ Fix: </span>{ua.bottleneck.label} — {ua.bottleneck.issue}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ padding:'20px 0', textAlign:'center' as const }}>
+              <div style={{ fontSize:12, color:'var(--text3)', marginBottom:10 }}>No analysis yet</div>
+              <button className="vbtn" onClick={() => setView('insights')}>Run Deep Analysis →</button>
             </div>
-          ))}
-          <button className="gen-btn" style={{ width:'100%', justifyContent:'center', fontSize:12, marginTop:12 }} onClick={() => setView('studio')}>
-            <i className="ti ti-bolt" style={{ fontSize:13 }} /> Generate All 3 Posts
-          </button>
+          )}
         </Card>
 
+        {/* Content Pillars — right column */}
         <Card>
           <CardHeader title={`Content Pillars · ${currentApp.name}`} />
           {(currentApp.pillars ?? []).length > 0
             ? (currentApp.pillars ?? []).map((p, i) => (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:['#7c6ff7','#34c98a','#4f9cf7','#f5a623','#e26faf','#e55555'][i%6] }} />
-                  <span style={{ fontSize:12 }}>{p}</span>
+                  <span style={{ fontSize:12 }}>{p.replace(/\*/g, '').trim()}</span>
                 </div>
               ))
-            : <div style={{ fontSize:12, color:'var(--text3)', padding:'12px 0', textAlign:'center' }}>Add an app to see content pillars</div>
+            : <div style={{ fontSize:12, color:'var(--text3)', padding:'12px 0', textAlign:'center' as const }}>
+                Run Deep Analysis to generate content pillars
+              </div>
           }
+
+          {/* Competitor comparison — if available */}
+          {ca && (
+            <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', marginBottom:8 }}>vs {ca.name}</div>
+              {(ua?.dimensions ?? []).map((d: any) => {
+                const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)
+                const cs = comp?.score ?? 0
+                const diff = d.score - cs
+                return (
+                  <div key={d.label} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                    <span style={{ fontSize:10, color:'var(--text3)', flex:1 }}>{d.label}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color: d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)' }}>{d.score}</span>
+                    <span style={{ fontSize:10, color:'var(--text3)' }}>vs</span>
+                    <span style={{ fontSize:11, fontWeight:700, color: cs >= 7 ? 'var(--green)' : cs >= 5 ? 'var(--amber)' : 'var(--red)' }}>{cs}</span>
+                    <span style={{ fontSize:10, color: diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--red)' : 'var(--text3)' }}>
+                      {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '='}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </Card>
       </div>
 
