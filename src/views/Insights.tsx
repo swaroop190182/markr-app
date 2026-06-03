@@ -82,7 +82,37 @@ export default function Insights() {
     const field = fieldMap[k]
     const tsField = tsMap[k]
     const now = new Date().toISOString()
-    if (field) updateApp(currentApp.id, { [field]: data, ...(tsField ? { [tsField]: now } : {}) } as any)
+        if (field) updateApp(currentApp.id, { [field]: data, ...(tsField ? { [tsField]: now } : {}) } as any)
+
+    // After competitive analysis saves — run URL analysis on top competitor
+    if (k === 'competitive') {
+      try {
+        const parsed = JSON.parse(data)
+        const topComp = parsed.comps?.[0]
+        if (topComp?.url && topComp.url.startsWith('http')) {
+          // Run in background — non-blocking
+          fetch('/api/analyze-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
+            body: JSON.stringify({ url: topComp.url })
+          }).then(r => r.ok ? r.json() : null).then(compAnalysis => {
+            if (compAnalysis && !compAnalysis.error) {
+              updateApp(currentApp.id, {
+                competitor_url_analysis: {
+                  name: topComp.name,
+                  url: topComp.url,
+                  overall: compAnalysis.overall,
+                  headline: compAnalysis.headline,
+                  dimensions: compAnalysis.dimensions,
+                  bottleneck: compAnalysis.bottleneck,
+                  analyzed_at: new Date().toISOString()
+                }
+              } as any)
+            }
+          }).catch(() => {})
+        }
+      } catch { /* non-blocking */ }
+    }
   }
 
   const pt = currentApp.productTest
