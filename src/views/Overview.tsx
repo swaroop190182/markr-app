@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader } from '../components/ui'
 import { callClaude } from '../lib/claude'
 import DeliverySettings from './DeliverySettings'
 
 export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
-  const { apps, currentApp, setView, plan } = useStore()
+  const { apps, currentApp, setView, plan, updateApp } = useStore()
   const [insight,    setInsight]    = useState<string | null>(null)
   const [loading,    setLoading]    = useState(false)
   const [uaLoading,  setUaLoading]  = useState(false)
@@ -16,7 +16,6 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const hasApps = apps.length > 0
 
   // Auto-fetch URL analysis if app has URL but no analysis
-  const { updateApp } = useStore()
   useEffect(() => {
     if (!currentApp?.url || (currentApp as any)?.url_analysis) return
     setUaLoading(true)
