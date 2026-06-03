@@ -106,6 +106,7 @@ export interface AppData {
     dimensions: Array<{ label: string; score: number; issue: string }>
     bottleneck: { label: string; issue: string }
     analyzed_at: string
+    closestCompetitor?: { name: string; url: string; reason?: string } | null
   } | null
   // URL Analysis (from analyze-url API)
   url_analysis?: {
