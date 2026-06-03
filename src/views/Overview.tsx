@@ -163,7 +163,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             ? (currentApp.pillars ?? []).map((p, i) => (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:['#7c6ff7','#34c98a','#4f9cf7','#f5a623','#e26faf','#e55555'][i%6] }} />
-                  <span style={{ fontSize:12 }}>{p}</span>
+                  <span style={{ fontSize:12 }}>{p.replace(/\*/g, '').trim()}</span>
                 </div>
               ))
             : <div style={{ fontSize:12, color:'var(--text3)', padding:'12px 0', textAlign:'center' }}>Add an app to see content pillars</div>
