@@ -50,7 +50,7 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
             Markr
           </div>
           <div style={{ fontSize: 10, color: 'var(--text3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>
-            Growth Intelligence
+            AI Co-founder
           </div>
         </div>
       </div>
