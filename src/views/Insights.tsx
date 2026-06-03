@@ -138,7 +138,13 @@ ${rc.trim()}
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
     try {
-                  const prompt = `List 5 real competitors for "${currentApp.name}" (${currentApp.category}).${currentApp.desc ? ' '+currentApp.desc : ''}${rcCtx}
+                  const urlAnalysis = (currentApp as any).url_analysis
+      const appContext = urlAnalysis
+        ? `App headline: "${urlAnalysis.headline}"\nApp description: "${urlAnalysis.scraped?.metaDesc || currentApp.desc}"\nApp URL: ${currentApp.url}`
+        : `App: "${currentApp.name}" — ${currentApp.desc || currentApp.category}`
+      const prompt = `Find 5 real direct competitors for this app based on what it actually does.
+
+${appContext}${rcCtx}
 
 JSON only, no markdown:
 {"comps":[{"name":"X","url":"https://example.com","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins"}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
