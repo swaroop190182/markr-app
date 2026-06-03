@@ -14,10 +14,11 @@ interface Props {
   onEditApp: (id: number) => void
   onSignOut: () => void
   onUpgrade: () => void
+  onClose: () => void
   userEmail: string
 }
 
-export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, userEmail }: Props) {
+export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onClose, userEmail }: Props) {
   const { apps, currentApp, view, plan, canAddApp, trialExpired, daysLeftInTrial, setView, setCurrentApp } = useStore()
 
   return (
@@ -59,7 +60,7 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, use
         {NAV_ITEMS.map(item => (
           <div
             key={item.view}
-            onClick={() => setView(item.view)}
+            onClick={() => { setView(item.view); onClose() }}
             className="flex items-center gap-2 cursor-pointer select-none"
             style={{
               padding: '8px 10px', borderRadius: 7, fontSize: 13,
@@ -90,7 +91,7 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, use
         {/* Admin tab — only for swaroop.raghu@gmail.com */}
         {userEmail === 'swaroop.raghu@gmail.com' && (
           <div
-            onClick={() => setView('admin')}
+            onClick={() => { setView('admin'); onClose() }}
             className="flex items-center gap-2 cursor-pointer select-none"
             style={{
               padding: '8px 10px', borderRadius: 7, fontSize: 13,
