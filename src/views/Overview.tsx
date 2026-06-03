@@ -39,8 +39,9 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
       body: JSON.stringify({ url: currentApp.url })
-    }).then(r => r.ok ? r.json() : null).then(result => {
+    }).then(r => r.ok ? r.json() : null).then(async result => {
       if (result && !result.error) {
+        // Save URL analysis
         updateApp(currentApp.id, {
           url_analysis: {
             overall: result.overall,
@@ -50,9 +51,39 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             bottleneck: result.bottleneck,
             growth_teaser: result.growth_teaser,
             pagesRead: result.pagesRead ?? [],
+            closestCompetitor: result.closestCompetitor ?? null,
             analyzed_at: new Date().toISOString()
           }
         } as any)
+
+        // Auto-generate score-improving pillars if none exist
+        if (!currentApp.pillars?.length) {
+          try {
+            const dims = (result.dimensions ?? []).slice().sort((a: any, b: any) => a.score - b.score)
+            const dimContext = dims.map((d: any) => `${d.label}: ${d.score}/10 — ${d.issue}`).join('\n')
+            const raw = await callClaude(
+              `Generate 6 Instagram content pillars for this app. Each pillar targets improving a weak area.
+
+App: "${result.headline}"
+URL: ${currentApp.url}
+
+Landing page scores:
+${dimContext}
+
+Rules:
+- Each pillar addresses a weak dimension specifically
+- Names must be specific to what this app does, not generic
+- 2-5 words each
+
+Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
+              'Output ONLY 6 pillar names, one per line.', 300
+            )
+            const pillars = raw.split('\n').map((s: string) => s.trim()).filter(Boolean).slice(0, 6)
+            if (pillars.length > 0) {
+              updateApp(currentApp.id, { pillars } as any)
+            }
+          } catch { /* non-blocking */ }
+        }
       }
     }).catch(() => {}).finally(() => setUaLoading(false))
   }, [currentApp?.id])
