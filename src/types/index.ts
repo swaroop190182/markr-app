@@ -97,6 +97,17 @@ export interface AppData {
   pricing_analysis?:     string | null
   content_studio_cache?: string | null
   strategy_cache?:       string | null
+  // URL Analysis (from analyze-url API)
+  url_analysis?: {
+    overall: number
+    headline: string
+    category: string
+    dimensions: Array<{ label: string; score: number; issue: string }>
+    bottleneck: { label: string; issue: string }
+    growth_teaser: string
+    pagesRead: string[]
+    analyzed_at: string
+  } | null
   // Analysis timestamps
   competitive_analyzed_at?: string | null
   bmc_analyzed_at?:         string | null
