@@ -109,7 +109,10 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        // Send welcome email once
+        // Never redirect if we're on admin
+        if (window.location.pathname === '/mx-control' || (window as any).__MARKR_ADMIN__) return
+
+        // Send welcome email on first ever session — fires on email confirmation redirect too
         const welcomeKey = `markr_welcomed_${session.user.id}`
         if (!localStorage.getItem(welcomeKey)) {
           localStorage.setItem(welcomeKey, '1')
@@ -119,8 +122,13 @@ export default function App() {
             body: JSON.stringify({ email: session.user.email, name: session.user.user_metadata?.full_name || '' }),
           }).catch(() => {})
         }
-        window.history.pushState({}, '', '/app')
-        setPath('/app')
+
+        setPath(p => {
+          // Don't overwrite admin path
+          if (p === '/mx-control') return p
+          window.history.pushState({}, '', '/app')
+          return '/app'
+        })
       } else if (event === 'SIGNED_OUT') {
         setPath('/')
         window.history.pushState({}, '', '/')
