@@ -114,7 +114,6 @@ export default function Insights() {
       } catch { /* non-blocking */ }
     }
   }
-
   const pt = currentApp.productTest
 
   // Build recent context string injected into all prompts
