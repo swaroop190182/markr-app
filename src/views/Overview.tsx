@@ -229,34 +229,67 @@ JSON only: {"comps":[{"name":"X","url":"https://example.com","cat":"direct","str
           } />
           {ua ? (
             <>
-              {/* Score bars */}
-              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:12 }}>
+              {/* Score bars with specific fixes */}
+              <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
                 {(ua.dimensions ?? []).map((d: any) => {
                   const c = d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)'
+                  const fixes: Record<string,string> = {
+                    'Clarity': d.score < 5 ? 'Rewrite H1 to answer "what will I achieve?" in one sentence. Remove jargon.' : d.score < 8 ? 'Add a specific outcome with a number — "Save 2hrs/week" beats "save time".' : 'Strong clarity. Keep headline tight across all pages.',
+                    'User Journey': d.score < 5 ? 'Add one primary CTA above the fold. Remove competing links.' : d.score < 8 ? 'Replace "Sign Up" with outcome-driven text like "Get my free analysis →".' : 'Clear journey. Add "What happens next" strip under hero.',
+                    'Emotional Pull': d.score < 5 ? 'Flip every "we/our" to "you/your". Lead with pain, not solution.' : d.score < 8 ? 'Add urgency: "Every week without strategy is growth you can't recover."' : 'Strong emotion. Add a specific number to anchor it.',
+                    'Trust': d.score < 5 ? 'Add 1 real quote — even a WhatsApp screenshot converts better than polished testimonials.' : d.score < 8 ? 'Add founder story — "Built by [name] who faced this exact problem".' : 'Trust is solid. Add specific numbers: "47 founders" beats "many founders".',
+                    'Conversion Readiness': d.score < 5 ? 'Add "Free to start" or pricing above the fold — visitors can't decide without knowing the cost.' : d.score < 8 ? 'Repeat CTA after each section — after problem, after solution, after testimonials.' : 'Strong conversion. Test a URL-specific CTA: "Analyze [AppName] free →".',
+                  }
                   return (
-                    <div key={d.label}>
-                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                        <span style={{ fontSize:11, color:'var(--text2)' }}>{d.label}</span>
-                        <span style={{ fontSize:11, fontWeight:700, color:c }}>{d.score}/10</span>
+                    <div key={d.label} style={{ paddingBottom:8, borderBottom:'1px solid var(--border)' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                        <span style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{d.label}</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:c }}>{d.score}/10</span>
                       </div>
-                      <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
+                      <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden', marginBottom:5 }}>
                         <div style={{ height:'100%', width:`${d.score*10}%`, background:c, borderRadius:3 }} />
                       </div>
+                      <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5 }}>{d.issue}</div>
+                      {d.score < 8 && (
+                        <div style={{ fontSize:11, color:c, lineHeight:1.5, marginTop:3, paddingLeft:8, borderLeft:`2px solid ${c}` }}>
+                          {fixes[d.label] ?? ''}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
               </div>
-              {/* Bottleneck */}
-              {ua.bottleneck && (
-                <div style={{ fontSize:11, padding:'8px 10px', background:'rgba(220,38,38,.05)', border:'1px solid rgba(220,38,38,.12)', borderRadius:'var(--r)', color:'var(--text)', marginBottom:10 }}>
-                  <span style={{ color:'var(--red)', fontWeight:700 }}>↑ Fix: </span>{ua.bottleneck.label} — {ua.bottleneck.issue}
+
+              {/* Priority fixes */}
+              {(() => {
+                const sorted = [...(ua.dimensions ?? [])].sort((a:any,b:any) => a.score - b.score).slice(0,3)
+                return (
+                  <div style={{ background:'var(--surface2)', borderRadius:'var(--r)', padding:'10px 12px', marginBottom:10 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:'var(--text)', marginBottom:8 }}>🎯 Top 3 Priority Fixes</div>
+                    {sorted.map((d:any, i:number) => (
+                      <div key={d.label} style={{ display:'flex', gap:8, marginBottom:i<2 ? 6 : 0 }}>
+                        <div style={{ width:18, height:18, borderRadius:'50%', background: i===0 ? 'var(--red)' : i===1 ? 'var(--amber)' : 'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>{i+1}</div>
+                        <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.5 }}><strong>{d.label}</strong> ({d.score}/10) — {d.issue}</div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+
+              {/* Growth opportunity */}
+              {ua.growth_teaser && (
+                <div style={{ fontSize:11, padding:'8px 10px', background:'rgba(124,111,247,.05)', border:'1px solid rgba(124,111,247,.15)', borderRadius:'var(--r)', color:'var(--text)', marginBottom:10, lineHeight:1.6 }}>
+                  <span style={{ color:'var(--accent)', fontWeight:700 }}>💡 </span>{ua.growth_teaser}
                 </div>
               )}
+
               {/* Competitor analysis button */}
               {!ca && (
                 <button className="vbtn" style={{ width:'100%', justifyContent:'center', fontSize:11 }}
                   onClick={runCompetitorAnalysis} disabled={compLoading}>
-                  {compLoading ? <><span className="spinner" style={{ color:'var(--accent)' }} /> Analyzing competitor…</> : '⚔ Compare with closest competitor →'}
+                  {compLoading
+                    ? <><span className="spinner" style={{ color:'var(--accent)' }} /> Finding &amp; analyzing closest competitor…</>
+                    : '⚔ Compare with closest competitor →'}
                 </button>
               )}
             </>
