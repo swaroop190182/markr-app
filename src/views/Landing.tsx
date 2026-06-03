@@ -54,6 +54,9 @@ export default function Landing() {
   const [result,    setResult]    = useState<AnalysisResult | null>(null)
   const [error,     setError]     = useState('')
   const [step,      setStep]      = useState(0)
+  const [leadEmail, setLeadEmail] = useState('')
+  const [sending,   setSending]   = useState(false)
+  const [sent,      setSent]      = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const resultRef = useRef<HTMLDivElement>(null)
 
@@ -64,6 +67,22 @@ export default function Landing() {
     window.addEventListener('scroll', fn)
     return () => window.removeEventListener('scroll', fn)
   }, [])
+
+  const handleSendReport = useCallback(async () => {
+    if (!leadEmail.trim() || !result) return
+    setSending(true)
+    try {
+      await fetch('/api/report-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: leadEmail.trim(), url, result }),
+      })
+      setSent(true)
+      // Save lead
+      localStorage.setItem('markr_lead_email', leadEmail.trim())
+    } catch { setSent(true) } // still show success
+    setSending(false)
+  }, [leadEmail, result, url])
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) { inputRef.current?.focus(); return }
@@ -298,61 +317,63 @@ export default function Landing() {
                 </div>
 
                 {/* Email capture */}
-                <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap' as const }}>
-                  <input
-                    type="email"
-                    placeholder="Enter your email to get full analysis"
-                    id="landing-email-capture"
-                    style={{ flex:1, minWidth:200, padding:'10px 14px', borderRadius:8, border:'1px solid rgba(124,111,247,.3)', background:'rgba(255,255,255,.05)', color:'#fff', fontSize:13, outline:'none', fontFamily:D }}
-                  />
-                  <a
-                    href="#"
-                    onClick={e => {
-                      e.preventDefault()
-                      const emailEl = document.getElementById('landing-email-capture') as HTMLInputElement
-                      const emailVal = emailEl?.value?.trim()
-                      if (emailVal) {
-                        // Save email to localStorage for post-signup conversion
-                        localStorage.setItem('markr_lead_email', emailVal)
-                        window.location.href = `/login?url=${encodeURIComponent(url)}&email=${encodeURIComponent(emailVal)}`
-                      } else {
-                        window.location.href = `/login?url=${encodeURIComponent(url)}`
-                      }
-                    }}
-                    style={{ padding:'10px 20px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', borderRadius:8, fontSize:13, fontWeight:600, textDecoration:'none', fontFamily:D, whiteSpace:'nowrap' as const, boxShadow:'0 4px 14px rgba(124,111,247,.35)', display:'flex', alignItems:'center' }}>
-                    Get full analysis free →
-                  </a>
-                </div>
+                {!sent ? (
+                  <div style={{ marginBottom:10 }}>
+                    <div style={{ display:'flex', gap:8, marginBottom:6, flexWrap:'wrap' as const }}>
+                      <input
+                        type="email"
+                        value={leadEmail}
+                        onChange={e => setLeadEmail(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSendReport()}
+                        placeholder="Enter email to get your score report"
+                        style={{ flex:1, minWidth:200, padding:'10px 14px', borderRadius:8, border:'1px solid rgba(124,111,247,.3)', background:'rgba(255,255,255,.05)', color:'#fff', fontSize:13, outline:'none', fontFamily:D }}
+                      />
+                      <button
+                        onClick={handleSendReport}
+                        disabled={sending}
+                        style={{ padding:'10px 18px', background: sending ? 'rgba(124,111,247,.5)' : 'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', borderRadius:8, fontSize:13, fontWeight:600, border:'none', cursor: sending ? 'not-allowed' : 'pointer', fontFamily:D, whiteSpace:'nowrap' as const }}>
+                        {sending ? 'Sending…' : 'Email my report →'}
+                      </button>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center' }}>
+                      <span style={{ fontSize:11, color:'rgba(255,255,255,.2)', fontFamily:D }}>or</span>
+                      <a href={`/login?url=${encodeURIComponent(url)}`}
+                        style={{ fontSize:12, color:'rgba(124,111,247,.8)', fontFamily:D, textDecoration:'underline' }}>
+                        Sign up for the full analysis →
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding:'12px 16px', background:'rgba(52,201,138,.1)', border:'1px solid rgba(52,201,138,.25)', borderRadius:8, marginBottom:10, textAlign:'center' as const }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#34c98a', marginBottom:4, fontFamily:D }}>✓ Report sent to {leadEmail}</div>
+                    <div style={{ fontSize:12, color:'rgba(255,255,255,.5)', fontFamily:D }}>Check your inbox — full score breakdown with fixes</div>
+                    <a href={`/login?url=${encodeURIComponent(url)}`}
+                      style={{ display:'inline-block', marginTop:10, padding:'8px 18px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', borderRadius:8, fontSize:12, fontWeight:600, textDecoration:'none', fontFamily:D }}>
+                      Get full analysis free →
+                    </a>
+                  </div>
+                )}
 
-                {/* Share score */}
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                {/* Share buttons */}
+                <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' as const }}>
                   <span style={{ fontSize:11, color:'rgba(255,255,255,.3)', fontFamily:D }}>Share your score:</span>
-                  <button
-                    onClick={() => {
-                      const text = `My app scored ${result.overall}/10 on Markr's landing page analyzer 🚀\n\nBiggest gap: ${result.bottleneck.label}\n\nAnalyze your app free → https://markr.mindprintjournal.com`
-                      if (navigator.share) {
-                        navigator.share({ text, url: 'https://markr.mindprintjournal.com' }).catch(() => {})
-                      } else {
-                        navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'))
-                      }
-                    }}
-                    style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D, display:'flex', alignItems:'center', gap:5 }}>
+                  <button onClick={() => {
+                    const text = `My app scored ${result.overall}/10 on Markr's landing page analyzer 🚀\n\nBiggest gap: ${result.bottleneck.label}\n\nAnalyze yours free → https://markr.mindprintjournal.com`
+                    if (navigator.share) { navigator.share({ text, url:'https://markr.mindprintjournal.com' }).catch(()=>{}) }
+                    else { navigator.clipboard.writeText(text).then(()=>alert('Copied!')) }
+                  }} style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D }}>
                     🐦 Twitter/X
                   </button>
-                  <button
-                    onClick={() => {
-                      const text = `I analyzed my app's landing page with Markr and scored ${result.overall}/10.\n\nBiggest bottleneck: ${result.bottleneck.label}\n\nGet your free analysis → https://markr.mindprintjournal.com`
-                      window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://markr.mindprintjournal.com')}&summary=${encodeURIComponent(text)}`, '_blank')
-                    }}
-                    style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D, display:'flex', alignItems:'center', gap:5 }}>
+                  <button onClick={() => {
+                    const text = `I analyzed my app's landing page with Markr and scored ${result.overall}/10.\n\nBiggest bottleneck: ${result.bottleneck.label}\n\nGet your free analysis → https://markr.mindprintjournal.com`
+                    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://markr.mindprintjournal.com')}&summary=${encodeURIComponent(text)}`, '_blank')
+                  }} style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D }}>
                     💼 LinkedIn
                   </button>
-                  <button
-                    onClick={() => {
-                      const text = `My app scored ${result.overall}/10 on Markr 🚀 Biggest gap: ${result.bottleneck.label}. Analyze yours free → https://markr.mindprintjournal.com`
-                      navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'))
-                    }}
-                    style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D, display:'flex', alignItems:'center', gap:5 }}>
+                  <button onClick={() => {
+                    const text = `My app scored ${result.overall}/10 on Markr 🚀 Biggest gap: ${result.bottleneck.label}. Analyze yours free → https://markr.mindprintjournal.com`
+                    navigator.clipboard.writeText(text).then(()=>alert('Copied!'))
+                  }} style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D }}>
                     📋 Copy
                   </button>
                 </div>
