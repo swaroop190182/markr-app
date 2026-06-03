@@ -59,27 +59,33 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   async function runCompetitorAnalysis() {
     setCompLoading(true)
     try {
-      let compData = currentApp?.competitive_analysis
-        ? JSON.parse(currentApp.competitive_analysis)
-        : null
+      // First try: use competitor identified during URL analysis (based on actual content)
+      let topComp = (ua as any)?.closestCompetitor ?? null
 
-      // If no competitive analysis yet, run it now using Claude
-      if (!compData?.comps?.[0]?.url) {
+      // Second try: use existing competitive analysis cache
+      if (!topComp?.url && currentApp?.competitive_analysis) {
+        try {
+          const parsed = JSON.parse(currentApp.competitive_analysis)
+          const c = parsed.comps?.[0]
+          if (c?.url) topComp = { name: c.name, url: c.url }
+        } catch {}
+      }
+
+      // Third try: ask Claude based on actual website headline, not category
+      if (!topComp?.url) {
+        const appDesc = ua?.headline || currentApp?.desc || currentApp?.name || ''
         const raw = await callClaude(
-          `List 3 real competitors for "${currentApp?.name}" (${currentApp?.category}).${currentApp?.desc ? ' '+currentApp.desc : ''}
-JSON only: {"comps":[{"name":"X","url":"https://example.com","cat":"direct","strengths":["s1"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp?.name} wins"}]}`,
-          'Output ONLY valid JSON. No markdown.', 1000
+          `Based on this app's actual purpose, find the single closest direct competitor.
+App: "${appDesc}" (URL: ${currentApp?.url || ''})
+Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
+          'Output ONLY valid JSON. No markdown.', 150
         )
         try {
-          const cleaned = raw.replace(/\`\`\`json\s*/gi,'').replace(/\`\`\`\s*/g,'').trim()
-          compData = JSON.parse(cleaned)
-          if (compData.comps) {
-            updateApp(currentApp!.id, { competitive_analysis: JSON.stringify(compData) } as any)
-          }
+          const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim()
+          topComp = JSON.parse(cleaned)
         } catch { setCompLoading(false); return }
       }
 
-      const topComp = compData?.comps?.[0]
       if (!topComp?.url) { setCompLoading(false); return }
 
       const r = await fetch('/api/analyze-url', {
