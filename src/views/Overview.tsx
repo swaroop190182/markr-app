@@ -23,8 +23,9 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const { apps, currentApp, setView, plan, updateApp } = useStore()
   const [insight,    setInsight]    = useState<string | null>(null)
   const [loading,    setLoading]    = useState(false)
-  const [uaLoading,  setUaLoading]  = useState(false)
-  const [compLoading,setCompLoading]= useState(false)
+  const [uaLoading,    setUaLoading]    = useState(false)
+  const [compLoading,  setCompLoading]  = useState(false)
+  const [pillarsLoading, setPillarsLoading] = useState(false)
   const pt  = currentApp?.productTest
   const ua  = (currentApp as any)?.url_analysis
   const ca  = (currentApp as any)?.competitor_url_analysis
@@ -420,17 +421,68 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
         {/* Content Pillars — right column */}
         <Card>
           <CardHeader title={`Content Pillars · ${currentApp.name}`} />
-          {(currentApp.pillars ?? []).length > 0
-            ? (currentApp.pillars ?? []).map((p, i) => (
+          {(currentApp.pillars ?? []).length > 0 ? (
+            <>
+              {(currentApp.pillars ?? []).map((p, i) => (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:['#7c6ff7','#34c98a','#4f9cf7','#f5a623','#e26faf','#e55555'][i%6] }} />
                   <span style={{ fontSize:12 }}>{p.replace(/\*/g, '').trim()}</span>
                 </div>
-              ))
-            : <div style={{ fontSize:12, color:'var(--text3)', padding:'12px 0', textAlign:'center' as const }}>
-                Run Deep Analysis to generate content pillars
+              ))}
+              <div style={{ marginTop:10, fontSize:11, color:'var(--text3)', lineHeight:1.6 }}>
+                These are the strategic themes your content rotates through daily. Each post is tagged to a pillar.
               </div>
-          }
+              <button className="vbtn" style={{ marginTop:8, fontSize:11 }} onClick={() => setView('strategy')}>
+                Edit pillars →
+              </button>
+            </>
+          ) : pillarsLoading ? (
+            <div style={{ padding:'20px 0', textAlign:'center' as const }}>
+              <span className="spinner" style={{ color:'var(--accent)' }} />
+              <div style={{ fontSize:12, color:'var(--text3)', marginTop:8 }}>Generating content pillars…</div>
+            </div>
+          ) : (
+            <div style={{ padding:'8px 0' }}>
+              <div style={{ fontSize:12, color:'var(--text2)', lineHeight:1.7, marginBottom:12 }}>
+                <strong>Content pillars</strong> are the 5-6 strategic themes your Instagram content rotates through — keeping your feed focused, consistent, and algorithmically strong.
+              </div>
+              {ua ? (
+                <>
+                  <div style={{ fontSize:11, color:'var(--text3)', marginBottom:10, padding:'8px 10px', background:'var(--surface2)', borderRadius:'var(--r)', lineHeight:1.6 }}>
+                    Based on your app: <strong>{ua.headline}</strong>
+                    <br/>Suggested themes: {ua.growth_teaser ? ua.growth_teaser.split('.')[0] : 'emotional wellness, mindfulness, stress relief'}
+                  </div>
+                  <button className="gen-btn" style={{ width:'100%', justifyContent:'center', fontSize:12 }}
+                    onClick={async () => {
+                      setPillarsLoading(true)
+                      try {
+                        const raw = await callClaude(
+                          `Generate 6 Instagram content pillars for this app.
+App headline: "${ua.headline}"
+App URL: ${currentApp.url}
+Growth opportunity: "${ua.growth_teaser || ''}"
+
+Output exactly 6 pillars, one per line, 2-4 words each, no bullets or numbers. Make them specific to what this app actually does.`,
+                          'Output ONLY the 6 pillar names, one per line.', 200
+                        )
+                        const pillars = raw.split('\n').map((s: string) => s.trim()).filter(Boolean).slice(0, 6)
+                        if (pillars.length > 0) {
+                          updateApp(currentApp.id, { pillars } as any)
+                        }
+                      } catch {}
+                      setPillarsLoading(false)
+                    }}>
+                    <i className="ti ti-bolt" style={{ fontSize:13 }} /> Generate pillars from my app →
+                  </button>
+                </>
+              ) : (
+                <button className="vbtn" style={{ width:'100%', justifyContent:'center', fontSize:11 }}
+                  onClick={() => setView('strategy')}>
+                  Go to Strategy to create pillars →
+                </button>
+              )}
+            </div>
+          )}
 
 
         </Card>
