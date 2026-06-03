@@ -25,7 +25,6 @@ function AppInner({ session }: { session: Session }) {
   const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [prefilledUrl, setPrefilledUrl] = useState('')
 
-  // Mark lead converted after Google OAuth redirect
   useEffect(() => {
     const leadUrl = localStorage.getItem('markr_lead_url')
     if (leadUrl && session) {
@@ -37,7 +36,6 @@ function AppInner({ session }: { session: Session }) {
     }
   }, [session])
 
-  // Auto-show upgrade modal when trial expires
   useEffect(() => {
     if (trialExpired) {
       const t = setTimeout(() => setShowUpgrade(true), 2000)
@@ -45,12 +43,10 @@ function AppInner({ session }: { session: Session }) {
     }
   }, [trialExpired])
 
-  // Auto-open Add App modal with pre-filled URL from landing page
   useEffect(() => {
     const urlParam = new URLSearchParams(window.location.search).get('url')
     if (urlParam && apps.length === 0) {
       setPrefilledUrl(urlParam)
-      // Small delay so app finishes loading
       const t = setTimeout(() => setShowAddApp(true), 800)
       return () => clearTimeout(t)
     }
@@ -58,12 +54,10 @@ function AppInner({ session }: { session: Session }) {
 
   return (
     <div className="app-layout" style={{ background: 'var(--bg)' }}>
-      {/* Mobile sidebar overlay */}
       <div
         className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}
       />
-
       <div className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}
         style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)' }}>
         <Sidebar
@@ -74,7 +68,6 @@ function AppInner({ session }: { session: Session }) {
           userEmail={session.user.email ?? ''}
         />
       </div>
-
       <div className="app-main">
         <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} onSignOut={() => supabase.auth.signOut()} userEmail={session.user.email ?? ''} />
         <main className="app-content">
@@ -86,7 +79,6 @@ function AppInner({ session }: { session: Session }) {
           {view === 'admin'     && <Admin />}
         </main>
       </div>
-
       {showAddApp  && <AddAppModal onClose={() => { setShowAddApp(false); setPrefilledUrl('') }} prefilledUrl={prefilledUrl} />}
       {editAppId !== null && <EditAppModal appId={editAppId} onClose={() => setEditAppId(null)} />}
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} trigger={trialExpired ? 'trial_expired' : 'manual'} />}
@@ -108,10 +100,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        // Never redirect if we're on admin
-        if (window.location.pathname === '/mx-control' || (window as any).__MARKR_ADMIN__) return
-
-        // Send welcome email on first ever session — fires on email confirmation redirect too
+        // Send welcome email once
         const welcomeKey = `markr_welcomed_${session.user.id}`
         if (!localStorage.getItem(welcomeKey)) {
           localStorage.setItem(welcomeKey, '1')
@@ -121,13 +110,8 @@ export default function App() {
             body: JSON.stringify({ email: session.user.email, name: session.user.user_metadata?.full_name || '' }),
           }).catch(() => {})
         }
-
-        setPath(p => {
-          // Don't overwrite admin path
-          if (p === '/mx-control') return p
-          window.history.pushState({}, '', '/app')
-          return '/app'
-        })
+        window.history.pushState({}, '', '/app')
+        setPath('/app')
       } else if (event === 'SIGNED_OUT') {
         setPath('/')
         window.history.pushState({}, '', '/')
@@ -140,7 +124,7 @@ export default function App() {
     return (
       <div style={{ minHeight:'100vh', background:'#0a0a0c', display:'flex', alignItems:'center', justifyContent:'center' }}>
         <div style={{ textAlign:'center' }}>
-          <div style={{ width:40, height:40, borderRadius:10, background:'linear-gradient(135deg,#7c6ff7,#e26faf)', margin:'0 auto 16px', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Syne,sans-serif', fontSize:20, fontWeight:800, color:'#fff' }}>M</div>
+          <div style={{ width:40, height:40, borderRadius:10, background:'linear-gradient(135deg,#7c6ff7,#e26faf)', margin:'0 auto 16px', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'sans-serif', fontSize:20, fontWeight:800, color:'#fff' }}>M</div>
           <span className="spinner" style={{ color:'#7c6ff7' }} />
         </div>
       </div>
@@ -167,6 +151,8 @@ export default function App() {
       </StoreProvider>
     )
   }
+
+  if (path === '/login') return <Auth />
 
   return <Landing />
 }
