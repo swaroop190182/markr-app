@@ -8,7 +8,8 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const { apps, currentApp, setView, plan } = useStore()
   const [insight, setInsight] = useState<string | null>(null)
   const [loading, setLoading]  = useState(false)
-  const pt = currentApp?.productTest
+  const pt  = currentApp?.productTest
+  const ua  = (currentApp as any)?.url_analysis
   const hasApps = apps.length > 0
 
   async function generateInsight() {
@@ -122,6 +123,73 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
         </div>
       )}
 
+      {/* Deep URL Analysis Scores */}
+      {ua && !ua.error && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r)', padding:'18px 20px', marginBottom:14 }}>
+          {/* Header */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:2 }}>
+                Landing Page Analysis
+                <span style={{ marginLeft:8, fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700,
+                  background: ua.overall >= 7 ? 'rgba(22,168,112,.1)' : ua.overall >= 5 ? 'rgba(212,138,10,.1)' : 'rgba(220,38,38,.1)',
+                  color: ua.overall >= 7 ? 'var(--green)' : ua.overall >= 5 ? 'var(--amber)' : 'var(--red)'
+                }}>
+                  {ua.overall}/10
+                </span>
+              </div>
+              <div style={{ fontSize:11, color:'var(--text3)' }}>
+                {ua.pagesRead?.length > 0 ? `Pages analyzed: Home${ua.pagesRead.map((p: string) => ` · ${p}`).join('')}` : 'Homepage analyzed'}
+                {ua.analyzed_at ? ` · ${new Date(ua.analyzed_at).toLocaleDateString('en-IN')}` : ''}
+              </div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:32, fontWeight:800, lineHeight:1,
+                color: ua.overall >= 7 ? 'var(--green)' : ua.overall >= 5 ? 'var(--amber)' : 'var(--red)'
+              }}>{ua.overall}</div>
+              <div style={{ fontSize:10, color:'var(--text3)' }}>out of 10</div>
+            </div>
+          </div>
+
+          {/* Score bars */}
+          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
+            {(ua.dimensions ?? []).map((d: any) => {
+              const c = d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)'
+              return (
+                <div key={d.label}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                    <span style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{d.label}</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:c }}>{d.score}/10</span>
+                  </div>
+                  <div style={{ height:6, background:'var(--surface2)', borderRadius:3, overflow:'hidden', marginBottom:3 }}>
+                    <div style={{ height:'100%', width:`${d.score * 10}%`, background:c, borderRadius:3, transition:'width .5s' }} />
+                  </div>
+                  <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5 }}>{d.issue}</div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Bottleneck */}
+          {ua.bottleneck && (
+            <div style={{ background:'rgba(220,38,38,.05)', border:'1px solid rgba(220,38,38,.15)', borderRadius:'var(--r)', padding:'10px 12px', marginBottom:12 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--red)', marginBottom:4 }}>
+                🚨 Biggest Bottleneck — {ua.bottleneck.label}
+              </div>
+              <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>{ua.bottleneck.issue}</div>
+            </div>
+          )}
+
+          {/* Growth opportunity */}
+          {ua.growth_teaser && (
+            <div style={{ background:'rgba(124,111,247,.05)', border:'1px solid rgba(124,111,247,.15)', borderRadius:'var(--r)', padding:'10px 12px' }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', marginBottom:4 }}>💡 Content Opportunity</div>
+              <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6 }}>{ua.growth_teaser}</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* First-time hint — app added but nothing generated yet */}
       {apps.length > 0 && !currentApp.analyzed && (
         <div style={{ background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.25)', borderRadius:'var(--r)', padding:'14px 16px', marginBottom:14, display:'flex', alignItems:'center', gap:12 }}>
@@ -163,7 +231,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             ? (currentApp.pillars ?? []).map((p, i) => (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:['#7c6ff7','#34c98a','#4f9cf7','#f5a623','#e26faf','#e55555'][i%6] }} />
-                  <span style={{ fontSize:12 }}>{p.replace(/\*/g, '').trim()}</span>
+                  <span style={{ fontSize:12 }}>{p}</span>
                 </div>
               ))
             : <div style={{ fontSize:12, color:'var(--text3)', padding:'12px 0', textAlign:'center' }}>Add an app to see content pillars</div>
