@@ -291,9 +291,96 @@ JSON only: {"comps":[{"name":"X","url":"https://example.com","cat":"direct","str
                 </div>
               )}
 
-              {/* Competitor analysis button */}
-              {!ca && (
-                <button className="vbtn" style={{ width:'100%', justifyContent:'center', fontSize:11 }}
+              {/* Competitor comparison */}
+              {ca ? (
+                <div style={{ borderTop:'1px solid var(--border)', paddingTop:14, marginTop:4 }}>
+                  {/* Header */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>vs {ca.name}</div>
+                      <div style={{ fontSize:10, color:'var(--text3)' }}>{ca.url?.replace(/^https?:\/\//,'')}</div>
+                    </div>
+                    <div style={{ display:'flex', gap:16, textAlign:'center' as const }}>
+                      <div>
+                        <div style={{ fontSize:10, color:'var(--accent)', fontWeight:700, marginBottom:2 }}>YOU</div>
+                        <div style={{ fontSize:20, fontWeight:800, color: ua.overall >= ca.overall ? 'var(--green)' : 'var(--red)' }}>{ua.overall}</div>
+                      </div>
+                      <div style={{ fontSize:20, color:'var(--text3)', paddingTop:18 }}>vs</div>
+                      <div>
+                        <div style={{ fontSize:10, color:'var(--text3)', fontWeight:700, marginBottom:2 }}>{ca.name.split(' ')[0].toUpperCase()}</div>
+                        <div style={{ fontSize:20, fontWeight:800, color:'var(--text2)' }}>{ca.overall}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dimension comparison */}
+                  {(ua.dimensions ?? []).map((d: any) => {
+                    const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)
+                    const cs = comp?.score ?? 0
+                    const diff = d.score - cs
+                    const youC = d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)'
+                    const compC = cs >= 7 ? 'var(--green)' : cs >= 5 ? 'var(--amber)' : 'var(--red)'
+                    return (
+                      <div key={d.label} style={{ marginBottom:10 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
+                          <span style={{ fontSize:11, fontWeight:600, color:'var(--text)', flex:1 }}>{d.label}</span>
+                          <span style={{ fontSize:11, fontWeight:700, color:youC }}>{d.score}</span>
+                          <span style={{ fontSize:10, color:'var(--text3)' }}>vs</span>
+                          <span style={{ fontSize:11, fontWeight:700, color:compC }}>{cs}</span>
+                          <span style={{ fontSize:10, fontWeight:700, minWidth:24, textAlign:'right' as const, color: diff > 0 ? 'var(--green)' : diff < -1 ? 'var(--red)' : 'var(--text3)' }}>
+                            {diff > 0 ? `+${diff}` : diff}
+                          </span>
+                        </div>
+                        {/* Dual bar */}
+                        <div style={{ display:'flex', gap:2, height:5 }}>
+                          <div style={{ flex:1, borderRadius:3, overflow:'hidden', background:'var(--surface2)' }}>
+                            <div style={{ height:'100%', width:`${d.score*10}%`, background:youC, borderRadius:3 }} />
+                          </div>
+                          <div style={{ flex:1, borderRadius:3, overflow:'hidden', background:'var(--surface2)' }}>
+                            <div style={{ height:'100%', width:`${cs*10}%`, background:compC, borderRadius:3 }} />
+                          </div>
+                        </div>
+                        {/* Gap insight */}
+                        {diff < -1 && comp?.issue && (
+                          <div style={{ fontSize:10, color:'var(--red)', marginTop:3, lineHeight:1.4 }}>
+                            They win: {comp.issue}
+                          </div>
+                        )}
+                        {diff > 1 && (
+                          <div style={{ fontSize:10, color:'var(--green)', marginTop:3, lineHeight:1.4 }}>
+                            You win: {d.issue}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Verdict */}
+                  {(() => {
+                    const gaps = (ua.dimensions??[]).filter((d:any) => {
+                      const cs = ca.dimensions?.find((cd:any)=>cd.label===d.label)?.score??0
+                      return cs - d.score > 1
+                    }).length
+                    const wins = (ua.dimensions??[]).filter((d:any) => {
+                      const cs = ca.dimensions?.find((cd:any)=>cd.label===d.label)?.score??0
+                      return d.score - cs > 1
+                    }).length
+                    return (
+                      <div style={{ marginTop:10, padding:'8px 10px', borderRadius:'var(--r)', fontSize:11, lineHeight:1.6,
+                        background: wins >= gaps ? 'rgba(22,168,112,.06)' : 'rgba(220,38,38,.06)',
+                        border: `1px solid ${wins >= gaps ? 'rgba(22,168,112,.2)' : 'rgba(220,38,38,.15)'}`,
+                        color:'var(--text)'
+                      }}>
+                        {wins >= gaps
+                          ? `You lead on ${wins} of 5 dimensions vs ${ca.name}. Focus on closing the ${gaps} gaps to dominate your category.`
+                          : `${ca.name} leads on ${gaps} of 5 dimensions. Fix your top gaps to compete effectively.`
+                        }
+                      </div>
+                    )
+                  })()}
+                </div>
+              ) : (
+                <button className="vbtn" style={{ width:'100%', justifyContent:'center', fontSize:11, marginTop:8 }}
                   onClick={runCompetitorAnalysis} disabled={compLoading}>
                   {compLoading
                     ? <><span className="spinner" style={{ color:'var(--accent)' }} /> Finding &amp; analyzing closest competitor…</>
@@ -348,28 +435,7 @@ JSON only: {"comps":[{"name":"X","url":"https://example.com","cat":"direct","str
               </div>
           }
 
-          {/* Competitor comparison — if available */}
-          {ca && (
-            <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', marginBottom:8 }}>vs {ca.name}</div>
-              {(ua?.dimensions ?? []).map((d: any) => {
-                const comp = ca.dimensions?.find((cd: any) => cd.label === d.label)
-                const cs = comp?.score ?? 0
-                const diff = d.score - cs
-                return (
-                  <div key={d.label} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-                    <span style={{ fontSize:10, color:'var(--text3)', flex:1 }}>{d.label}</span>
-                    <span style={{ fontSize:11, fontWeight:700, color: d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)' }}>{d.score}</span>
-                    <span style={{ fontSize:10, color:'var(--text3)' }}>vs</span>
-                    <span style={{ fontSize:11, fontWeight:700, color: cs >= 7 ? 'var(--green)' : cs >= 5 ? 'var(--amber)' : 'var(--red)' }}>{cs}</span>
-                    <span style={{ fontSize:10, color: diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--red)' : 'var(--text3)' }}>
-                      {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '='}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+
         </Card>
       </div>
 
