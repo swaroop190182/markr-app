@@ -4,6 +4,21 @@ import { Card, CardHeader } from '../components/ui'
 import { callClaude } from '../lib/claude'
 import DeliverySettings from './DeliverySettings'
 
+
+function getDimFix(label: string, score: number): string {
+  const low = score < 5, mid = score < 8
+  const fixes: Record<string, [string, string, string]> = {
+    'Clarity':              ['Rewrite H1 to answer what will I achieve in one sentence. Remove jargon.', 'Add a specific outcome with a number — Save 2hrs/week beats save time.', 'Strong clarity. Keep headline tight across all pages.'],
+    'User Journey':         ['Add one primary CTA above the fold. Remove competing links.', 'Replace Sign Up with outcome-driven text like Get my free analysis.', 'Clear journey. Add What happens next strip under hero.'],
+    'Emotional Pull':       ['Flip every we/our to you/your. Lead with pain not solution.', 'Add urgency — Every week without strategy is growth you cannot recover.', 'Strong emotion. Add a specific number to anchor it.'],
+    'Trust':                ['Add 1 real quote — even a WhatsApp screenshot converts better than polished testimonials.', 'Add founder story — Built by name who faced this exact problem.', 'Trust is solid. Add specific numbers: 47 founders beats many founders.'],
+    'Conversion Readiness': ['Add Free to start or pricing above the fold — visitors cannot decide without knowing the cost.', 'Repeat CTA after each section — after problem, after solution, after testimonials.', 'Strong conversion. Test a URL-specific CTA: Analyze AppName free.'],
+  }
+  const f = fixes[label]
+  if (!f) return ''
+  return low ? f[0] : mid ? f[1] : f[2]
+}
+
 export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const { apps, currentApp, setView, plan, updateApp } = useStore()
   const [insight,    setInsight]    = useState<string | null>(null)
@@ -232,13 +247,7 @@ JSON only: {"comps":[{"name":"X","url":"https://example.com","cat":"direct","str
               <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
                 {(ua.dimensions ?? []).map((d: any) => {
                   const c = d.score >= 7 ? 'var(--green)' : d.score >= 5 ? 'var(--amber)' : 'var(--red)'
-                  const fixes: Record<string,string> = {
-                    'Clarity': d.score < 5 ? 'Rewrite H1 to answer "what will I achieve?" in one sentence. Remove jargon.' : d.score < 8 ? 'Add a specific outcome with a number — "Save 2hrs/week" beats "save time".' : 'Strong clarity. Keep headline tight across all pages.',
-                    'User Journey': d.score < 5 ? 'Add one primary CTA above the fold. Remove competing links.' : d.score < 8 ? 'Replace "Sign Up" with outcome-driven text like "Get my free analysis →".' : 'Clear journey. Add "What happens next" strip under hero.',
-                    'Emotional Pull': d.score < 5 ? 'Flip every "we/our" to "you/your". Lead with pain, not solution.' : d.score < 8 ? 'Add urgency: "Every week without strategy is growth you can't recover."' : 'Strong emotion. Add a specific number to anchor it.',
-                    'Trust': d.score < 5 ? 'Add 1 real quote — even a WhatsApp screenshot converts better than polished testimonials.' : d.score < 8 ? 'Add founder story — "Built by [name] who faced this exact problem".' : 'Trust is solid. Add specific numbers: "47 founders" beats "many founders".',
-                    'Conversion Readiness': d.score < 5 ? 'Add "Free to start" or pricing above the fold — visitors can't decide without knowing the cost.' : d.score < 8 ? 'Repeat CTA after each section — after problem, after solution, after testimonials.' : 'Strong conversion. Test a URL-specific CTA: "Analyze [AppName] free →".',
-                  }
+                  const fixes = getDimFix(d.label, d.score)
                   return (
                     <div key={d.label} style={{ paddingBottom:8, borderBottom:'1px solid var(--border)' }}>
                       <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
