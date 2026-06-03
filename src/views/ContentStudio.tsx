@@ -216,7 +216,9 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
             </div>
 
             {/* Metric reason */}
-            {c.metricReason && <div style={{ fontSize:11, padding:'8px 10px', borderRadius:'var(--r)', fontWeight:500, lineHeight:1.5, border:'1px solid var(--surface2)', background:c.metricBg, color:c.metricColor }}>{c.metricReason}</div>}
+            {c.metricReason && (
+              <div style={{ fontSize:11, padding:'8px 10px', borderRadius:'var(--r)', fontWeight:500, lineHeight:1.5, border:'1px solid var(--surface2)', background:c.metricBg, color:c.metricColor }}>{c.metricReason}</div>
+            )}
 
             {/* Hook */}
             {hook && (
