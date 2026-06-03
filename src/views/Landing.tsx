@@ -68,41 +68,37 @@ export default function Landing() {
     return () => window.removeEventListener('scroll', fn)
   }, [])
 
+  const [sendError, setSendError] = useState('')
+
   const handleSendReport = useCallback(async () => {
     if (!result) return
-    if (!leadEmail.trim()) {
-      alert('Please enter your email address first')
-      return
-    }
+    if (!leadEmail.trim()) { setSendError('Please enter your email address'); return }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(leadEmail.trim())) {
-      alert('Please enter a valid email address')
-      return
-    }
-    setSending(true)
+    if (!emailRegex.test(leadEmail.trim())) { setSendError('Please enter a valid email address'); return }
+    setSending(true); setSendError('')
     try {
       const res = await fetch('/api/report-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: leadEmail.trim(), url, result }),
       })
-      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        alert('Could not send email: ' + (data.error ?? 'Unknown error'))
+        const data = await res.json().catch(() => ({}))
+        setSendError('Could not send: ' + (data.error ?? 'Please try again'))
         setSending(false)
         return
       }
       setSent(true)
       localStorage.setItem('markr_lead_email', leadEmail.trim())
-    } catch(e) {
-      alert('Network error — please try again')
+    } catch {
+      setSendError('Network error — please try again')
     }
     setSending(false)
   }, [leadEmail, result, url])
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) { inputRef.current?.focus(); return }
-    setState('loading'); setError(''); setStep(0); setResult(null); setSent(false); setSending(false); setLeadEmail('')
+    setState('loading'); setError(''); setStep(0); setResult(null); setSent(false); setSending(false); setLeadEmail(''); setSendError('')
     // Step animation
     const interval = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 900)
     try {
@@ -339,10 +335,10 @@ export default function Landing() {
                       <input
                         type="email"
                         value={leadEmail}
-                        onChange={e => setLeadEmail(e.target.value)}
+                        onChange={e => { setLeadEmail(e.target.value); setSendError('') }}
                         onKeyDown={e => e.key === 'Enter' && handleSendReport()}
                         placeholder="Enter email to get your score report"
-                        style={{ flex:1, minWidth:200, padding:'10px 14px', borderRadius:8, border:'1px solid rgba(124,111,247,.3)', background:'rgba(255,255,255,.05)', color:'#fff', fontSize:13, outline:'none', fontFamily:D }}
+                        style={{ flex:1, minWidth:200, padding:'10px 14px', borderRadius:8, border:`1px solid ${sendError ? '#e55' : 'rgba(124,111,247,.3)'}`, background:'rgba(255,255,255,.05)', color:'#fff', fontSize:13, outline:'none', fontFamily:D }}
                       />
                       <button
                         onClick={handleSendReport}
@@ -351,6 +347,9 @@ export default function Landing() {
                         {sending ? 'Sending…' : 'Email my report →'}
                       </button>
                     </div>
+                    {sendError && (
+                      <div style={{ fontSize:12, color:'#e55', marginBottom:6, fontFamily:D }}>⚠ {sendError}</div>
+                    )}
                     <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center' }}>
                       <span style={{ fontSize:11, color:'rgba(255,255,255,.2)', fontFamily:D }}>or</span>
                       <a href={`/login?url=${encodeURIComponent(url)}`}
