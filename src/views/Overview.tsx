@@ -42,15 +42,32 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   }, [currentApp?.id])
 
   async function runCompetitorAnalysis() {
-    if (!currentApp?.competitive_analysis) {
-      setView('insights')
-      return
-    }
+    setCompLoading(true)
     try {
-      const parsed = JSON.parse(currentApp.competitive_analysis)
-      const topComp = parsed.comps?.[0]
-      if (!topComp?.url) { setView('insights'); return }
-      setCompLoading(true)
+      let compData = currentApp?.competitive_analysis
+        ? JSON.parse(currentApp.competitive_analysis)
+        : null
+
+      // If no competitive analysis yet, run it now using Claude
+      if (!compData?.comps?.[0]?.url) {
+        const { callClaude } = await import('../lib/claude')
+        const raw = await callClaude(
+          `List 3 real competitors for "${currentApp?.name}" (${currentApp?.category}).${currentApp?.desc ? ' '+currentApp.desc : ''}
+JSON only: {"comps":[{"name":"X","url":"https://example.com","cat":"direct","strengths":["s1"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp?.name} wins"}]}`,
+          'Output ONLY valid JSON. No markdown.', 1000
+        )
+        try {
+          const cleaned = raw.replace(/\`\`\`json\s*/gi,'').replace(/\`\`\`\s*/g,'').trim()
+          compData = JSON.parse(cleaned)
+          if (compData.comps) {
+            updateApp(currentApp!.id, { competitive_analysis: JSON.stringify(compData) } as any)
+          }
+        } catch { setCompLoading(false); return }
+      }
+
+      const topComp = compData?.comps?.[0]
+      if (!topComp?.url) { setCompLoading(false); return }
+
       const r = await fetch('/api/analyze-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
@@ -59,7 +76,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
       if (r.ok) {
         const result = await r.json()
         if (!result.error) {
-          updateApp(currentApp.id, {
+          updateApp(currentApp!.id, {
             competitor_url_analysis: {
               name: topComp.name,
               url: topComp.url,
