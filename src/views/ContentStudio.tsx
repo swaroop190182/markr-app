@@ -220,7 +220,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
 
             {/* Hook */}
             {hook && (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'6px 10px', background:'rgba(180,120,0,.08)', border:'1px solid rgba(180,120,0,.2)', borderRadius:'var(--r)', fontSize:11, color:'#92610a' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'6px 10px', background:'rgba(180,120,0,.08)', border:'1px solid rgba(180,120,0,.2)', borderRadius:'var(--r)', fontSize:11, color:'#5c3d02' }}>
                 <span>💡 Hook: <em>"{hook}"</em></span>
                 <CopyButton text={hook} label="Copy" />
               </div>
@@ -268,7 +268,7 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
             {activeTab==='image' && (
               <>
                 <div style={{ display:'flex', justifyContent:'flex-end' }}><CopyButton text={post.image_prompt} label="Copy prompt" /></div>
-                <div style={{ fontSize:12, lineHeight:1.7, padding:'10px 12px', borderRadius:'var(--r)', border:'1px solid rgba(253,230,138,.15)', fontStyle:'italic', color:'#fef9c3', background:'rgba(254,249,195,.05)' }}>{post.image_prompt}</div>
+                <div style={{ fontSize:12, lineHeight:1.7, padding:'10px 12px', borderRadius:'var(--r)', border:'1px solid rgba(253,230,138,.15)', fontStyle:'italic', color:'#111118', background:'rgba(245,166,35,.06)' }}>{post.image_prompt}</div>
                 <div style={{ fontSize:11, lineHeight:1.9, padding:'10px 12px', background:'var(--surface2)', borderRadius:'var(--r)', border:'1px solid var(--border)', color:'var(--text2)' }}>
                   Paste into: <a href="https://www.canva.com/ai-image-generator/" target="_blank" style={{ color:'#60a5fa' }}>Canva AI</a> · <a href="https://firefly.adobe.com" target="_blank" style={{ color:'#60a5fa' }}>Adobe Firefly</a> · <a href="https://labs.openai.com" target="_blank" style={{ color:'#60a5fa' }}>DALL-E</a>
                 </div>
