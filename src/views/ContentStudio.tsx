@@ -131,7 +131,7 @@ Output ONLY valid JSON:
       </div>
 
       {/* Agent cards */}
-      <div className="studio-cards" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:14 }}>
         {(['morning','midday','evening'] as SlotKey[]).map(type => (
           <AgentCard
             key={type}
@@ -212,13 +212,11 @@ function AgentCard({ type, slot, pillar, activeTab, onTabChange, onGenerate }: {
             {/* Badges */}
             <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
               <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, border:`1px solid ${c.border}`, background:c.metricBg, color:c.metricColor, fontWeight:600 }}>{c.metricLabel}</span>
-              {post.pillar && post.pillar !== 'undefined' && post.pillar.trim() && <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, border:`1px solid ${c.border}`, background:c.bg, color:c.color, fontWeight:600 }}>{post.pillar}</span>}
+              {post.pillar && <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, border:`1px solid ${c.border}`, background:c.bg, color:c.color, fontWeight:600 }}>{post.pillar}</span>}
             </div>
 
             {/* Metric reason */}
-            {c.metricReason && (
-              <div style={{ fontSize:11, padding:'8px 10px', borderRadius:'var(--r)', fontWeight:500, lineHeight:1.5, border:'1px solid var(--surface2)', background:c.metricBg, color:c.metricColor }}>{c.metricReason}</div>
-            )}
+            <div style={{ fontSize:11, padding:'8px 10px', borderRadius:'var(--r)', fontWeight:500, lineHeight:1.5, border:'1px solid var(--surface2)', background:c.metricBg, color:c.metricColor }}>{c.metricReason}</div>
 
             {/* Hook */}
             {hook && (
