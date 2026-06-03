@@ -97,6 +97,16 @@ export interface AppData {
   pricing_analysis?:     string | null
   content_studio_cache?: string | null
   strategy_cache?:       string | null
+  // Competitor URL Analysis
+  competitor_url_analysis?: {
+    name: string
+    url: string
+    overall: number
+    headline: string
+    dimensions: Array<{ label: string; score: number; issue: string }>
+    bottleneck: { label: string; issue: string }
+    analyzed_at: string
+  } | null
   // URL Analysis (from analyze-url API)
   url_analysis?: {
     overall: number
