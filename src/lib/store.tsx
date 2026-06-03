@@ -144,6 +144,9 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           productTest: row.product_test ?? null,
           analyzed:    row.analyzed ?? false,
           recent_context: row.recent_context ?? null,
+          // URL Analysis
+          url_analysis:            row.url_analysis ?? null,
+          competitor_url_analysis: row.competitor_url_analysis ?? null,
           // Analysis cache
           competitive_analysis: row.competitive_analysis ?? null,
           bmc_analysis:         row.bmc_analysis ?? null,
