@@ -240,6 +240,10 @@
     /* Content studio — stack cards */
     .studio-cards {
       grid-template-columns: 1fr !important;
+      gap: 12px !important;
+    }
+    .studio-cards > * {
+      min-width: 0 !important;
     }
 
     /* Insights tabs — scroll horizontally */
