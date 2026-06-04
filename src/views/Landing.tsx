@@ -630,9 +630,8 @@ export default function Landing() {
               I built 6 apps over 3 years. Every one of them got lost — not because they were bad, but because I had no idea why nobody was coming. I was guessing. I built Markr to stop guessing. Paste your URL. In 60 seconds you know exactly what is broken and what to post to fix it.
             </p>
             <div>
-                <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint & Emrise</div>
-              </div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint &amp; Emrise</div>
             </div>
           </div>
           {/* Stats */}
