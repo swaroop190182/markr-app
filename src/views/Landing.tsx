@@ -799,6 +799,7 @@ export default function Landing() {
         <a href="/login" style={{ fontSize:12, color:'rgba(255,255,255,.35)', textDecoration:'none' }}>Sign in →</a>
       </footer>
 
+      </div>
     </div>
   )
 }
