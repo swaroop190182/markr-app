@@ -77,6 +77,11 @@ function AppInner({ session }: { session: Session }) {
       </div>
 
       <div className="app-main">
+        {/* Mobile desktop nudge — only shows on small screens */}
+        <div className="mobile-desktop-nudge">
+          <span>💻</span>
+          <span>Markr works best on desktop — switch over for the full experience</span>
+        </div>
         <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} onSignOut={() => supabase.auth.signOut()} userEmail={session.user.email ?? ''} />
         <main className="app-content">
           {view === 'overview'  && <Overview onAddApp={() => setShowAddApp(true)} />}
