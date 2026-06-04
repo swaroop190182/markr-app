@@ -639,7 +639,7 @@ export default function Landing() {
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {[
               { n:'3', label:'Apps built before Markr', sub:'Each one taught me what Markr now does automatically', color:'#7c6ff7' },
-              { n:'4.8', label:'Emrise scored on first analysis', sub:'Trust was the killer — 2/10. Fixed in 3 weeks of targeted contentsers', color:'#e26faf' },
+              { n:'4.8', label:'Emrise scored on first analysis', sub:'Trust was 2/10. Markr generated pillars targeting it.', color:'#e26faf' },
               { n:'2min', label:'To get your first insight', sub:'Paste your URL — Markr does the rest', color:'#34c98a' },
             ].map(s=>(
               <div key={s.label} style={{ padding:'18px 20px', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:12 }}>
