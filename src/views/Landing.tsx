@@ -150,24 +150,24 @@ export default function Landing() {
 
         {/* Badge */}
         <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'5px 14px', borderRadius:20, border:'1px solid rgba(124,111,247,.3)', background:'rgba(124,111,247,.08)', fontSize:12, fontWeight:500, color:'#a599ff', marginBottom:24, letterSpacing:'.01em', fontFamily:D }}>
-          ✦ Growth Intelligence for App Founders
+          ✦ Launched on Product Hunt · Free to try
         </div>
 
         {/* Headline */}
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:700, lineHeight:1.07, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:740 }}>
-          Your app already knows how to grow.
+          Your landing page is losing users.
         </h1>
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 16px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
-          You just needed someone to show you.
+          Markr shows you exactly where — and what to post to fix it.
         </h1>
 
         {/* New subline */}
         <p style={{ fontFamily:D, fontSize:18, fontWeight:500, color:'rgba(255,255,255,.75)', maxWidth:560, lineHeight:1.5, margin:'0 0 16px', letterSpacing:'-0.01em' }}>
-          See exactly why your app isn't growing — and what to post to fix it.
+          We analyzed Emrise. Trust scored 2/10. Markr generated 6 content pillars targeting that gap — automatically.
         </p>
 
         <p style={{ fontFamily:D, fontSize:15, fontWeight:400, color:'rgba(255,255,255,.4)', maxWidth:460, lineHeight:1.65, margin:'0 0 20px' }}>
-          Paste your URL. Get a free audit in 60 seconds — no signup needed.
+          Paste your URL. Get scored on 5 dimensions in 60 seconds. No signup needed.
         </p>
 
         {/* URL input */}
@@ -456,7 +456,7 @@ export default function Landing() {
               This is what Markr actually found
             </h2>
             <p style={{ fontSize:14, color:'rgba(255,255,255,.4)', maxWidth:460, margin:'0 auto', fontFamily:D }}>
-              Real analysis from a real app — Emrise, a wellness app for founders.
+              Real analysis — Emrise (emrise.app) scored 4.8/10. Trust was 2/10. Here is what Markr found:
             </p>
           </div>
 
@@ -624,19 +624,10 @@ export default function Landing() {
           <div>
             <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:12, fontFamily:D }}>Why I built this</div>
             <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.8vw,34px)', fontWeight:700, margin:'0 0 16px', letterSpacing:'-0.02em', color:'#f5f5f7', lineHeight:1.15 }}>
-              Built by a founder<br />who felt the same pain.
+              Built by a founder who spent 3 years building apps that got lost.
             </h2>
             <p style={{ fontSize:15, color:'rgba(255,255,255,.55)', lineHeight:1.8, marginBottom:16 }}>
-              Many founders — including myself — are very good at building apps. But the real problem arises when you try to get users, understand the hook, and grow from 0 to 1. Or worse, 1 to 100.
-            </p>
-            <p style={{ fontSize:15, color:'rgba(255,255,255,.55)', lineHeight:1.8, marginBottom:20 }}>
-              Questions like <em style={{ color:'rgba(255,255,255,.75)' }}>who's my first user, what's my growth roadmap, what should I post, how do I get my first paying customer</em> — they go unanswered for months.
-            </p>
-            <p style={{ fontSize:15, color:'rgba(255,255,255,.7)', lineHeight:1.8, marginBottom:24, borderLeft:'2px solid #7c6ff7', paddingLeft:16 }}>
-              "Markr is built to answer some of these questions and provide direction to lost founders who build amazing products that get lost due to wrong marketing — or even lack of it."
-            </p>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>S</div>
+              I built 6 apps over 3 years. Every one of them got lost — not because they were bad, but because I had no idea why nobody was coming. I was guessing. I built Markr to stop guessing. Paste your URL. In 60 seconds you know exactly what is broken and what to post to fix it.</div>
               <div>
                 <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
                 <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint & Emrise</div>
@@ -647,7 +638,7 @@ export default function Landing() {
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {[
               { n:'3', label:'Apps built before Markr', sub:'Each one taught me what Markr now does automatically', color:'#7c6ff7' },
-              { n:'6mo', label:'Average time founders waste', sub:'On guessing strategy before finding their first 100 users', color:'#e26faf' },
+              { n:'4.8', label:'Emrise scored on first analysis', sub:'Trust was the killer — 2/10. Fixed in 3 weeks of targeted contentsers', color:'#e26faf' },
               { n:'2min', label:'To get your first insight', sub:'Paste your URL — Markr does the rest', color:'#34c98a' },
             ].map(s=>(
               <div key={s.label} style={{ padding:'18px 20px', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:12 }}>
