@@ -436,9 +436,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Save lead
     try {
-      const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!)
-      supabase.from('markr_url_leads').insert({ url }).catch(() => {})
-    } catch {}
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_KEY!
+      )
+      const { error } = await supabase.from('markr_url_leads').insert({
+        url,
+        score: result.overall ?? null,
+        headline: result.headline ?? null,
+        created_at: new Date().toISOString(),
+        converted: false
+      })
+      if (error) console.error('Lead insert error:', error.message)
+    } catch(e) { console.error('Lead save failed:', e) }
 
     // Find closest competitor based on actual website content
     let closestCompetitor = null
