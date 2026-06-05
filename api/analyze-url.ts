@@ -127,51 +127,6 @@ async function fullScrape(url: string) {
   let mainHtml = await fetchSafe(url)
   if (!mainHtml) throw new Error('Could not reach this URL — make sure it is public and accessible.')
 
-  // Detect JS SPA — little body content but has root div
-  const isJsSpa = mainHtml.length < 5000 ||
-    (mainHtml.includes('<div id="root">') && !mainHtml.includes('</p>')) ||
-    (mainHtml.includes('<div id="app">') && !mainHtml.includes('</p>')) ||
-    mainHtml.includes('__NEXT_DATA__') ||
-    mainHtml.includes('__nuxt')
-
-  // Firecrawl fallback for JS SPAs — renders the page server-side
-  if (isJsSpa) {
-    try {
-      const fcKey = process.env.FIRECRAWL_API_KEY
-      if (fcKey) {
-        const fcRes = await fetch('https://api.firecrawl.dev/v1/scrape', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${fcKey}` },
-          body: JSON.stringify({ url, formats: ['markdown'], onlyMainContent: true }),
-          signal: AbortSignal.timeout(10000)
-        })
-        if (fcRes.ok) {
-          const fcData = await fcRes.json()
-          const md = fcData?.data?.markdown ?? ''
-          if (md.length > 300) {
-            // Convert markdown to minimal HTML for our extractor
-            const fcTitle = fcData?.data?.metadata?.title ?? ''
-            const fcDesc  = fcData?.data?.metadata?.description ?? ''
-            const fcOgTitle = fcData?.data?.metadata?.ogTitle ?? fcTitle
-            const fcOgDesc  = fcData?.data?.metadata?.ogDescription ?? fcDesc
-            const bodyHtml  = md
-              .replace(/^#{1,3} (.+)$/gm, '<h1>$1</h1>')
-              .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-              .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-              .replace(/
-
-/g, '</p><p>')
-            mainHtml = `<html><head>
-              <title>${fcTitle}</title>
-              <meta name="description" content="${fcDesc.replace(/"/g, '')}">
-              <meta property="og:title" content="${fcOgTitle.replace(/"/g, '')}">
-              <meta property="og:description" content="${fcOgDesc.replace(/"/g, '')}">
-            </head><body><p>${bodyHtml}</p></body></html>`
-          }
-        }
-      }
-    } catch { /* non-blocking — fall back to raw HTML */ }
-  }
 
   const main = extract(mainHtml)
 
