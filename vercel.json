@@ -1,6 +1,54 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/.env",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/.git/:path*",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/wp-config.php",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/backup.zip",
+      "destination": "/",
+      "permanent": false
+    }
   ],
   "crons": [
     {
