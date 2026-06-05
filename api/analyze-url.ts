@@ -456,6 +456,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     res.status(200).json(result)
   } catch (e) {
-    res.status(422).json({ error: (e as Error).message })
+    const err = e as Error
+    console.error('analyze-url error:', err.message, err.stack)
+    res.status(422).json({ 
+      error: err.message,
+      detail: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    })
   }
 }
