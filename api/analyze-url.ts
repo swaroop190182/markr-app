@@ -130,25 +130,6 @@ async function fullScrape(url: string) {
   // If JS app detected (little content), try Jina Reader for rendered content
   const quickCheck = extract(mainHtml)
   const isJsApp = quickCheck.bodyText.length < 300 && (mainHtml.includes('__NEXT_DATA__') || mainHtml.includes('__nuxt') || mainHtml.includes('window.__') || mainHtml.includes('<div id="app">') || mainHtml.includes('<div id="root">'))
-  if (isJsApp) {
-    try {
-      const jinaRes = await fetchSafe(`https://r.jina.ai/${url}`, 8000)
-      if (jinaRes && jinaRes.length > 500) {
-        // Jina returns markdown — convert key parts back for our extractor
-        // Extract title from first # heading
-        const jinaTitle = jinaRes.match(/^#\s+(.+)/m)?.[1] ?? ''
-        const jinaBody  = jinaRes.replace(/^#.+$/gm, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').slice(0, 8000)
-        // Inject into mainHtml as meta for our extractor to use
-        if (jinaTitle || jinaBody.length > 200) {
-          mainHtml = `<html><head><title>${jinaTitle}</title><meta name="description" content="${jinaBody.slice(0,200).replace(/"/g,'').replace(/
-/g,' ')}"><meta property="og:title" content="${jinaTitle}"><meta property="og:description" content="${jinaBody.slice(0,300).replace(/"/g,'').replace(/
-/g,' ')}"></head><body><h1>${jinaTitle}</h1><p>${jinaBody.replace(/
-
-/g,'</p><p>')}</p></body></html>`
-        }
-      }
-    } catch { /* non-blocking — fall back to raw HTML */ }
-  }
 
   const main = extract(mainHtml)
 
