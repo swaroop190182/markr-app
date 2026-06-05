@@ -452,7 +452,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const confidence = totalWords > 1000 || totalPages >= 4 ? 'high'
                      : totalWords > 300  || totalPages >= 2 ? 'medium'
                      : hasRichMeta ? 'medium'
-                     : (result as any).isJsApp ? 'js-app'
+                     : totalWords < 100 && hasRichMeta ? 'js-app'
                      : 'low'
 
     const result = score(pages, url)
