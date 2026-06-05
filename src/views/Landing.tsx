@@ -270,7 +270,7 @@ export default function Landing() {
                       background: result.confidence==='high' ? 'rgba(52,201,138,.12)' : result.confidence==='medium' ? 'rgba(245,166,35,.12)' : result.confidence==='js-app' ? 'rgba(245,166,35,.08)' : 'rgba(144,144,176,.12)',
                       color: result.confidence==='high' ? '#34c98a' : result.confidence==='medium' ? '#f5a623' : '#9090b0'
                     }}>
-                      {result.confidence==='high' ? '● High confidence' : result.confidence==='medium' ? '● Medium confidence' : result.confidence===\'js-app\' ? '● JavaScript app — partial read' : '● Limited read'}
+                      {result.confidence==='high' ? '● High confidence' : result.confidence==='medium' ? '● Medium confidence' : result.confidence==='js-app' ? '● JavaScript app — partial read' : '● Limited read'}
                     </div>
                   )}
                 </div>
