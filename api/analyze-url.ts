@@ -128,6 +128,52 @@ async function fullScrape(url: string) {
   if (!mainHtml) throw new Error('Could not reach this URL — make sure it is public and accessible.')
 
 
+  // Firecrawl fallback for JS SPAs
+  const looksLikeSpa = (
+    mainHtml.includes('__NEXT_DATA__') ||
+    mainHtml.includes('__nuxt') ||
+    (mainHtml.includes('<div id="root">') && mainHtml.length < 8000) ||
+    (mainHtml.includes('<div id="app">') && mainHtml.length < 8000)
+  )
+  if (looksLikeSpa && process.env.FIRECRAWL_API_KEY) {
+    try {
+      const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 9000))
+      const fcFetch = fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.FIRECRAWL_API_KEY}`
+        },
+        body: JSON.stringify({ url, formats: ['markdown'], onlyMainContent: true })
+      }).then(r => r.ok ? r.json() : null).catch(() => null)
+
+      const fcResult = await Promise.race([fcFetch, timeout])
+      const md = fcResult?.data?.markdown ?? ''
+      if (md.length > 300) {
+        const meta = fcResult?.data?.metadata ?? {}
+        const fcTitle = meta.title ?? meta.ogTitle ?? ''
+        const fcDesc  = meta.description ?? meta.ogDescription ?? ''
+        mainHtml = [
+          '<html><head>',
+          `<title>${fcTitle}</title>`,
+          `<meta name="description" content="${fcDesc.replace(/"/g, '')}">`,
+          `<meta property="og:title" content="${fcTitle.replace(/"/g, '')}">`,
+          `<meta property="og:description" content="${fcDesc.replace(/"/g, '')}">`,
+          '</head><body>',
+          md.replace(/^#{1,3} (.+)$/gm, '<h1>$1</h1>')
+            .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .replace(/
+
++/g, '</p><p>'),
+          '</body></html>'
+        ].join('')
+      }
+    } catch (fcErr) {
+      console.error('Firecrawl error (non-fatal):', (fcErr as Error).message)
+    }
+  }
+
   const main = extract(mainHtml)
 
   const pages: Record<string, ReturnType<typeof extract>> = { home: main }
