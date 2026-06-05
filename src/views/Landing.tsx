@@ -43,7 +43,7 @@ interface AnalysisResult {
   scraped: { title: string; h1: string; metaDesc: string }
   isJSApp?: boolean
   pagesRead?: string[]
-  confidence?: 'high' | 'medium' | 'low'
+  confidence?: 'high' | 'medium' | 'low' | 'js-app'
   totalWords?: number
 }
 
@@ -267,10 +267,10 @@ export default function Landing() {
                   <div style={{ fontSize:14, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>{url.replace(/^https?:\/\//,'').split('/')[0]}</div>
                   {result.confidence && (
                     <div style={{ marginTop:4, display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:600,
-                      background: result.confidence==='high' ? 'rgba(52,201,138,.12)' : result.confidence==='medium' ? 'rgba(245,166,35,.12)' : 'rgba(144,144,176,.12)',
+                      background: result.confidence==='high' ? 'rgba(52,201,138,.12)' : result.confidence==='medium' ? 'rgba(245,166,35,.12)' : result.confidence==='js-app' ? 'rgba(245,166,35,.08)' : 'rgba(144,144,176,.12)',
                       color: result.confidence==='high' ? '#34c98a' : result.confidence==='medium' ? '#f5a623' : '#9090b0'
                     }}>
-                      {result.confidence==='high' ? '● High confidence' : result.confidence==='medium' ? '● Medium confidence' : '● Low confidence'}
+                      {result.confidence==='high' ? '● High confidence' : result.confidence==='medium' ? '● Medium confidence' : result.confidence===\'js-app\' ? '● JavaScript app — partial read' : '● Limited read'}
                     </div>
                   )}
                 </div>
