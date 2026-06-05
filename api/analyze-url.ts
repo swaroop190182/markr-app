@@ -127,10 +127,6 @@ async function fullScrape(url: string) {
   let mainHtml = await fetchSafe(url)
   if (!mainHtml) throw new Error('Could not reach this URL — make sure it is public and accessible.')
 
-  // If JS app detected (little content), try Jina Reader for rendered content
-  const quickCheck = extract(mainHtml)
-  const isJsApp = quickCheck.bodyText.length < 300 && (mainHtml.includes('__NEXT_DATA__') || mainHtml.includes('__nuxt') || mainHtml.includes('window.__') || mainHtml.includes('<div id="app">') || mainHtml.includes('<div id="root">'))
-
   const main = extract(mainHtml)
 
   const pages: Record<string, ReturnType<typeof extract>> = { home: main }
