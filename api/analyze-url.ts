@@ -453,7 +453,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch(e) { console.error('Lead save failed:', e) }
 
     
-    res.status(200).json({ ...result, closestCompetitor })
+    res.status(200).json(result)
   } catch (e) {
     res.status(422).json({ error: (e as Error).message })
   }
