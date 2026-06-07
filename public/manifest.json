@@ -1,0 +1,17 @@
+{
+  "name": "Markr",
+  "short_name": "Markr",
+  "description": "Growth Intelligence for App Founders",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f8fc",
+  "theme_color": "#7c6ff7",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
