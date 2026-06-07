@@ -39,7 +39,7 @@ const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id:'swot',        label:'SWOT',                  emoji:'⚡' },
   { id:'growth',      label:'Growth Strategies',     emoji:'🚀' },
   { id:'pricing',     label:'Pricing',               emoji:'💰' },
-  { id:'product',     label:'Product Test',          emoji:'🧪' },
+  { id:'product',     label:'AI Readiness Assessment', emoji:'🧪' },
 ]
 
 export default function Insights() {

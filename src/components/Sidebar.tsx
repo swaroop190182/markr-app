@@ -194,7 +194,7 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
                 ⏳ {daysLeftInTrial} day{daysLeftInTrial !== 1 ? 's' : ''} left in trial
               </div>
               <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, lineHeight: 1.4 }}>
-                5 AI calls/day · 1 app · No Product Test
+                5 AI calls/day · 1 app · No AI Readiness Assessment
               </div>
               <button onClick={onUpgrade} style={{ display: 'block', width: '100%', textAlign: 'center', padding: '5px 8px', borderRadius: 6, background: 'var(--amber)', color: '#000', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
                 Upgrade to Pro →

@@ -207,7 +207,7 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
           { label:'Your Apps',      value: String(apps.length),  change: plan==='pro'?'Pro — unlimited':'Free — 1 app', c: plan==='pro'?'var(--green)':'var(--accent2)' },
           { label:'Content Pillars', value: String(currentApp.pillars?.length ?? 0), change:`for ${currentApp.name}`, c:'var(--text3)' },
           { label:'Plan',           value: plan==='pro'?'Pro':'Free', change: plan==='pro'?'All features unlocked':'7-day trial', c: plan==='pro'?'var(--green)':'var(--amber)' },
-          { label:'Product Test', value: currentApp.productTest && !currentApp.productTest.error ? `${Math.min(100, (currentApp.productTest as any).score ?? currentApp.productTest.overall_score ?? 0)}/100` : '—', change: currentApp.productTest && !currentApp.productTest.error ? ((currentApp.productTest as any).verdict ?? '') : 'Not run yet', c: currentApp.productTest && !currentApp.productTest.error ? 'var(--green)' : 'var(--text3)' },
+          { label:'AI Readiness Assessment', value: currentApp.productTest && !currentApp.productTest.error ? `${Math.min(100, (currentApp.productTest as any).score ?? currentApp.productTest.overall_score ?? 0)}/100` : '—', change: currentApp.productTest && !currentApp.productTest.error ? ((currentApp.productTest as any).verdict ?? '') : 'Not run yet', c: currentApp.productTest && !currentApp.productTest.error ? 'var(--green)' : 'var(--text3)' },
         ].map(m => (
           <div key={m.label} className="card">
             <div style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>{m.label}</div>
@@ -236,7 +236,7 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
         <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
           <span>🧪</span>
           <div style={{ flex:1, fontSize:12 }}>
-            <strong style={{ color:'var(--green)' }}>Product test active</strong>
+            <strong style={{ color:'var(--green)' }}>AI Readiness Assessment active</strong>
             {' '}— Score: {Math.min(100, (pt as any).score ?? pt.overall_score ?? 0)}/100
             {(pt as any).verdict ? ` · ${(pt as any).verdict}` : ''}
             {(pt.features_found??[]).length > 0 && (

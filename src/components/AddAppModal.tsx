@@ -202,7 +202,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
           <span style={{ fontSize: 15 }}>🔐</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)' }}>
-              Product Test Access <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', marginLeft: 6 }}>optional · powerful</span>
+              AI Readiness Assessment Access <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', marginLeft: 6 }}>optional · powerful</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
               Give test credentials and AI will explore your app as a real user
@@ -243,7 +243,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, margin: '12px 0 4px' }}>
           <ProgressStep label="Reading app URL & context"              state={steps[0]} />
           <ProgressStep label="Analyzing features & audience"          state={steps[1]} />
-          <ProgressStep label="Product test — simulating user session" state={steps[2]} />
+          <ProgressStep label="AI Readiness Assessment — simulating user session" state={steps[2]} />
           <ProgressStep label="Building content engine & brand pillars" state={steps[3]} />
         </div>
       )}

@@ -56,7 +56,7 @@ export default function ProductTest() {
   }
 
   async function runDeepTest() {
-    if (!canUseProductTest) { toast('Deep AI Product Test is a Pro feature'); return }
+    if (!canUseProductTest) { toast('AI Readiness Assessment is a Pro feature'); return }
     if (!currentApp.url) { toast('Add your app URL in Edit App first'); return }
     const email = testEmail || currentApp.testCreds?.user || ''
     const pass  = testPass  || currentApp.testCreds?.password || ''
@@ -210,8 +210,8 @@ export default function ProductTest() {
           {!canUseProductTest ? (
             <div style={{ padding:'32px', textAlign:'center' }}>
               <div style={{ fontSize:40, marginBottom:12 }}>🔒</div>
-              <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:8 }}>Deep AI Product Test — Pro only</div>
-              <div style={{ fontSize:13, color:'var(--text3)', maxWidth:380, margin:'0 auto', lineHeight:1.7 }}>Upgrade to Pro to access real browser QA testing.</div>
+              <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:8 }}>AI Readiness Assessment — Pro only</div>
+              <div style={{ fontSize:13, color:'var(--text3)', maxWidth:380, margin:'0 auto', lineHeight:1.7 }}>Scores how well your app communicates its value — not a technical QA test.</div>
             </div>
           ) : !isAdmin ? (
             <div style={{ padding:'40px 24px', textAlign:'center' }}>
@@ -229,7 +229,7 @@ export default function ProductTest() {
           ) : !currentApp.testCreds ? (
             <div style={{ padding:'32px', textAlign:'center' }}>
               <div style={{ fontSize:40, marginBottom:12 }}>🧪</div>
-              <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:8 }}>Deep AI Product Test</div>
+              <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:8 }}>AI Readiness Assessment</div>
               <div style={{ fontSize:13, color:'var(--text3)', maxWidth:420, margin:'0 auto 16px', lineHeight:1.7 }}>
                 Markr opens a <strong style={{ color:'var(--text2)' }}>real browser</strong>, logs into your app with test credentials, navigates through every screen, takes screenshots, and sends them to Claude Vision for a genuine QA report.
               </div>

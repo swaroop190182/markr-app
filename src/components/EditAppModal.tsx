@@ -220,7 +220,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         >
           <span style={{ fontSize: 15 }}>🔐</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)' }}>Product Test Credentials</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)' }}>AI Readiness Assessment Credentials</div>
             <div style={{ fontSize: 11, color: testUser ? 'var(--green)' : 'var(--text3)', marginTop: 2 }}>
               {testUser ? `Saved: ${testUser} · click to update` : 'No credentials saved — add them here'}
             </div>
@@ -255,7 +255,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, margin: '12px 0 4px' }}>
           <ProgressStep label="Saving app details"                     state={steps[0]} />
           <ProgressStep label="Re-analyzing features & audience"       state={steps[1]} />
-          <ProgressStep label="Product test — simulating user session" state={steps[2]} />
+          <ProgressStep label="AI Readiness Assessment — simulating user session" state={steps[2]} />
           <ProgressStep label="Rebuilding content engine"              state={steps[3]} />
         </div>
       )}

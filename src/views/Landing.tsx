@@ -541,7 +541,7 @@ export default function Landing() {
             {[
               ['Understands your specific app',        '✗ Generic prompts',    '✓ Reads your actual URL'],
               ['Competitive analysis',                  '✗ Not included',       '✓ 5 real named competitors'],
-              ['Product testing & QA',                  '✗ Not included',       '✓ Simulates real user journey'],
+              ['AI Readiness Assessment',                '✗ Not included',       '✓ Scores how well your app communicates its value'],
               ['Daily automated delivery',              '✗ You have to log in', '✓ In your inbox by 6:30am'],
               ['SWOT, BMC, growth playbook',            '✗ Extra tools needed', '✓ All in one place'],
               ['Content optimised by engagement goal',  '✗ Same for everything','✓ Saves / Shares / Comments'],
@@ -757,7 +757,7 @@ export default function Landing() {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }} className="pricing-grid">
             {[
               { plan:'Free', price:'₹0', period:'forever', color:'rgba(255,255,255,.04)', border:'rgba(255,255,255,.1)', items:['1 app','5 AI calls/day','7-day trial of all features','Content Studio, Strategy & Insights'], cta:'Get started free', ctaHref:'/login', ctaBg:'rgba(255,255,255,.08)', ctaColor:'rgba(255,255,255,.8)', ctaBorder:'1px solid rgba(255,255,255,.12)', badge:null },
-              { plan:'Pro', price:'₹999', period:'/month', color:'rgba(124,111,247,.08)', border:'rgba(124,111,247,.4)', items:['Unlimited apps','200 AI calls/day','Daily email delivery — 3 posts/morning','Product Test (QA simulation)','All 5 deep analyses'], cta:'Upgrade to Pro', ctaHref:'/login', ctaBg:'linear-gradient(135deg,#7c6ff7,#9b8af4)', ctaColor:'#fff', ctaBorder:'none', badge:'Most popular' },
+              { plan:'Pro', price:'₹999', period:'/month', color:'rgba(124,111,247,.08)', border:'rgba(124,111,247,.4)', items:['Unlimited apps','200 AI calls/day','Daily email delivery — 3 posts/morning','AI Readiness Assessment','All 5 deep analyses'], cta:'Upgrade to Pro', ctaHref:'/login', ctaBg:'linear-gradient(135deg,#7c6ff7,#9b8af4)', ctaColor:'#fff', ctaBorder:'none', badge:'Most popular' },
             ].map(p=>(
               <div key={p.plan} style={{ background:p.color, border:`1.5px solid ${p.border}`, borderRadius:14, padding:'24px 20px', position:'relative' }}>
                 {p.badge && <div style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', background:'#7c6ff7', color:'#fff', fontSize:10, fontWeight:700, padding:'3px 12px', borderRadius:20, whiteSpace:'nowrap' }}>{p.badge}</div>}

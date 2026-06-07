@@ -124,7 +124,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
           {[
             ['🚀', 'Unlimited apps'],
             ['✍️', 'Daily content generation'],
-            ['🧪', 'Product Test — full QA simulation'],
+            ['🧪', 'AI Readiness Assessment — scores how well your app communicates its value'],
             ['🔍', 'Competitive intelligence'],
             ['📊', 'Growth playbook & SWOT'],
             ['💰', 'Pricing strategy'],
