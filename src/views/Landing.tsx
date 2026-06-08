@@ -130,10 +130,8 @@ export default function Landing() {
             dimensions: data.dimensions,
             bottleneck: data.bottleneck,
             growth_teaser: data.growth_teaser ?? '',
-            scraped: data.scraped ?? {},
             pages_read: data.pagesRead ?? [],
             confidence: data.confidence ?? 'low',
-            total_words: data.totalWords ?? 0,
           })
         console.log('[markr] scorecard insert →', { id: newId, scErr: JSON.stringify(scErr) })
         if (!scErr) setScorecardId(newId)
