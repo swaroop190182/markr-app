@@ -327,9 +327,17 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const youCount = (allPagesText.match(/\byou\b|\byour\b/gi) ?? []).length
   const weCount  = (allPagesText.match(/\bwe\b|\bour\b|\bwe've\b/gi) ?? []).length
   const hasUrg   = /free|now|today|start|instantly|minutes|fast|quick/i.test(allPagesText)
-  // Only count numbers adjacent to social-proof / outcome words.
-  // Pricing copy ($99, /month) and feature counts (3 steps, 5 integrations) must not match.
-  const hasNums  = /\d[\d,]*[k+]?\+?\s*(?:users?|customers?|founders?|downloads?|reviews?|ratings?|stars?|hours?|minutes?|days?|weeks?|people|members?|clients?|saves?|saved)/i.test(allPagesText)
+  // Currency-agnostic outcome number detection — signal is context, not currency symbol.
+  const hasNums = (
+    // Pattern 1: number near earning/income outcome words
+    /\d+[k+]?\+?\s*(?:per month|\/month|\/mo|a month|earned|made|income|revenue|profit|salary|in sales|per year|\/year)/i.test(allPagesText)
+    // Pattern 2: multiplier outcomes
+    || /\d+x\s*(?:more|faster|revenue|growth|return|roi)/i.test(allPagesText)
+    // Pattern 3: named testimonial with result (quoted text 15+ chars followed by a name within 100 chars)
+    || /["'][^"']{15,300}["'][\s\S]{0,100}[A-Z][a-z]{2,}/.test(allPagesText)
+    // Pattern 4: income-size references (language-agnostic)
+    || /(?:six|6|seven|7).?figure|(?:double|triple|10x)\s*(?:my|their|revenue|income|salary)/i.test(allPagesText)
+  )
 
   let emotion = 2
   if (youCount > weCount * 1.2 || youCount >= 5)                emotion += 3
