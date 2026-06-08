@@ -135,7 +135,7 @@ export default function Landing() {
           })
           .select('id')
           .single()
-        console.log('[markr] scorecard insert →', { sc, scErr })
+        console.log('[markr] scorecard insert →', { sc, scErr: JSON.stringify(scErr) })
         if (!scErr && sc?.id) setScorecardId(sc.id as string)
       } catch (scEx) {
         console.error('[markr] scorecard insert threw:', scEx)
