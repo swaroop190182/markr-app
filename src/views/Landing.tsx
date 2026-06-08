@@ -129,6 +129,9 @@ export default function Landing() {
             dimensions: data.dimensions,
             bottleneck: data.bottleneck,
             growth_teaser: data.growth_teaser ?? '',
+            category: data.category ?? '',
+            pages_read: data.pagesRead ?? [],
+            confidence: data.confidence ?? 'low',
           })
         console.log('[markr] scorecard insert id:', newId)
         console.log('[markr] scorecard insert error:', scErr?.message ?? 'none')
