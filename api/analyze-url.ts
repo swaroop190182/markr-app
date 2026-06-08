@@ -308,7 +308,9 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const youCount = (allPagesText.match(/\byou\b|\byour\b/gi) ?? []).length
   const weCount  = (allPagesText.match(/\bwe\b|\bour\b|\bwe've\b/gi) ?? []).length
   const hasUrg   = /free|now|today|start|instantly|minutes|fast|quick/i.test(allPagesText)
-  const hasNums  = /\d+[k+%x]?\s*(?:users|customers|apps|founders|teams|reviews|faster|more|less|saved)/i.test(allPagesText)
+  // Only count numbers adjacent to social-proof / outcome words.
+  // Pricing copy ($99, /month) and feature counts (3 steps, 5 integrations) must not match.
+  const hasNums  = /\d[\d,]*[k+]?\+?\s*(?:users?|customers?|founders?|downloads?|reviews?|ratings?|stars?|hours?|minutes?|days?|weeks?|people|members?|clients?|saves?|saved)/i.test(allPagesText)
 
   let emotion = 2
   if (youCount > weCount * 1.2 || youCount >= 5)                emotion += 3
