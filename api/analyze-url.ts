@@ -287,30 +287,39 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   // Cap at 8 unless headline has a clear outcome verb
   if (!/\b(get|save|build|fix|track|grow|send|launch|ship)\b/i.test(headline)) clarity = Math.min(8, clarity)
 
-  const clarityIssue = !features && !hasHow
+  const clarityBaseIssue = !features && !hasHow
     ? `Headline: "${headline.slice(0,55)}" — no features or how-it-works page found in pages analyzed: ${crawledPages}`
     : desc.length < 40
       ? 'Meta description is too short — expand it to explain the outcome clearly'
       : features
         ? `Clear — features page found with ${features.h2s.length} sections`
         : `Headline communicates value but no dedicated features page in pages analyzed: ${crawledPages}`
+  const clarityIssue = buzzwordCount > 0
+    ? clarityBaseIssue + '. Headline uses vague buzzwords — replace with specific outcomes'
+    : clarityBaseIssue
 
   // ── 2. User Journey (0–10) ──────────────────────────────────────────────────
   let journey = 3
   const primaryCta = allBtns.find(b => /start|try|get|sign|join|analyze|free|demo|launch|begin|access/i.test(b))
+  const hasWeakCtaOnly = !primaryCta
+    && allBtns.length > 0
+    && allBtns.some(b => /\b(learn more|explore|contact(?: us)?|submit)\b/i.test(b))
   if (primaryCta)                                                journey += 2
   if (primaryCta && !/^sign up$|^register$|^submit$|^click$/i.test(primaryCta)) journey += 2
   if (hasHow)                                                    journey += 2  // has how-it-works
   if (home.hasViewport)                                          journey += 1
-  journey = Math.min(10, journey)
+  if (hasWeakCtaOnly)                                            journey -= 2  // penalize weak-only CTAs
+  journey = Math.min(10, Math.max(0, journey))
   // Rule: 10/10 requires both an action CTA and a how-it-works page
   if (journey === 10 && !(primaryCta && hasHow)) journey = 9
 
-  const journeyIssue = !primaryCta
-    ? `No action-oriented CTA found in pages analyzed: ${crawledPages} — users don't know what to do`
-    : !hasHow
-      ? `CTA "${primaryCta.slice(0,40)}" exists but no how-it-works page in pages analyzed: ${crawledPages}`
-      : `Clear journey: "${primaryCta.slice(0,40)}" CTA with how-it-works page`
+  const journeyIssue = hasWeakCtaOnly
+    ? `Only weak CTAs found — replace with outcome-driven text (start, try, get, build)`
+    : !primaryCta
+      ? `No action-oriented CTA found in pages analyzed: ${crawledPages} — users don't know what to do`
+      : !hasHow
+        ? `CTA "${primaryCta.slice(0,40)}" exists but no how-it-works page in pages analyzed: ${crawledPages}`
+        : `Clear journey: "${primaryCta.slice(0,40)}" CTA with how-it-works page`
 
   // ── 3. Emotional Pull (0–10) ────────────────────────────────────────────────
   const youCount = (allPagesText.match(/\byou\b|\byour\b/gi) ?? []).length
@@ -405,6 +414,12 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
 
   // ── Overall — pure average of 5 dimensions, no inflation ────────────────────
   const overall = Math.round((clarity + journey + emotion + trust + conversion) / 5 * 10) / 10
+  // Dimension-triggered overall caps
+  let finalOverall = overall
+  let cappedBy: string | null = null
+  if (clarity < 4)    { finalOverall = Math.min(finalOverall, 5); cappedBy = cappedBy ?? 'Clarity' }
+  if (trust < 4)      { finalOverall = Math.min(finalOverall, 6); cappedBy = cappedBy ?? 'Trust' }
+  if (conversion < 4) { finalOverall = Math.min(finalOverall, 6); cappedBy = cappedBy ?? 'Conversion Readiness' }
 
   const dimensions = [
     { label:'Clarity',              score:clarity,    issue:clarityIssue    },
@@ -419,7 +434,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const sortedDims = [...dimensions].sort((a, b) => a.score - b.score)
 
   const isNegativeIssue = (issue: string) =>
-    /^(no |missing |not found|lacks|without|headline:|meta description|good user focus but|founder story detected but|social proof exists but|free option exists but|across all pages:|javascript app)/i.test(issue)
+    /^(no |missing |not found|lacks|without|headline:|meta description|good user focus but|founder story detected but|social proof exists but|free option exists but|across all pages:|javascript app|only weak)/i.test(issue)
 
   const isPositiveIssue = (issue: string) =>
     /^(clear|strong|cta|pricing page exists|trust signals present)/i.test(issue)
@@ -471,7 +486,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   }
 
   // ── Signal-diversity confidence ──────────────────────────────────────────────
-  const signalCount = [!!primaryCta, hasSP, hasPricing, hasNums].filter(Boolean).length
+  const signalCount = [!!primaryCta, hasSP, hasPricing, hasTeam].filter(Boolean).length
   const confidence: 'high' | 'medium' | 'low' | 'js-app' = isJSOnlyApp
     ? 'js-app'
     : signalCount >= 4 ? 'high'
@@ -482,7 +497,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const pagesRead = Object.keys(pages).filter(k => k !== 'home')
 
   return {
-    overall,
+    overall: finalOverall,
+    cappedBy,
     headline: headline.slice(0,80) || 'No headline detected',
     category,
     dimensions,
