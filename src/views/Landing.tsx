@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
 
 const D = "'Inter', sans-serif"
 const B = "'Inter', sans-serif"
@@ -57,6 +58,8 @@ export default function Landing() {
   const [leadEmail, setLeadEmail] = useState('')
   const [sending,   setSending]   = useState(false)
   const [sent,      setSent]      = useState(false)
+  const [scorecardId, setScorecardId] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const resultRef = useRef<HTMLDivElement>(null)
 
@@ -98,7 +101,7 @@ export default function Landing() {
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) { inputRef.current?.focus(); return }
-    setState('loading'); setError(''); setStep(0); setResult(null); setSent(false); setSending(false); setLeadEmail(''); setSendError('')
+    setState('loading'); setError(''); setStep(0); setResult(null); setSent(false); setSending(false); setLeadEmail(''); setSendError(''); setScorecardId(null)
     // Step animation
     const interval = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 900)
     try {
@@ -114,6 +117,21 @@ export default function Landing() {
       setResult(data)
       setState('done')
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100)
+      supabase.from('markr_scorecards').insert({
+        url: url.trim(),
+        overall: data.overall,
+        headline: data.headline ?? '',
+        category: data.category ?? '',
+        dimensions: data.dimensions,
+        bottleneck: data.bottleneck,
+        growth_teaser: data.growth_teaser ?? '',
+        scraped: data.scraped ?? {},
+        pages_read: data.pagesRead ?? [],
+        confidence: data.confidence ?? 'low',
+        total_words: data.totalWords ?? 0,
+      }).select('id').single().then(({ data: sc }) => {
+        if (sc?.id) setScorecardId(sc.id as string)
+      })
     } catch (e) {
       clearInterval(interval)
       setState('error')
@@ -366,6 +384,23 @@ export default function Landing() {
                       style={{ display:'inline-block', marginTop:10, padding:'8px 18px', background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', borderRadius:8, fontSize:12, fontWeight:600, textDecoration:'none', fontFamily:D }}>
                       Get full analysis free →
                     </a>
+                  </div>
+                )}
+
+                {/* Share this scorecard */}
+                {scorecardId && (
+                  <div style={{ marginBottom:12 }}>
+                    <button
+                      onClick={() => {
+                        const link = `${window.location.origin}/scorecard/${scorecardId}`
+                        navigator.clipboard.writeText(link).then(() => {
+                          setShareCopied(true)
+                          setTimeout(() => setShareCopied(false), 2500)
+                        })
+                      }}
+                      style={{ width:'100%', padding:'10px 18px', background: shareCopied ? 'rgba(52,201,138,.12)' : 'rgba(255,255,255,.05)', border:`1px solid ${shareCopied ? 'rgba(52,201,138,.35)' : 'rgba(255,255,255,.12)'}`, borderRadius:8, color: shareCopied ? '#34c98a' : 'rgba(255,255,255,.8)', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:D, display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'all .2s' }}>
+                      {shareCopied ? '✓ Link copied to clipboard!' : '🔗 Share this scorecard'}
+                    </button>
                   </div>
                 )}
 

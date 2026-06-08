@@ -12,6 +12,7 @@ import Insights from './views/Insights'
 import Admin from './views/Admin'
 import Auth from './views/Auth'
 import Landing from './views/Landing'
+import Scorecard from './views/Scorecard'
 import AddAppModal from './components/AddAppModal'
 import EditAppModal from './components/EditAppModal'
 import UpgradeModal from './components/UpgradeModal'
@@ -141,6 +142,12 @@ export default function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // Public scorecard page — no auth required, handle before session check
+  if (path.startsWith('/scorecard/')) {
+    const id = path.slice('/scorecard/'.length)
+    return <Scorecard scorecardId={id} />
+  }
 
   if (loading) {
     return (
