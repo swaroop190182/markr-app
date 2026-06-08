@@ -117,21 +117,26 @@ export default function Landing() {
       setResult(data)
       setState('done')
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100)
-      supabase.from('markr_scorecards').insert({
-        url: url.trim(),
-        overall: data.overall,
-        headline: data.headline ?? '',
-        category: data.category ?? '',
-        dimensions: data.dimensions,
-        bottleneck: data.bottleneck,
-        growth_teaser: data.growth_teaser ?? '',
-        scraped: data.scraped ?? {},
-        pages_read: data.pagesRead ?? [],
-        confidence: data.confidence ?? 'low',
-        total_words: data.totalWords ?? 0,
-      }).select('id').single().then(({ data: sc }) => {
-        if (sc?.id) setScorecardId(sc.id as string)
-      })
+      try {
+        const { data: sc, error: scErr } = await supabase
+          .from('markr_scorecards')
+          .insert({
+            url: url.trim(),
+            overall: data.overall,
+            headline: data.headline ?? '',
+            category: data.category ?? '',
+            dimensions: data.dimensions,
+            bottleneck: data.bottleneck,
+            growth_teaser: data.growth_teaser ?? '',
+            scraped: data.scraped ?? {},
+            pages_read: data.pagesRead ?? [],
+            confidence: data.confidence ?? 'low',
+            total_words: data.totalWords ?? 0,
+          })
+          .select('id')
+          .single()
+        if (!scErr && sc?.id) setScorecardId(sc.id as string)
+      } catch { /* scorecard save is non-blocking */ }
     } catch (e) {
       clearInterval(interval)
       setState('error')
@@ -392,7 +397,7 @@ export default function Landing() {
                   <div style={{ marginBottom:12 }}>
                     <button
                       onClick={() => {
-                        const link = `${window.location.origin}/scorecard/${scorecardId}`
+                        const link = `https://markr.mindprintjournal.com/scorecard/${scorecardId}`
                         navigator.clipboard.writeText(link).then(() => {
                           setShareCopied(true)
                           setTimeout(() => setShareCopied(false), 2500)
