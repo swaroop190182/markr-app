@@ -397,10 +397,29 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     { label:'Conversion Readiness', score:conversion, issue:conversionIssue },
   ]
 
-  // Rule: bottleneck must be lowest score AND describe something negative/missing
+  // Rule: bottleneck must be a dimension whose issue describes something negative/missing.
+  // Never pick one whose issue starts with a positive phrase.
   const sortedDims = [...dimensions].sort((a, b) => a.score - b.score)
-  const isPositiveIssue = (issue: string) => /^(clear|strong|trust signals present)/i.test(issue)
-  const bottleneck = sortedDims.find(d => !isPositiveIssue(d.issue)) ?? sortedDims[0]
+
+  const isNegativeIssue = (issue: string) =>
+    /^(no |missing |not found|lacks|without|headline:|meta description|good user focus but|founder story detected but|social proof exists but|free option exists but|across all pages:|javascript app)/i.test(issue)
+
+  const isPositiveIssue = (issue: string) =>
+    /^(clear|strong|cta|pricing page exists|trust signals present)/i.test(issue)
+
+  const couldBeStronger: Record<string, string> = {
+    'Clarity':              'Could be stronger — add a dedicated features page with clearly labelled sections',
+    'User Journey':         'Could be stronger — add a how-it-works page to guide first-time visitors',
+    'Emotional Pull':       'Could be stronger — add specific numbers (users helped, results achieved, time saved)',
+    'Trust':                'Could be stronger — add a team/about page or 1–2 early user testimonials',
+    'Conversion Readiness': 'Could be stronger — add a pricing page or a free trial entry point',
+  }
+
+  // Pick the lowest-scored dimension that has a genuinely negative issue
+  const negBottleneck = sortedDims.find(d => isNegativeIssue(d.issue) && !isPositiveIssue(d.issue))
+  // If all dimensions have positive issue text, rewrite the lowest-scored one
+  const bottleneck = negBottleneck
+    ?? { ...sortedDims[0], issue: couldBeStronger[sortedDims[0].label] ?? `Could be stronger — review your ${sortedDims[0].label.toLowerCase()}` }
 
   // ── Category ─────────────────────────────────────────────────────────────────
   const allForCat = (url + home.bestTitle + home.bestH1 + home.bestDesc + allH2s.join(' ') + allParas.join(' ')).toLowerCase()
