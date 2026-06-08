@@ -290,9 +290,9 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const clarityBaseIssue = !features && !hasHow
     ? `Headline: "${headline.slice(0,55)}" — no features or how-it-works page found in pages analyzed: ${crawledPages}`
     : desc.length < 40
-      ? 'Meta description is too short — expand it to explain the outcome clearly'
+      ? `Meta description is too short (${desc.length} chars) — expand it to explain the outcome clearly`
       : features
-        ? `Clear — features page found with ${features.h2s.length} sections`
+        ? `Features page found with ${features.h2s.length} labelled section${features.h2s.length === 1 ? '' : 's'}${hasHow ? ' + how-it-works path detected' : ' — add a how-it-works section to reach 10/10'}`
         : `Headline communicates value but no dedicated features page in pages analyzed: ${crawledPages}`
   const clarityIssue = buzzwordCount > 0
     ? clarityBaseIssue + '. Headline uses vague buzzwords — replace with specific outcomes'
@@ -319,7 +319,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
       ? `No action-oriented CTA found in pages analyzed: ${crawledPages} — users don't know what to do`
       : !hasHow
         ? `CTA "${primaryCta.slice(0,40)}" exists but no how-it-works page in pages analyzed: ${crawledPages}`
-        : `Clear journey: "${primaryCta.slice(0,40)}" CTA with how-it-works page`
+        : `"${primaryCta.slice(0,40)}" CTA + how-it-works path found — strong user journey`
 
   // ── 3. Emotional Pull (0–10) ────────────────────────────────────────────────
   const youCount = (allPagesText.match(/\byou\b|\byour\b/gi) ?? []).length
@@ -346,7 +346,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
         ? `No specific numbers found in pages analyzed: ${crawledPages} — add user counts, time saved, or results`
         : !hasUrg
           ? `Good user focus but missing urgency language in pages analyzed: ${crawledPages}`
-          : `Strong — ${youCount} user-focused phrases, specific numbers present`
+          : `${youCount} "you/your" phrases + outcome numbers detected — strong emotional pull`
 
   // ── 4. Trust (0–10) ─────────────────────────────────────────────────────────
   const hasSP      = social
@@ -388,7 +388,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
         ? `Founder story detected but no user testimonials in pages analyzed: ${crawledPages} — add 1-2 early user quotes`
         : !hasTeam
           ? `Social proof exists but about/team page unverified — may exist but wasn't readable. Add a visible about section.`
-          : `Trust signals present: social proof ${hasTeam ? '+ team' : ''} ${hasLogos ? '+ logos' : ''}`
+          : `Social proof detected + team/about page found${hasLogos ? ' + logo bar detected' : ''} — strong trust signals`
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
   const hasPricing  = !!pricing
@@ -410,7 +410,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
       ? 'Pricing page exists but no free trial or freemium option — add a low-risk entry point'
       : hasFreeOpt && !hasMultiCTA
         ? 'Free option exists but CTA only appears once — repeat it at key decision points'
-        : `Strong — pricing page, free option, and multiple CTAs present`
+        : `Pricing page + free option + multiple CTAs detected — strong conversion setup`
 
   // ── Overall — pure average of 5 dimensions, no inflation ────────────────────
   const overall = Math.round((clarity + journey + emotion + trust + conversion) / 5 * 10) / 10
