@@ -274,6 +274,10 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (features)                                                  clarity += 2  // has features page
   if (how)                                                       clarity += 1  // explains how it works
   clarity = Math.min(10, clarity)
+  // Rule: clarity cannot exceed 7 if the features page exists but has 0 sections detected
+  if (features && features.h2s.length === 0) clarity = Math.min(7, clarity)
+  // Rule: 10/10 requires both features page with sections AND how-it-works page
+  if (clarity === 10 && !(features && features.h2s.length > 0 && how)) clarity = 9
 
   const clarityIssue = !features && !how
     ? `Headline: "${headline.slice(0,55)}" — no features or how-it-works page found in pages analyzed: ${crawledPages}`
@@ -291,6 +295,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (how)                                                       journey += 2  // has how-it-works
   if (home.hasViewport)                                          journey += 1
   journey = Math.min(10, journey)
+  // Rule: 10/10 requires both an action CTA and a how-it-works page
+  if (journey === 10 && !(primaryCta && how)) journey = 9
 
   const journeyIssue = !primaryCta
     ? `No action-oriented CTA found in pages analyzed: ${crawledPages} — users don't know what to do`
@@ -309,6 +315,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (hasNums)                                                   emotion += 3
   if (hasUrg)                                                    emotion += 2
   emotion = Math.min(10, emotion)
+  // Rule: 10/10 requires all three positive signals (you-focused, numbers, urgency)
+  if (emotion === 10 && !(youCount >= 5 && hasNums && hasUrg)) emotion = 9
 
   const isJSOnlyApp = home.wordCount < 100
   const emotionIssue = (weCount > 0 && youCount < weCount)
@@ -343,6 +351,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   // Give benefit of doubt if meta description is rich (suggests real content exists)
   if (isJSOnlyApp && home.bestDesc.length > 100) trust = Math.max(trust, 4)
   trust = Math.min(10, trust)
+  // Rule: 10/10 requires both social proof and a team/about page
+  if (trust === 10 && !(hasSP && hasTeam)) trust = 9
 
   const trustIssue = isJSOnlyApp && trust <= 4
     ? `JavaScript app — trust signals may exist but can't be read by crawler. Add og:description and structured data (JSON-LD) for accurate scoring`
@@ -365,6 +375,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (hasFreeOpt)   conversion += 2
   if (hasMultiCTA)  conversion += 2
   conversion = Math.min(10, conversion)
+  // Rule: 10/10 requires pricing, free option, and multiple CTAs all present
+  if (conversion === 10 && !(hasPricing && hasFreeOpt && hasMultiCTA)) conversion = 9
 
   const conversionIssue = !hasPricing
     ? `No pricing page found in pages analyzed: ${crawledPages} — visitors can't make a buying decision without knowing the cost`
@@ -374,7 +386,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
         ? 'Free option exists but CTA only appears once — repeat it at key decision points'
         : `Strong — pricing page, free option, and multiple CTAs present`
 
-  // ── Overall ──────────────────────────────────────────────────────────────────
+  // ── Overall — pure average of 5 dimensions, no inflation ────────────────────
   const overall = Math.round((clarity + journey + emotion + trust + conversion) / 5 * 10) / 10
 
   const dimensions = [
@@ -384,12 +396,20 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     { label:'Trust',                score:trust,      issue:trustIssue      },
     { label:'Conversion Readiness', score:conversion, issue:conversionIssue },
   ]
-  const bottleneck = [...dimensions].sort((a,b) => a.score - b.score)[0]
+
+  // Rule: bottleneck must be lowest score AND describe something negative/missing
+  const sortedDims = [...dimensions].sort((a, b) => a.score - b.score)
+  const isPositiveIssue = (issue: string) => /^(clear|strong|trust signals present)/i.test(issue)
+  const bottleneck = sortedDims.find(d => !isPositiveIssue(d.issue)) ?? sortedDims[0]
 
   // ── Category ─────────────────────────────────────────────────────────────────
   const allForCat = (url + home.bestTitle + home.bestH1 + home.bestDesc + allH2s.join(' ') + allParas.join(' ')).toLowerCase()
   let category = 'App'
-  if (/health|wellness|fitness|nutrition|mental|medical|diet|baby|tummy|tummies|mother|parenting|child|kid|toddler|infant|pregnant|pregnancy/.test(allForCat)) category = 'Health & Wellness'
+  // Rule: Health & Wellness requires 2+ distinct health-related terms to avoid
+  // misclassifying SaaS/productivity apps that mention "mental models" or "team health"
+  const healthTerms = (allForCat.match(/\b(health|wellness|fitness|nutrition|mental health|medical|diet|baby|parenting|toddler|infant|pregnant|pregnancy|tummy|tummies|mother)\b/gi) ?? []).length
+  const foodTerms   = (allForCat.match(/\b(food|recipe|cook|meal|restaurant|calorie|nutrition|eat)\b/gi) ?? []).length
+  if (healthTerms >= 2 || foodTerms >= 2)                                                              category = 'Health & Wellness'
   else if (/legal|lawyer|law|attorney|court|contract|compliance|lawsuit|litigation/.test(allForCat))  category = 'Legal'
   else if (/finance|invest|money|bank|payment|fintech|budget|tax|accounting|invoice/.test(allForCat)) category = 'Finance'
   else if (/education|learn|course|school|teach|tutor|study|quiz|lesson|curriculum/.test(allForCat))  category = 'Education'
@@ -397,7 +417,6 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   else if (/saas|software|platform|dashboard|workflow|api|developer|integration|b2b/.test(allForCat)) category = 'SaaS'
   else if (/marketing|social|content|brand|seo|ads|campaign|instagram|twitter|tiktok/.test(allForCat)) category = 'Marketing'
   else if (/productivity|task|project|manage|organise|team|collaborate|kanban|sprint/.test(allForCat)) category = 'Productivity'
-  else if (/food|recipe|cook|meal|restaurant|diet|calorie|nutrition|eat/.test(allForCat))             category = 'Health & Wellness'
   else if (/travel|trip|hotel|flight|booking|itinerary|destination/.test(allForCat))                  category = 'Travel'
   else if (/real.?estate|property|rent|mortgage|home|apartment|housing/.test(allForCat))              category = 'Real Estate'
 
