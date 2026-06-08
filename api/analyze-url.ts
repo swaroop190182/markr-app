@@ -262,6 +262,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const allH2s       = Object.values(pages).flatMap(p => p.h2s)
   const allParas     = Object.values(pages).flatMap(p => p.paras)
   const allBtns      = Object.values(pages).flatMap(p => p.btns)
+  const hasHow       = !!how || /get started|getting started|workflow|built for|designed for|step\s*1|step\s*2|step one|step two/i.test(allPagesText)
 
   const headline = home.bestH1 || home.bestTitle
   const desc     = home.bestDesc
@@ -272,14 +273,14 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (headline.split(' ').length >= 3 && headline.split(' ').length <= 14) clarity += 1
   if (desc.length > 40)                                          clarity += 2
   if (features)                                                  clarity += 2  // has features page
-  if (how)                                                       clarity += 1  // explains how it works
+  if (hasHow)                                                    clarity += 1  // explains how it works
   clarity = Math.min(10, clarity)
   // Rule: clarity cannot exceed 7 if the features page exists but has 0 sections detected
   if (features && features.h2s.length === 0) clarity = Math.min(7, clarity)
   // Rule: 10/10 requires both features page with sections AND how-it-works page
-  if (clarity === 10 && !(features && features.h2s.length > 0 && how)) clarity = 9
+  if (clarity === 10 && !(features && features.h2s.length > 0 && hasHow)) clarity = 9
 
-  const clarityIssue = !features && !how
+  const clarityIssue = !features && !hasHow
     ? `Headline: "${headline.slice(0,55)}" — no features or how-it-works page found in pages analyzed: ${crawledPages}`
     : desc.length < 40
       ? 'Meta description is too short — expand it to explain the outcome clearly'
@@ -292,15 +293,15 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const primaryCta = allBtns.find(b => /start|try|get|sign|join|analyze|free|demo|launch|begin|access/i.test(b))
   if (primaryCta)                                                journey += 2
   if (primaryCta && !/^sign up$|^register$|^submit$|^click$/i.test(primaryCta)) journey += 2
-  if (how)                                                       journey += 2  // has how-it-works
+  if (hasHow)                                                    journey += 2  // has how-it-works
   if (home.hasViewport)                                          journey += 1
   journey = Math.min(10, journey)
   // Rule: 10/10 requires both an action CTA and a how-it-works page
-  if (journey === 10 && !(primaryCta && how)) journey = 9
+  if (journey === 10 && !(primaryCta && hasHow)) journey = 9
 
   const journeyIssue = !primaryCta
     ? `No action-oriented CTA found in pages analyzed: ${crawledPages} — users don't know what to do`
-    : !how
+    : !hasHow
       ? `CTA "${primaryCta.slice(0,40)}" exists but no how-it-works page in pages analyzed: ${crawledPages}`
       : `Clear journey: "${primaryCta.slice(0,40)}" CTA with how-it-works page`
 
@@ -332,7 +333,9 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
           : `Strong — ${youCount} user-focused phrases, specific numbers present`
 
   // ── 4. Trust (0–10) ─────────────────────────────────────────────────────────
-  const hasSP      = social || /testimonial|review|rating|stars|trusted|said|quote|blockquote|discord|community|feedback|users say|founders say/i.test(allPagesText)
+  const hasSP      = social
+    || /testimonial|review|rating|stars|trusted|said|quote|blockquote|discord|community|feedback|users say|founders say|used by|loved by|teams at|powering|backed by/i.test(allPagesText)
+    || /["'][^"']{10,200}["']\s*[—–-]\s*[A-Z]/.test(allPagesText)
   // Check every crawled page whose key contains about/team/founder/story —
   // nav-discovered pages land under keys like "team", "about_us", "founders"
   const aboutTeamPages = Object.entries(pages)
@@ -368,7 +371,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
       : !hasSP && hasFounderStory
         ? `Founder story detected but no user testimonials in pages analyzed: ${crawledPages} — add 1-2 early user quotes`
         : !hasTeam
-          ? `Social proof exists but no about/team page in pages analyzed: ${crawledPages} — show who built this`
+          ? `Social proof exists but about/team page unverified — may exist but wasn't readable. Add a visible about section.`
           : `Trust signals present: social proof ${hasTeam ? '+ team' : ''} ${hasLogos ? '+ logos' : ''}`
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
@@ -460,6 +463,14 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     'App':               `"Problem → solution" posts showing the exact moment ${home.bestTitle.split('—')[0].trim() || 'your app'} saves the day is the highest-converting format. Sign up — Markr generates content like this for your app every single day.`,
   }
 
+  // ── Signal-diversity confidence ──────────────────────────────────────────────
+  const signalCount = [!!primaryCta, hasSP, hasPricing, hasNums].filter(Boolean).length
+  const confidence: 'high' | 'medium' | 'low' | 'js-app' = isJSOnlyApp
+    ? 'js-app'
+    : signalCount >= 4 ? 'high'
+    : signalCount >= 2 ? 'medium'
+    : 'low'
+
   // ── Pages analysed summary ───────────────────────────────────────────────────
   const pagesRead = Object.keys(pages).filter(k => k !== 'home')
 
@@ -470,6 +481,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     dimensions,
     bottleneck:   { label: bottleneck.label, issue: bottleneck.issue },
     growth_teaser: teasers[category] ?? teasers['App'],
+    confidence,
     pagesRead,
     isJSApp: home.wordCount < 100,
     scraped: {
@@ -501,7 +513,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Confidence check — total words scraped across all pages
     const totalWords = Object.values(pages).reduce((sum, p) => sum + p.wordCount, 0)
-    const totalPages = Object.keys(pages).length
     const hasRichContent = totalWords > 200 || (pages.home.bestTitle && pages.home.bestDesc)
 
     if (!hasRichContent) {
@@ -516,16 +527,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    // Confidence level — factor in meta tag richness for JS apps
-    const hasRichMeta = pages.home.bestDesc.length > 80 && pages.home.bestTitle.length > 10
-    const confidence = totalWords > 1000 || totalPages >= 4 ? 'high'
-                     : totalWords > 300  || totalPages >= 2 ? 'medium'
-                     : hasRichMeta ? 'medium'
-                     : totalWords < 100 && hasRichMeta ? 'js-app'
-                     : 'low'
-
     const result = score(pages, url)
-    ;(result as any).confidence = confidence
     ;(result as any).totalWords = totalWords
 
     // Save lead
