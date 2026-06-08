@@ -287,16 +287,13 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   // Cap at 8 unless headline has a clear outcome verb
   if (!/\b(get|save|build|fix|track|grow|send|launch|ship)\b/i.test(headline)) clarity = Math.min(8, clarity)
 
-  const clarityBaseIssue = !features && !hasHow
-    ? `Headline: "${headline.slice(0,55)}" — no features or how-it-works page found in pages analyzed: ${crawledPages}`
-    : desc.length < 40
-      ? `Meta description is too short (${desc.length} chars) — expand it to explain the outcome clearly`
-      : features
-        ? `Features page found with ${features.h2s.length} labelled section${features.h2s.length === 1 ? '' : 's'}${hasHow ? ' + how-it-works path detected' : ' — add a how-it-works section to reach 10/10'}`
-        : `Headline communicates value but no dedicated features page in pages analyzed: ${crawledPages}`
-  const clarityIssue = buzzwordCount > 0
-    ? clarityBaseIssue + '. Headline uses vague buzzwords — replace with specific outcomes'
-    : clarityBaseIssue
+  const clarityIssue = clarity >= 9
+    ? `Clear headline with specific outcome — "${headline.slice(0, 60)}"`
+    : clarity >= 7
+      ? 'Headline present but could be more specific — add a measurable outcome'
+      : clarity >= 5
+        ? 'Headline is vague — use outcome verbs like get, save, build, fix'
+        : 'No clear headline found — add an H1 that states what users gain'
 
   // ── 2. User Journey (0–10) ──────────────────────────────────────────────────
   let journey = 3
@@ -313,13 +310,13 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   // Rule: 10/10 requires both an action CTA and a how-it-works page
   if (journey === 10 && !(primaryCta && hasHow)) journey = 9
 
-  const journeyIssue = hasWeakCtaOnly
-    ? `Only weak CTAs found — replace with outcome-driven text (start, try, get, build)`
-    : !primaryCta
-      ? `No action-oriented CTA found in pages analyzed: ${crawledPages} — users don't know what to do`
-      : !hasHow
-        ? `CTA "${primaryCta.slice(0,40)}" exists but no how-it-works page in pages analyzed: ${crawledPages}`
-        : `"${primaryCta.slice(0,40)}" CTA + how-it-works path found — strong user journey`
+  const journeyIssue = journey >= 9
+    ? 'Clear journey — strong CTA with how-it-works path'
+    : journey >= 7
+      ? 'CTA exists but no dedicated how-it-works page'
+      : journey >= 5
+        ? 'Weak or generic CTA found — replace with outcome-driven text'
+        : "No action-oriented CTA found — users don't know what to do"
 
   // ── 3. Emotional Pull (0–10) ────────────────────────────────────────────────
   const youCount = (allPagesText.match(/\byou\b|\byour\b/gi) ?? []).length
@@ -338,15 +335,13 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (emotion === 10 && !(youCount >= 5 && hasNums && hasUrg)) emotion = 9
 
   const isJSOnlyApp = home.wordCount < 100
-  const emotionIssue = (weCount > 0 && youCount < weCount)
-    ? `Across all pages: "we/our" ${weCount}× vs "you/your" ${youCount}× — flip this to speak to users`
-    : (youCount === 0 && weCount === 0 && isJSOnlyApp)
-      ? 'JavaScript app — copy analysis limited to meta tags. Ensure og:description uses "you/your" language for accurate scoring'
-      : !hasNums
-        ? `No specific numbers found in pages analyzed: ${crawledPages} — add user counts, time saved, or results`
-        : !hasUrg
-          ? `Good user focus but missing urgency language in pages analyzed: ${crawledPages}`
-          : `${youCount} "you/your" phrases + outcome numbers detected — strong emotional pull`
+  const emotionIssue = emotion >= 9
+    ? 'Strong — social proof, user-focused language, and specific numbers present'
+    : emotion >= 7
+      ? 'Good emotional tone but missing specific user numbers'
+      : emotion >= 5
+        ? 'Some user-focused language but no social proof or numbers'
+        : 'No specific numbers found in pages analyzed — add user counts, time saved, or results'
 
   // ── 4. Trust (0–10) ─────────────────────────────────────────────────────────
   const hasSP      = social
@@ -380,15 +375,14 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   // Rule: 10/10 requires both social proof and a team/about page
   if (trust === 10 && !(hasSP && hasTeam)) trust = 9
 
-  const trustIssue = isJSOnlyApp && trust <= 4
-    ? `JavaScript app — trust signals may exist but can't be read by crawler. Add og:description and structured data (JSON-LD) for accurate scoring`
-    : !hasSP && !hasFounderStory
-      ? `No social proof or founder story found in pages analyzed: ${crawledPages} — even 1 testimonial or "why I built this" story doubles trust`
-      : !hasSP && hasFounderStory
-        ? `Founder story detected but no user testimonials in pages analyzed: ${crawledPages} — add 1-2 early user quotes`
-        : !hasTeam
-          ? `Social proof exists but about/team page unverified — may exist but wasn't readable. Add a visible about section.`
-          : `Social proof detected + team/about page found${hasLogos ? ' + logo bar detected' : ''} — strong trust signals`
+  const trustMissingEl = !hasTeam ? 'team/about page' : !hasLogos ? 'logo bar' : 'more social proof'
+  const trustIssue = trust >= 9
+    ? 'Trust signals present — social proof, team page, and logos found'
+    : trust >= 7
+      ? `Social proof found but ${trustMissingEl} not detected in pages analyzed`
+      : trust >= 5
+        ? 'Limited trust signals — add testimonials or founder story'
+        : 'No trust signals found in pages analyzed — add social proof, team info, or logos'
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
   const hasPricing  = !!pricing
@@ -404,13 +398,14 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   // Rule: 10/10 requires pricing, free option, and multiple CTAs all present
   if (conversion === 10 && !(hasPricing && hasFreeOpt && hasMultiCTA)) conversion = 9
 
-  const conversionIssue = !hasPricing
-    ? `No pricing page found in pages analyzed: ${crawledPages} — visitors can't make a buying decision without knowing the cost`
-    : !hasFreeOpt
-      ? 'Pricing page exists but no free trial or freemium option — add a low-risk entry point'
-      : hasFreeOpt && !hasMultiCTA
-        ? 'Free option exists but CTA only appears once — repeat it at key decision points'
-        : `Pricing page + free option + multiple CTAs detected — strong conversion setup`
+  const convMissingEl = !hasFreeOpt ? 'no free trial or freemium option — add a low-risk entry point' : 'CTA only appears once — repeat at key decision points'
+  const conversionIssue = conversion >= 9
+    ? 'Strong — pricing page, free option, and multiple CTAs present'
+    : conversion >= 7
+      ? `Pricing page exists but ${convMissingEl}`
+      : conversion >= 5
+        ? 'CTA found but no pricing page or free option'
+        : "No pricing page found in pages analyzed — visitors can't make a buying decision"
 
   // ── Overall — pure average of 5 dimensions, no inflation ────────────────────
   const overall = Math.round((clarity + journey + emotion + trust + conversion) / 5 * 10) / 10
@@ -434,10 +429,10 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const sortedDims = [...dimensions].sort((a, b) => a.score - b.score)
 
   const isNegativeIssue = (issue: string) =>
-    /^(no |missing |not found|lacks|without|headline:|meta description|good user focus but|founder story detected but|social proof exists but|free option exists but|across all pages:|javascript app|only weak)/i.test(issue)
+    /^(no |missing |not found|lacks|without|headline is|headline present|weak or|cta exists but|cta found but|good emotional|some user|social proof found but|limited trust|pricing page exists but)/i.test(issue)
 
   const isPositiveIssue = (issue: string) =>
-    /^(clear|strong|cta|pricing page exists|trust signals present)/i.test(issue)
+    /^(clear headline|clear journey|strong —|trust signals present)/i.test(issue)
 
   const couldBeStronger: Record<string, string> = {
     'Clarity':              'Could be stronger — add a dedicated features page with clearly labelled sections',
