@@ -135,8 +135,11 @@ export default function Landing() {
           })
           .select('id')
           .single()
+        console.log('[markr] scorecard insert →', { sc, scErr })
         if (!scErr && sc?.id) setScorecardId(sc.id as string)
-      } catch { /* scorecard save is non-blocking */ }
+      } catch (scEx) {
+        console.error('[markr] scorecard insert threw:', scEx)
+      }
     } catch (e) {
       clearInterval(interval)
       setState('error')
