@@ -323,9 +323,10 @@ export default function Landing() {
                         <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontFamily:D }}>{d.label}</span>
                         <span style={{ fontSize:11, fontWeight:700, color: d.score >= 7 ? '#34c98a' : d.score >= 5 ? '#f5a623' : '#e55', fontFamily:D }}>{d.score}/10</span>
                       </div>
-                      <div style={{ height:4, background:'rgba(255,255,255,.08)', borderRadius:2, overflow:'hidden' }}>
+                      <div style={{ height:4, background:'rgba(255,255,255,.08)', borderRadius:2, overflow:'hidden', marginBottom:4 }}>
                         <div style={{ height:'100%', width:`${d.score*10}%`, background: d.score >= 7 ? '#34c98a' : d.score >= 5 ? '#f5a623' : '#e55', borderRadius:2, transition:'width .6s' }} />
                       </div>
+                      {d.issue && <div style={{ fontSize:10, color:'rgba(255,255,255,.4)', lineHeight:1.4, fontFamily:D }}>{d.issue}</div>}
                     </div>
                   ))}
                 </div>
