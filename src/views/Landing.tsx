@@ -118,9 +118,11 @@ export default function Landing() {
       setState('done')
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100)
       try {
-        const { data: sc, error: scErr } = await supabase
+        const newId = crypto.randomUUID()
+        const { error: scErr } = await supabase
           .from('markr_scorecards')
           .insert({
+            id: newId,
             url: url.trim(),
             overall: data.overall,
             headline: data.headline ?? '',
@@ -133,10 +135,8 @@ export default function Landing() {
             confidence: data.confidence ?? 'low',
             total_words: data.totalWords ?? 0,
           })
-          .select('id')
-          .single()
-        console.log('[markr] scorecard insert →', { sc, scErr: JSON.stringify(scErr) })
-        if (!scErr && sc?.id) setScorecardId(sc.id as string)
+        console.log('[markr] scorecard insert →', { id: newId, scErr: JSON.stringify(scErr) })
+        if (!scErr) setScorecardId(newId)
       } catch (scEx) {
         console.error('[markr] scorecard insert threw:', scEx)
       }
