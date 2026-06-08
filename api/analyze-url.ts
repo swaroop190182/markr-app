@@ -262,7 +262,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const allH2s       = Object.values(pages).flatMap(p => p.h2s)
   const allParas     = Object.values(pages).flatMap(p => p.paras)
   const allBtns      = Object.values(pages).flatMap(p => p.btns)
-  const hasHow       = !!how || /get started|getting started|workflow|built for|designed for|step\s*1|step\s*2|step one|step two/i.test(allPagesText)
+  const hasHow       = !!how
+    || (allPagesText.match(/\bstep\s*(?:\d+|one|two|three|four|five)\b/gi) ?? []).length >= 3
 
   const headline = home.bestH1 || home.bestTitle
   const desc     = home.bestDesc
@@ -279,6 +280,12 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (features && features.h2s.length === 0) clarity = Math.min(7, clarity)
   // Rule: 10/10 requires both features page with sections AND how-it-works page
   if (clarity === 10 && !(features && features.h2s.length > 0 && hasHow)) clarity = 9
+  // Buzzword penalty: -1 per vague jargon word in headline, max -3
+  const buzzwordCount = (headline.match(/\b(platform|solution|ecosystem|leverage|transform|revolutionary|cutting-edge)\b/gi) ?? []).length
+  clarity -= Math.min(3, buzzwordCount)
+  clarity = Math.max(0, clarity)
+  // Cap at 8 unless headline has a clear outcome verb
+  if (!/\b(get|save|build|fix|track|grow|send|launch|ship)\b/i.test(headline)) clarity = Math.min(8, clarity)
 
   const clarityIssue = !features && !hasHow
     ? `Headline: "${headline.slice(0,55)}" — no features or how-it-works page found in pages analyzed: ${crawledPages}`
