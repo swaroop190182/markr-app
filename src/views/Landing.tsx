@@ -408,30 +408,6 @@ export default function Landing() {
                     </button>
                   </div>
                 )}
-
-                {/* Share buttons */}
-                <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' as const }}>
-                  <span style={{ fontSize:11, color:'rgba(255,255,255,.3)', fontFamily:D }}>Share your score:</span>
-                  <button onClick={() => {
-                    const text = `My app scored ${result.overall}/10 on Markr's landing page analyzer 🚀\n\nBiggest gap: ${result.bottleneck.label}\n\nAnalyze yours free → https://markr.mindprintjournal.com`
-                    if (navigator.share) { navigator.share({ text, url:'https://markr.mindprintjournal.com' }).catch(()=>{}) }
-                    else { navigator.clipboard.writeText(text).then(()=>alert('Copied!')) }
-                  }} style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D }}>
-                    🐦 Twitter/X
-                  </button>
-                  <button onClick={() => {
-                    const text = `I analyzed my app's landing page with Markr and scored ${result.overall}/10.\n\nBiggest bottleneck: ${result.bottleneck.label}\n\nGet your free analysis → https://markr.mindprintjournal.com`
-                    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://markr.mindprintjournal.com')}&summary=${encodeURIComponent(text)}`, '_blank')
-                  }} style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D }}>
-                    💼 LinkedIn
-                  </button>
-                  <button onClick={() => {
-                    const text = `My app scored ${result.overall}/10 on Markr 🚀 Biggest gap: ${result.bottleneck.label}. Analyze yours free → https://markr.mindprintjournal.com`
-                    navigator.clipboard.writeText(text).then(()=>alert('Copied!'))
-                  }} style={{ padding:'5px 12px', borderRadius:20, border:'1px solid rgba(255,255,255,.15)', background:'transparent', color:'rgba(255,255,255,.6)', fontSize:11, cursor:'pointer', fontFamily:D }}>
-                    📋 Copy
-                  </button>
-                </div>
               </div>
             </div>
           </div>
