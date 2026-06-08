@@ -126,14 +126,12 @@ export default function Landing() {
             url: url.trim(),
             overall: data.overall,
             headline: data.headline ?? '',
-            category: data.category ?? '',
             dimensions: data.dimensions,
             bottleneck: data.bottleneck,
             growth_teaser: data.growth_teaser ?? '',
-            pages_read: data.pagesRead ?? [],
-            confidence: data.confidence ?? 'low',
           })
-        console.log('[markr] scorecard insert →', { id: newId, scErr: JSON.stringify(scErr) })
+        console.log('[markr] scorecard insert id:', newId)
+        console.log('[markr] scorecard insert error:', scErr?.message ?? 'none')
         if (!scErr) setScorecardId(newId)
       } catch (scEx) {
         console.error('[markr] scorecard insert threw:', scEx)
