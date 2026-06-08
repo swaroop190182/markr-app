@@ -476,18 +476,28 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   else if (/travel|trip|hotel|flight|booking|itinerary|destination/.test(allForCat))                  category = 'Travel'
   else if (/real.?estate|property|rent|mortgage|home|apartment|housing/.test(allForCat))              category = 'Real Estate'
 
+  // App name for teasers — use full H1 if short, otherwise trim to last complete word before 50 chars,
+  // then fall back to the first segment of the page title, then a generic label.
+  const appName = (() => {
+    const h1 = home.bestH1.trim()
+    if (h1.length > 0 && h1.length <= 50) return h1
+    if (h1.length > 50) return h1.slice(0, 50).replace(/\s\S+$/, '').trim() || h1.split(' ')[0]
+    const fromTitle = home.bestTitle.split(/\s*[—\-\/|·]\s*/)[0].trim()
+    return fromTitle || 'your app'
+  })()
+
   const teasers: Record<string,string> = {
-    'Health & Wellness': `"Before & after" content showing real user transformations gets 3× more saves than product demos in health. For ${home.bestH1 ? `an app like "${home.bestH1.slice(0,40)}"` : 'your niche'}, a weekly win series builds trust fast. Sign up — Markr will generate this content for your app specifically.`,
-    'Legal':             `Weekly "myth vs fact" posts demystifying ${home.bestH1 ? `"${home.bestH1.slice(0,40)}"` : 'legal topics'} build authority faster than ads — professionals share them. Sign up — Markr generates posts like these for your app daily.`,
-    'Finance':           `"Money mistake" reels showing the problems your app solves consistently outperform product demos. Sign up — Markr generates content tailored to ${home.bestH1 ? `"${home.bestH1.slice(0,35)}"` : 'your app'} every morning.`,
-    'Education':         `"Before/after learning" posts with specific skill outcomes convert cold audiences 5× faster than feature demos. Sign up — Markr generates posts like these for ${home.bestH1 ? `"${home.bestH1.slice(0,35)}"` : 'your app'} automatically.`,
-    'SaaS':              `Founder-led "how I solved X" content drives more inbound than product demos for B2B. For ${home.bestH1 ? `"${home.bestH1.slice(0,40)}"` : 'your app'}, a weekly problem-solving series builds pipeline. Sign up — Markr generates this for your app.`,
-    'Marketing':         `Weekly teardowns showing how ${home.bestH1 ? `"${home.bestH1.slice(0,35)}"` : 'your app'} outperforms competitors build authority fast. Sign up — Markr generates content like this for your specific app every day.`,
-    'Productivity':      `"My exact workflow using ${home.bestTitle.split('—')[0].trim() || 'this app'}" posts are the highest-saved format in productivity. Sign up — Markr generates posts like these built around your app's actual features.`,
-    'E-commerce':        `Customer story reels with specific numbers ("saved ₹2,000 this month") convert 8× better than product showcases. Sign up — Markr generates content tailored to ${home.bestH1 ? `"${home.bestH1.slice(0,35)}"` : 'your store'} automatically.`,
+    'Health & Wellness': `"Before & after" content showing real user transformations gets 3× more saves than product demos in health. For ${home.bestH1 ? `an app like "${appName}"` : 'your niche'}, a weekly win series builds trust fast. Sign up — Markr will generate this content for your app specifically.`,
+    'Legal':             `Weekly "myth vs fact" posts demystifying ${home.bestH1 ? `"${appName}"` : 'legal topics'} build authority faster than ads — professionals share them. Sign up — Markr generates posts like these for your app daily.`,
+    'Finance':           `"Money mistake" reels showing the problems your app solves consistently outperform product demos. Sign up — Markr generates content tailored to ${home.bestH1 ? `"${appName}"` : 'your app'} every morning.`,
+    'Education':         `"Before/after learning" posts with specific skill outcomes convert cold audiences 5× faster than feature demos. Sign up — Markr generates posts like these for ${home.bestH1 ? `"${appName}"` : 'your app'} automatically.`,
+    'SaaS':              `Founder-led "how I solved X" content drives more inbound than product demos for B2B. For ${home.bestH1 ? `"${appName}"` : 'your app'}, a weekly problem-solving series builds pipeline. Sign up — Markr generates this for your app.`,
+    'Marketing':         `Weekly teardowns showing how ${home.bestH1 ? `"${appName}"` : 'your app'} outperforms competitors build authority fast. Sign up — Markr generates content like this for your specific app every day.`,
+    'Productivity':      `"My exact workflow using ${appName}" posts are the highest-saved format in productivity. Sign up — Markr generates posts like these built around your app's actual features.`,
+    'E-commerce':        `Customer story reels with specific numbers ("saved ₹2,000 this month") convert 8× better than product showcases. Sign up — Markr generates content tailored to ${home.bestH1 ? `"${appName}"` : 'your store'} automatically.`,
     'Travel':            `"Hidden gem" and "mistake I made" travel content consistently outperforms destination guides. Sign up — Markr generates posts like these for your specific app every morning.`,
     'Real Estate':       `"What ₹X buys in [city]" content drives massive engagement in real estate. Sign up — Markr generates posts like these built around your specific market and app.`,
-    'App':               `"Problem → solution" posts showing the exact moment ${home.bestTitle.split('—')[0].trim() || 'your app'} saves the day is the highest-converting format. Sign up — Markr generates content like this for your app every single day.`,
+    'App':               `"Problem → solution" posts showing the exact moment ${appName} saves the day is the highest-converting format. Sign up — Markr generates content like this for your app every single day.`,
   }
 
   // ── Signal-diversity confidence ──────────────────────────────────────────────
