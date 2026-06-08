@@ -106,6 +106,27 @@ function parseSitemap(xml: string, base: string): string[] {
     })
 }
 
+// ── Parse nav links for about/team/story/founders pages ──────────────────────
+function parseNavLinks(html: string, base: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const re = /href=["']([^"'#?\s][^"'\s]{0,300})["']/gi
+  let m
+  while ((m = re.exec(html)) !== null && out.length < 4) {
+    try {
+      const raw = m[1].trim()
+      const abs = /^https?:\/\//i.test(raw) ? raw : new URL(raw, base).href
+      const parsed = new URL(abs)
+      if (parsed.origin !== base) continue
+      if (!/about|team|story|founders?/i.test(parsed.pathname)) continue
+      if (seen.has(abs)) continue
+      seen.add(abs)
+      out.push(abs)
+    } catch {}
+  }
+  return out
+}
+
 // ── Categorise URL ────────────────────────────────────────────────────────────
 function categorise(url: string): string {
   const p = url.toLowerCase()
@@ -200,6 +221,27 @@ async function fullScrape(url: string) {
     }
   }
 
+  // ── Nav-discovered about / team / founders pages ──────────────────────────
+  const navAboutLinks = parseNavLinks(mainHtml, base)
+  if (navAboutLinks.length > 0) {
+    const navFetches = await Promise.allSettled(
+      navAboutLinks.slice(0, 3).map(async u => {
+        const html = await fetchSafe(u, 4000)
+        if (!html) return null
+        const data = extract(html)
+        if (data.wordCount < 20) return null
+        const seg = new URL(u).pathname.replace(/^\/|\/$/g, '').split('/')[0].replace(/-/g, '_') || 'about'
+        return { key: seg, data }
+      })
+    )
+    for (const r of navFetches) {
+      if (r.status === 'fulfilled' && r.value) {
+        const { key, data } = r.value
+        if (!pages[key]) pages[key] = data
+      }
+    }
+  }
+
   return pages
 }
 
@@ -211,6 +253,9 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const about    = pages.about
   const social   = pages.social
   const how      = pages.how
+
+  // Pages crawled label — used in issue strings
+  const crawledPages = Object.keys(pages).join(', ')
 
   // Combine ALL text from ALL pages
   const allPagesText = Object.values(pages).map(p => p.allText).join(' ')
@@ -231,12 +276,12 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   clarity = Math.min(10, clarity)
 
   const clarityIssue = !features && !how
-    ? `Headline: "${headline.slice(0,55)}" — no features or how-it-works page found`
+    ? `Headline: "${headline.slice(0,55)}" — no features or how-it-works page found in pages analyzed: ${crawledPages}`
     : desc.length < 40
       ? 'Meta description is too short — expand it to explain the outcome clearly'
       : features
         ? `Clear — features page found with ${features.h2s.length} sections`
-        : `Headline communicates value but no dedicated features page`
+        : `Headline communicates value but no dedicated features page in pages analyzed: ${crawledPages}`
 
   // ── 2. User Journey (0–10) ──────────────────────────────────────────────────
   let journey = 3
@@ -248,9 +293,9 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   journey = Math.min(10, journey)
 
   const journeyIssue = !primaryCta
-    ? 'No action-oriented CTA found across all pages — users don\'t know what to do'
+    ? `No action-oriented CTA found in pages analyzed: ${crawledPages} — users don't know what to do`
     : !how
-      ? `CTA "${primaryCta.slice(0,40)}" exists but no how-it-works page — users may not understand the product`
+      ? `CTA "${primaryCta.slice(0,40)}" exists but no how-it-works page in pages analyzed: ${crawledPages}`
       : `Clear journey: "${primaryCta.slice(0,40)}" CTA with how-it-works page`
 
   // ── 3. Emotional Pull (0–10) ────────────────────────────────────────────────
@@ -271,9 +316,9 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     : (youCount === 0 && weCount === 0 && isJSOnlyApp)
       ? 'JavaScript app — copy analysis limited to meta tags. Ensure og:description uses "you/your" language for accurate scoring'
       : !hasNums
-        ? 'No specific numbers found across all pages — add user counts, time saved, or results'
+        ? `No specific numbers found in pages analyzed: ${crawledPages} — add user counts, time saved, or results`
         : !hasUrg
-          ? 'Good user focus but missing urgency language anywhere on the site'
+          ? `Good user focus but missing urgency language in pages analyzed: ${crawledPages}`
           : `Strong — ${youCount} user-focused phrases, specific numbers present`
 
   // ── 4. Trust (0–10) ─────────────────────────────────────────────────────────
@@ -302,11 +347,11 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const trustIssue = isJSOnlyApp && trust <= 4
     ? `JavaScript app — trust signals may exist but can't be read by crawler. Add og:description and structured data (JSON-LD) for accurate scoring`
     : !hasSP && !hasFounderStory
-      ? 'No social proof or founder story detected — even 1 testimonial or "why I built this" story doubles trust'
+      ? `No social proof or founder story found in pages analyzed: ${crawledPages} — even 1 testimonial or "why I built this" story doubles trust`
       : !hasSP && hasFounderStory
-        ? 'Founder story detected (good!) but no user testimonials yet — add 1-2 early user quotes'
+        ? `Founder story detected but no user testimonials in pages analyzed: ${crawledPages} — add 1-2 early user quotes`
         : !hasTeam
-          ? 'Social proof exists but no about/team page — show who built this'
+          ? `Social proof exists but no about/team page in pages analyzed: ${crawledPages} — show who built this`
           : `Trust signals present: social proof ${hasTeam ? '+ team' : ''} ${hasLogos ? '+ logos' : ''}`
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
@@ -322,7 +367,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   conversion = Math.min(10, conversion)
 
   const conversionIssue = !hasPricing
-    ? 'No pricing page found — visitors can\'t make a buying decision without knowing the cost'
+    ? `No pricing page found in pages analyzed: ${crawledPages} — visitors can't make a buying decision without knowing the cost`
     : !hasFreeOpt
       ? 'Pricing page exists but no free trial or freemium option — add a low-risk entry point'
       : hasFreeOpt && !hasMultiCTA
