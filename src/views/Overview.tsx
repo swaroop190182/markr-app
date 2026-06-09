@@ -103,6 +103,8 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
     setCollapsedPillars({})
     setAiRecLoading(false)
     setAiRecError(null)
+    setInsight(null)
+    setLoading(false)
   }, [currentApp?.id])
 
   // Weekly pillar suggestions — generate once per 7 days, cache in Supabase
