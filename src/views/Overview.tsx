@@ -5,6 +5,30 @@ import { callClaude } from '../lib/claude'
 import DeliverySettings from './DeliverySettings'
 
 
+function pickBiggestLever(dimensions: any[]) {
+  const signalPoints: Record<string, number> = {
+    'Clarity': 2, 'User Journey': 2, 'Emotional Pull': 3, 'Trust': 3, 'Conversion Readiness': 2
+  }
+  const ranked = dimensions
+    .filter(d => d.score < 10)
+    .map(d => {
+      const cap = d.label === 'Clarity' ? 7 : 10
+      const recoverable = Math.min(signalPoints[d.label] ?? 2, cap - d.score)
+      return { name: d.label, score: d.score, recoverable, cap }
+    })
+    .filter(d => d.recoverable > 0)
+    .sort((a, b) => b.recoverable - a.recoverable)
+  return ranked[0] ?? null
+}
+
+function validateRecs(recs: any): boolean {
+  const wc = (s: string) => s.trim().split(/\s+/).length
+  const ctaOk = wc(recs.cta_rewrite) <= 6
+  const headlinesOk = Array.isArray(recs.headline_rewrites) &&
+    recs.headline_rewrites.every((h: any) => wc(h.text) <= 12)
+  return ctaOk && headlinesOk
+}
+
 function getDimFix(label: string, score: number): string {
   const low = score < 5, mid = score < 8
   const fixes: Record<string, [string, string, string]> = {
@@ -340,10 +364,15 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
     setAiRecLoading(true)
     setAiRecError(null)
     try {
-      const dimContext = (ua.dimensions ?? []).map((d: any) => `${d.label} — ${d.score}/10 — ${d.issue}`).join('\n')
-      const currentCta = (ua as any).scraped?.btns?.[0] || 'unknown'
-      const pagesRead  = (ua.pagesRead ?? []).join(', ') || 'homepage'
-      const prompt = `You are a senior conversion copywriter. You'll get a landing page's actual content plus a diagnostic score. Write specific, usable copy and fixes — do not restate the diagnosis.
+      const lever = pickBiggestLever(ua.dimensions ?? [])
+      const dimContext  = (ua.dimensions ?? []).map((d: any) => `${d.label} — ${d.score}/10 — ${d.issue}`).join('\n')
+      const currentCta  = (ua as any).scraped?.btns?.[0] || 'unknown'
+      const pagesRead   = (ua.pagesRead ?? []).join(', ') || 'homepage'
+      const leverLine   = lever
+        ? `THE BIGGEST LEVER IS PRE-DETERMINED: ${lever.name} (recovers ~${lever.recoverable} pts on this dimension, lifting overall by ~${(lever.recoverable / 5).toFixed(1)} pts)`
+        : 'Focus on the lowest-scoring dimension.'
+
+      const prompt = `You are a senior conversion copywriter. Write specific, usable copy and fixes — do not restate the diagnosis.
 
 PRODUCT CONTEXT
 App name: ${currentApp.name}
@@ -353,23 +382,46 @@ Current headline: "${ua.headline}"
 Current primary CTA: "${currentCta}"
 Pages analyzed: ${pagesRead}
 
-DIAGNOSTIC (already shown to the user — do NOT repeat these)
+DIAGNOSTIC (do NOT repeat these — give only solutions)
 ${dimContext}
 Overall: ${ua.overall}/10
 
+${leverLine}
+
 RULES
-- The reader already knows the problems. Give only solutions.
 - Be specific to THIS product and audience. No generic filler.
-- Avoid opening with Get/Start/Discover/Unlock/Transform unless genuinely best.
-- NEVER invent statistics. Only cite numbers that appear in the page content.
+- headline_rewrites: exactly 3 options, MAX 12 words each, must LEAD with a concrete hook — a number, timeframe, or specific result.
+  Bad: "Nourish your child's growth" Good: "Plan a week of toddler meals in 10 minutes"
+- cta_rewrite: HARD LIMIT 6 words. Must name what the user gets.
+  Bad: "Give Your Child Wholesome Nutrition" Good: "Get my first meal plan"
+- priority_fixes: 3 fixes with exact how — include a specific example tailored to this app
+  Bad: "Add testimonials" Good: "Add 2-3 quotes with name and result e.g. 'My toddler eats vegetables now — Priya, Mumbai'"
+- biggest_lever_explanation: ONE sentence on why fixing ${lever?.name ?? 'the top dimension'} matters and what specifically to do
+- NEVER invent statistics. Only use numbers from the page content.
 
 Return ONLY this JSON, no markdown:
-{"headline_rewrites":[{"text":"...","angle":"benefit"},{"text":"...","angle":"outcome"},{"text":"...","angle":"specificity"}],"cta_rewrite":"...","priority_fixes":[{"fix":"...","how":"exact step with example tailored to this app"},{"fix":"...","how":"..."},{"fix":"...","how":"..."}],"biggest_lever":"...","why_biggest":"one sentence"}`
-      const raw = await callClaude(prompt, 'Return ONLY valid JSON. No markdown, no explanation.', 900)
-      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
-      const parsed = JSON.parse(cleaned)
+{"headline_rewrites":[{"text":"...","angle":"benefit"},{"text":"...","angle":"outcome"},{"text":"...","angle":"specificity"}],"cta_rewrite":"...","priority_fixes":[{"fix":"...","how":"exact step with example tailored to this app"},{"fix":"...","how":"..."},{"fix":"...","how":"..."}],"biggest_lever_explanation":"..."}`
+
+      const sys = 'Return ONLY valid JSON. No markdown, no explanation.'
+      const parseRaw = (raw: string) => JSON.parse(raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim())
+
+      let parsed: any = parseRaw(await callClaude(prompt, sys, 900))
+
+      if (!validateRecs(parsed)) {
+        try {
+          parsed = parseRaw(await callClaude(
+            prompt + '\n\nYour previous CTA or headline exceeded word limits. Regenerate strictly within limits.',
+            sys, 900
+          ))
+        } catch {}
+        // hard fallback: truncate CTA to 6 words
+        if (parsed?.cta_rewrite && !validateRecs(parsed)) {
+          parsed.cta_rewrite = parsed.cta_rewrite.trim().split(/\s+/).slice(0, 6).join(' ')
+        }
+      }
+
       updateApp(currentApp!.id, {
-        ai_recommendations:    parsed,
+        ai_recommendations:    { ...parsed, lever: lever ?? undefined },
         ai_recommendations_at: new Date().toISOString()
       })
     } catch {
@@ -625,11 +677,17 @@ Return ONLY this JSON, no markdown:
                         </div>
 
                         {/* Biggest lever */}
-                        {rec.biggest_lever && (
+                        {rec.biggest_lever_explanation && (
                           <div style={{ padding:'8px 10px', background:'rgba(22,168,112,.06)', border:'1px solid rgba(22,168,112,.2)', borderRadius:'var(--r)' }}>
-                            <div style={{ fontSize:10, color:'var(--green)', fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.04em', marginBottom:3 }}>Biggest lever</div>
-                            <div style={{ fontSize:12, color:'var(--text)', fontWeight:600, lineHeight:1.4, marginBottom:3 }}>{rec.biggest_lever}</div>
-                            {rec.why_biggest && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>{rec.why_biggest}</div>}
+                            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                              <div style={{ fontSize:10, color:'var(--green)', fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>Biggest lever</div>
+                              {rec.lever && (
+                                <div style={{ fontSize:10, color:'var(--green)', fontWeight:700, fontVariantNumeric:'tabular-nums' as const }}>
+                                  {rec.lever.name}: {rec.lever.score} → {rec.lever.score + rec.lever.recoverable} (+{(rec.lever.recoverable / 5).toFixed(1)} overall)
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.5 }}>{rec.biggest_lever_explanation}</div>
                           </div>
                         )}
                       </>
