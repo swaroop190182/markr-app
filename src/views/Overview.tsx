@@ -334,12 +334,32 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
     setAiRecLoading(true)
     setAiRecError(null)
     try {
-      const dimContext = (ua.dimensions ?? []).map((d: any) => `${d.label}: ${d.score}/10 — ${d.issue}`).join('\n')
-      const raw = await callClaude(
-        `You are a conversion expert. Based on this landing page analysis, provide specific actionable recommendations.\nApp: ${ua.headline}\nScores:\n${dimContext}\nOverall: ${ua.overall}/10\nReturn ONLY valid JSON:\n{"headline_rewrite":"improved headline under 12 words","cta_rewrite":"improved CTA under 6 words","priority_fixes":["fix 1 - specific and actionable","fix 2","fix 3"],"score_prediction":"Fixing [X] would improve your score by approximately Y points"}`,
-        'Return ONLY valid JSON. No markdown, no explanation.',
-        500
-      )
+      const dimContext = (ua.dimensions ?? []).map((d: any) => `${d.label} — ${d.score}/10 — ${d.issue}`).join('\n')
+      const currentCta = (ua as any).scraped?.btns?.[0] || 'unknown'
+      const pagesRead  = (ua.pagesRead ?? []).join(', ') || 'homepage'
+      const prompt = `You are a senior conversion copywriter. You'll get a landing page's actual content plus a diagnostic score. Write specific, usable copy and fixes — do not restate the diagnosis.
+
+PRODUCT CONTEXT
+App name: ${currentApp.name}
+What it does: ${currentApp.desc || ua.headline}
+URL: ${currentApp.url}
+Current headline: "${ua.headline}"
+Current primary CTA: "${currentCta}"
+Pages analyzed: ${pagesRead}
+
+DIAGNOSTIC (already shown to the user — do NOT repeat these)
+${dimContext}
+Overall: ${ua.overall}/10
+
+RULES
+- The reader already knows the problems. Give only solutions.
+- Be specific to THIS product and audience. No generic filler.
+- Avoid opening with Get/Start/Discover/Unlock/Transform unless genuinely best.
+- NEVER invent statistics. Only cite numbers that appear in the page content.
+
+Return ONLY this JSON, no markdown:
+{"headline_rewrites":[{"text":"...","angle":"benefit"},{"text":"...","angle":"outcome"},{"text":"...","angle":"specificity"}],"cta_rewrite":"...","priority_fixes":[{"fix":"...","how":"exact step with example tailored to this app"},{"fix":"...","how":"..."},{"fix":"...","how":"..."}],"biggest_lever":"...","why_biggest":"one sentence"}`
+      const raw = await callClaude(prompt, 'Return ONLY valid JSON. No markdown, no explanation.', 900)
       const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
       const parsed = JSON.parse(cleaned)
       updateApp(currentApp!.id, {
@@ -559,20 +579,23 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
 
                     {isFresh && rec ? (
                       <>
-                        {/* Headline rewrite */}
-                        <div style={{ marginBottom:8 }}>
-                          <div style={{ fontSize:10, color:'var(--text3)', fontWeight:600, marginBottom:3, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>Headline rewrite</div>
-                          <div style={{ display:'flex', alignItems:'flex-start', gap:6 }}>
-                            <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5, flex:1, padding:'6px 8px', background:'var(--surface2)', borderRadius:'var(--r)' }}>
-                              {rec.headline_rewrite}
+                        {/* Headline rewrites — 3 angles */}
+                        <div style={{ marginBottom:10 }}>
+                          <div style={{ fontSize:10, color:'var(--text3)', fontWeight:600, marginBottom:6, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>Headline options</div>
+                          {(rec.headline_rewrites ?? []).map((h: { text: string; angle: string }, i: number) => (
+                            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:6, marginBottom:6 }}>
+                              <div style={{ flex:1, padding:'6px 8px', background:'var(--surface2)', borderRadius:'var(--r)' }}>
+                                <div style={{ fontSize:9, color:'var(--accent)', fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.06em', marginBottom:2 }}>{h.angle}</div>
+                                <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5 }}>{h.text}</div>
+                              </div>
+                              <button onClick={() => copy(h.text)} style={{ fontSize:14, background:'none', border:'none', cursor:'pointer', padding:'4px', flexShrink:0, color:'var(--text3)', marginTop:4 }} title="Copy">📋</button>
                             </div>
-                            <button onClick={() => copy(rec.headline_rewrite)} style={{ fontSize:14, background:'none', border:'none', cursor:'pointer', padding:'4px', flexShrink:0, color:'var(--text3)' }} title="Copy">📋</button>
-                          </div>
+                          ))}
                         </div>
 
                         {/* CTA rewrite */}
-                        <div style={{ marginBottom:8 }}>
-                          <div style={{ fontSize:10, color:'var(--text3)', fontWeight:600, marginBottom:3, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>CTA rewrite</div>
+                        <div style={{ marginBottom:10 }}>
+                          <div style={{ fontSize:10, color:'var(--text3)', fontWeight:600, marginBottom:4, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>CTA rewrite</div>
                           <div style={{ display:'flex', alignItems:'flex-start', gap:6 }}>
                             <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5, flex:1, padding:'6px 8px', background:'var(--surface2)', borderRadius:'var(--r)' }}>
                               {rec.cta_rewrite}
@@ -581,21 +604,26 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
                           </div>
                         </div>
 
-                        {/* Priority fixes */}
-                        <div style={{ marginBottom:8 }}>
+                        {/* Priority fixes with how-to */}
+                        <div style={{ marginBottom:10 }}>
                           <div style={{ fontSize:10, color:'var(--text3)', fontWeight:600, marginBottom:6, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>Priority fixes</div>
-                          {(rec.priority_fixes ?? []).map((fix: string, i: number) => (
-                            <div key={i} style={{ display:'flex', gap:8, marginBottom:6 }}>
-                              <div style={{ width:18, height:18, borderRadius:'50%', background: i===0 ? 'var(--red)' : i===1 ? 'var(--amber)' : 'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>{i+1}</div>
-                              <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.5 }}>{fix}</div>
+                          {(rec.priority_fixes ?? []).map((item: { fix: string; how: string }, i: number) => (
+                            <div key={i} style={{ display:'flex', gap:8, marginBottom:8 }}>
+                              <div style={{ width:18, height:18, borderRadius:'50%', background: i===0 ? 'var(--red)' : i===1 ? 'var(--amber)' : 'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:2 }}>{i+1}</div>
+                              <div>
+                                <div style={{ fontSize:11, color:'var(--text)', fontWeight:600, lineHeight:1.4, marginBottom:2 }}>{item.fix}</div>
+                                <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>{item.how}</div>
+                              </div>
                             </div>
                           ))}
                         </div>
 
-                        {/* Score prediction */}
-                        {rec.score_prediction && (
-                          <div style={{ fontSize:11, color:'var(--green)', padding:'6px 10px', background:'rgba(22,168,112,.06)', border:'1px solid rgba(22,168,112,.2)', borderRadius:'var(--r)', lineHeight:1.5 }}>
-                            {rec.score_prediction}
+                        {/* Biggest lever */}
+                        {rec.biggest_lever && (
+                          <div style={{ padding:'8px 10px', background:'rgba(22,168,112,.06)', border:'1px solid rgba(22,168,112,.2)', borderRadius:'var(--r)' }}>
+                            <div style={{ fontSize:10, color:'var(--green)', fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.04em', marginBottom:3 }}>Biggest lever</div>
+                            <div style={{ fontSize:12, color:'var(--text)', fontWeight:600, lineHeight:1.4, marginBottom:3 }}>{rec.biggest_lever}</div>
+                            {rec.why_biggest && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>{rec.why_biggest}</div>}
                           </div>
                         )}
                       </>

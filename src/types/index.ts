@@ -124,10 +124,11 @@ export interface AppData {
   pillar_suggestions_at?: string | null
   // AI landing page recommendations
   ai_recommendations?: {
-    headline_rewrite: string
-    cta_rewrite:      string
-    priority_fixes:   string[]
-    score_prediction: string
+    headline_rewrites: Array<{ text: string; angle: string }>
+    cta_rewrite:       string
+    priority_fixes:    Array<{ fix: string; how: string }>
+    biggest_lever:     string
+    why_biggest:       string
   } | null
   ai_recommendations_at?: string | null
   // Analysis timestamps
