@@ -98,8 +98,12 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
     }).catch(() => {}).finally(() => setUaLoading(false))
   }, [currentApp?.id])
 
-  // Reset collapsed state when switching apps
-  useEffect(() => { setCollapsedPillars({}) }, [currentApp?.id])
+  // Reset local UI state when switching apps
+  useEffect(() => {
+    setCollapsedPillars({})
+    setAiRecLoading(false)
+    setAiRecError(null)
+  }, [currentApp?.id])
 
   // Weekly pillar suggestions — generate once per 7 days, cache in Supabase
   useEffect(() => {
@@ -558,18 +562,18 @@ Return ONLY this JSON, no markdown:
 
               {/* AI Recommendations */}
               {plan === 'pro' ? (() => {
-                const rec = currentApp.ai_recommendations
-                const recAt = currentApp.ai_recommendations_at
-                const isFresh = !!rec && !!recAt
-                  && (Date.now() - new Date(recAt).getTime()) < 7 * 24 * 60 * 60 * 1000
+                const rec = currentApp.ai_recommendations   // read directly — never from local state
                 const copy = (text: string) => navigator.clipboard.writeText(text).catch(() => {})
                 return (
                   <div style={{ borderTop:'1px solid var(--border)', paddingTop:14, marginTop:4, marginBottom:4 }}>
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: isFresh ? 12 : 8 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: rec ? 12 : 8 }}>
                       <div style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>✨ AI Recommendations</div>
-                      {isFresh && (
+                      {rec && (
                         <button
-                          onClick={generateAiRecommendations}
+                          onClick={async () => {
+                            await updateApp(currentApp!.id, { ai_recommendations: null, ai_recommendations_at: null })
+                            generateAiRecommendations()
+                          }}
                           disabled={aiRecLoading}
                           style={{ fontSize:10, color:'var(--text3)', background:'none', border:'none', cursor:'pointer', padding:0 }}>
                           {aiRecLoading ? <span className="spinner" style={{ fontSize:10, color:'var(--accent)' }} /> : '🔄 Refresh'}
@@ -577,7 +581,7 @@ Return ONLY this JSON, no markdown:
                       )}
                     </div>
 
-                    {isFresh && rec ? (
+                    {rec ? (
                       <>
                         {/* Headline rewrites — 3 angles */}
                         <div style={{ marginBottom:10 }}>
