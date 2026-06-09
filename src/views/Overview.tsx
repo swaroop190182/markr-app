@@ -25,6 +25,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const [loading,    setLoading]    = useState(false)
   const [uaLoading,    setUaLoading]    = useState(false)
   const [compLoading,  setCompLoading]  = useState(false)
+  const [compError,    setCompError]    = useState<string | null>(null)
   const [pillarsLoading, setPillarsLoading] = useState(false)
   const pt  = currentApp?.productTest
   const ua  = (currentApp as any)?.url_analysis
@@ -90,9 +91,12 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
 
   async function runCompetitorAnalysis() {
     setCompLoading(true)
+    setCompError(null)
+    console.log('[competitor] start — ua:', ua, '| url:', currentApp?.url, '| desc:', currentApp?.desc)
     try {
       // First try: use competitor identified during URL analysis (based on actual content)
       let topComp = (ua as any)?.closestCompetitor ?? null
+      console.log('[competitor] try 1 — topComp from ua.closestCompetitor:', topComp)
 
       // Second try: ask Claude based on actual website headline
       if (!topComp?.url) {
@@ -106,10 +110,21 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
         try {
           const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim()
           topComp = JSON.parse(cleaned)
-        } catch { setCompLoading(false); return }
+          console.log('[competitor] try 2 — topComp from Claude:', topComp)
+        } catch (e) {
+          console.log('[competitor] try 2 — JSON parse failed. Raw Claude response:', raw, '| error:', e)
+          setCompError('Could not identify a competitor — Claude returned unexpected output. Check the console.')
+          setCompLoading(false)
+          return
+        }
       }
 
-      if (!topComp?.url) { setCompLoading(false); return }
+      console.log('[competitor] final topComp before fetch:', topComp)
+      if (!topComp?.url) {
+        setCompError('No competitor URL found. Try again or check that the app URL was analyzed correctly.')
+        setCompLoading(false)
+        return
+      }
 
       const r = await fetch('/api/analyze-url', {
         method: 'POST',
@@ -130,9 +145,18 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
               analyzed_at: new Date().toISOString()
             }
           } as any)
+        } else {
+          console.log('[competitor] analyze-url returned error:', result.error)
+          setCompError(`Competitor analysis failed: ${result.error}`)
         }
+      } else {
+        console.log('[competitor] analyze-url HTTP error:', r.status, r.statusText)
+        setCompError(`Failed to analyze competitor URL (HTTP ${r.status})`)
       }
-    } catch {}
+    } catch (e) {
+      console.log('[competitor] unexpected error:', e)
+      setCompError('An unexpected error occurred — check the console for details.')
+    }
     setCompLoading(false)
   }
 
@@ -409,12 +433,19 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
                   })()}
                 </div>
               ) : (
-                <button className="vbtn" style={{ width:'100%', justifyContent:'center', fontSize:11, marginTop:8 }}
-                  onClick={runCompetitorAnalysis} disabled={compLoading}>
-                  {compLoading
-                    ? <><span className="spinner" style={{ color:'var(--accent)' }} /> Finding &amp; analyzing closest competitor…</>
-                    : '⚔ Compare with closest competitor →'}
-                </button>
+                <>
+                  <button className="vbtn" style={{ width:'100%', justifyContent:'center', fontSize:11, marginTop:8 }}
+                    onClick={runCompetitorAnalysis} disabled={compLoading}>
+                    {compLoading
+                      ? <><span className="spinner" style={{ color:'var(--accent)' }} /> Finding &amp; analyzing closest competitor…</>
+                      : '⚔ Compare with closest competitor →'}
+                  </button>
+                  {compError && (
+                    <div style={{ marginTop:8, fontSize:11, color:'#e55', padding:'6px 10px', background:'rgba(220,38,38,.08)', borderRadius:6, border:'1px solid rgba(220,38,38,.2)', lineHeight:1.5 }}>
+                      {compError}
+                    </div>
+                  )}
+                </>
               )}
             </>
           ) : (
