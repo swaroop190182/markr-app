@@ -31,6 +31,8 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const [compChangeUrl,     setCompChangeUrl]     = useState('')
   const [compChangeLoading, setCompChangeLoading] = useState(false)
   const [compChangeError,   setCompChangeError]   = useState<string | null>(null)
+  const [aiRecLoading,      setAiRecLoading]      = useState(false)
+  const [aiRecError,        setAiRecError]        = useState<string | null>(null)
   const [pillarsLoading,       setPillarsLoading]       = useState(false)
   const [pillarsIdeaGenerating, setPillarsIdeaGenerating] = useState(false)
   const [collapsedPillars,     setCollapsedPillars]     = useState<Record<string, boolean>>({})
@@ -327,6 +329,29 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
     setCompChangeLoading(false)
   }
 
+  async function generateAiRecommendations() {
+    if (!ua) return
+    setAiRecLoading(true)
+    setAiRecError(null)
+    try {
+      const dimContext = (ua.dimensions ?? []).map((d: any) => `${d.label}: ${d.score}/10 — ${d.issue}`).join('\n')
+      const raw = await callClaude(
+        `You are a conversion expert. Based on this landing page analysis, provide specific actionable recommendations.\nApp: ${ua.headline}\nScores:\n${dimContext}\nOverall: ${ua.overall}/10\nReturn ONLY valid JSON:\n{"headline_rewrite":"improved headline under 12 words","cta_rewrite":"improved CTA under 6 words","priority_fixes":["fix 1 - specific and actionable","fix 2","fix 3"],"score_prediction":"Fixing [X] would improve your score by approximately Y points"}`,
+        'Return ONLY valid JSON. No markdown, no explanation.',
+        500
+      )
+      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+      const parsed = JSON.parse(cleaned)
+      updateApp(currentApp!.id, {
+        ai_recommendations:    parsed,
+        ai_recommendations_at: new Date().toISOString()
+      })
+    } catch {
+      setAiRecError('Failed to generate recommendations — try again')
+    }
+    setAiRecLoading(false)
+  }
+
   async function generateInsight() {
     setLoading(true); setInsight('')
     await callClaude(
@@ -508,6 +533,96 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
               {ua.growth_teaser && (
                 <div style={{ fontSize:11, padding:'8px 10px', background:'rgba(124,111,247,.05)', border:'1px solid rgba(124,111,247,.15)', borderRadius:'var(--r)', color:'var(--text)', marginBottom:10, lineHeight:1.6 }}>
                   <span style={{ color:'var(--accent)', fontWeight:700 }}>💡 </span>{ua.growth_teaser}
+                </div>
+              )}
+
+              {/* AI Recommendations */}
+              {plan === 'pro' ? (() => {
+                const rec = currentApp.ai_recommendations
+                const recAt = currentApp.ai_recommendations_at
+                const isFresh = !!rec && !!recAt
+                  && (Date.now() - new Date(recAt).getTime()) < 7 * 24 * 60 * 60 * 1000
+                const copy = (text: string) => navigator.clipboard.writeText(text).catch(() => {})
+                return (
+                  <div style={{ borderTop:'1px solid var(--border)', paddingTop:14, marginTop:4, marginBottom:4 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: isFresh ? 12 : 8 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>✨ AI Recommendations</div>
+                      {isFresh && (
+                        <button
+                          onClick={generateAiRecommendations}
+                          disabled={aiRecLoading}
+                          style={{ fontSize:10, color:'var(--text3)', background:'none', border:'none', cursor:'pointer', padding:0 }}>
+                          {aiRecLoading ? <span className="spinner" style={{ fontSize:10, color:'var(--accent)' }} /> : '🔄 Refresh'}
+                        </button>
+                      )}
+                    </div>
+
+                    {isFresh && rec ? (
+                      <>
+                        {/* Headline rewrite */}
+                        <div style={{ marginBottom:8 }}>
+                          <div style={{ fontSize:10, color:'var(--text3)', fontWeight:600, marginBottom:3, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>Headline rewrite</div>
+                          <div style={{ display:'flex', alignItems:'flex-start', gap:6 }}>
+                            <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5, flex:1, padding:'6px 8px', background:'var(--surface2)', borderRadius:'var(--r)' }}>
+                              {rec.headline_rewrite}
+                            </div>
+                            <button onClick={() => copy(rec.headline_rewrite)} style={{ fontSize:14, background:'none', border:'none', cursor:'pointer', padding:'4px', flexShrink:0, color:'var(--text3)' }} title="Copy">📋</button>
+                          </div>
+                        </div>
+
+                        {/* CTA rewrite */}
+                        <div style={{ marginBottom:8 }}>
+                          <div style={{ fontSize:10, color:'var(--text3)', fontWeight:600, marginBottom:3, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>CTA rewrite</div>
+                          <div style={{ display:'flex', alignItems:'flex-start', gap:6 }}>
+                            <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5, flex:1, padding:'6px 8px', background:'var(--surface2)', borderRadius:'var(--r)' }}>
+                              {rec.cta_rewrite}
+                            </div>
+                            <button onClick={() => copy(rec.cta_rewrite)} style={{ fontSize:14, background:'none', border:'none', cursor:'pointer', padding:'4px', flexShrink:0, color:'var(--text3)' }} title="Copy">📋</button>
+                          </div>
+                        </div>
+
+                        {/* Priority fixes */}
+                        <div style={{ marginBottom:8 }}>
+                          <div style={{ fontSize:10, color:'var(--text3)', fontWeight:600, marginBottom:6, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>Priority fixes</div>
+                          {(rec.priority_fixes ?? []).map((fix: string, i: number) => (
+                            <div key={i} style={{ display:'flex', gap:8, marginBottom:6 }}>
+                              <div style={{ width:18, height:18, borderRadius:'50%', background: i===0 ? 'var(--red)' : i===1 ? 'var(--amber)' : 'var(--accent)', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>{i+1}</div>
+                              <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.5 }}>{fix}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Score prediction */}
+                        {rec.score_prediction && (
+                          <div style={{ fontSize:11, color:'var(--green)', padding:'6px 10px', background:'rgba(22,168,112,.06)', border:'1px solid rgba(22,168,112,.2)', borderRadius:'var(--r)', lineHeight:1.5 }}>
+                            {rec.score_prediction}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="gen-btn"
+                          style={{ width:'100%', justifyContent:'center', fontSize:12 }}
+                          disabled={aiRecLoading}
+                          onClick={generateAiRecommendations}>
+                          {aiRecLoading
+                            ? <><span className="spinner" style={{ color:'var(--accent)' }} /> Generating recommendations…</>
+                            : <><i className="ti ti-sparkles" style={{ fontSize:13 }} /> Get AI recommendations →</>}
+                        </button>
+                        {aiRecError && (
+                          <div style={{ marginTop:6, fontSize:11, color:'#e55' }}>{aiRecError}</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              })() : (
+                <div style={{ borderTop:'1px solid var(--border)', paddingTop:14, marginTop:4, marginBottom:4, padding:'12px', background:'var(--surface2)', borderRadius:'var(--r)', border:'1px solid var(--border)' }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'var(--text3)', marginBottom:4 }}>✨ AI Recommendations</div>
+                  <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>
+                    Upgrade to Pro to get specific copy rewrites and priority fixes tailored to your landing page score.
+                  </div>
                 </div>
               )}
 

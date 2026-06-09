@@ -122,6 +122,14 @@ export interface AppData {
   // Pillar post suggestions (generated weekly)
   pillar_suggestions?:    Record<string, string[]> | null
   pillar_suggestions_at?: string | null
+  // AI landing page recommendations
+  ai_recommendations?: {
+    headline_rewrite: string
+    cta_rewrite:      string
+    priority_fixes:   string[]
+    score_prediction: string
+  } | null
+  ai_recommendations_at?: string | null
   // Analysis timestamps
   competitive_analyzed_at?: string | null
   bmc_analyzed_at?:         string | null
