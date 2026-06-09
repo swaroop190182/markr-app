@@ -126,11 +126,30 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
         return
       }
 
-      const r = await fetch('/api/analyze-url', {
+      const callAnalyze = (u: string) => fetch('/api/analyze-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
-        body: JSON.stringify({ url: topComp.url })
+        body: JSON.stringify({ url: u })
       })
+
+      let r = await callAnalyze(topComp.url)
+      let retriedWithBase = false
+
+      // On 422, log the error then retry with just the base domain
+      if (r.status === 422) {
+        const errBody = await r.json().catch(() => ({}))
+        console.log('[competitor] 422 from', topComp.url, '— error:', errBody.error ?? errBody.message ?? errBody)
+        try {
+          const parsed = new URL(topComp.url)
+          const baseDomain = parsed.origin
+          if (parsed.pathname.replace(/\/$/, '') !== '') {
+            console.log('[competitor] retrying with base domain:', baseDomain)
+            r = await callAnalyze(baseDomain)
+            retriedWithBase = true
+          }
+        } catch {}
+      }
+
       if (r.ok) {
         const result = await r.json()
         if (!result.error) {
@@ -149,8 +168,12 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
           console.log('[competitor] analyze-url returned error:', result.error)
           setCompError(`Competitor analysis failed: ${result.error}`)
         }
+      } else if (r.status === 422) {
+        const errBody2 = await r.json().catch(() => ({}))
+        console.log('[competitor]', retriedWithBase ? 'base domain also 422' : '422 (path already root)', ':', errBody2.error ?? errBody2.message ?? errBody2)
+        setCompError('Could not analyze competitor — try running competitive analysis in Insights first')
       } else {
-        console.log('[competitor] analyze-url HTTP error:', r.status, r.statusText)
+        console.log('[competitor] HTTP error:', r.status, r.statusText)
         setCompError(`Failed to analyze competitor URL (HTTP ${r.status})`)
       }
     } catch (e) {
