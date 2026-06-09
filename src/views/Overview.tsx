@@ -26,10 +26,9 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const [uaLoading,    setUaLoading]    = useState(false)
   const [compLoading,  setCompLoading]  = useState(false)
   const [compError,    setCompError]    = useState<string | null>(null)
-  const [pillarsLoading, setPillarsLoading] = useState(false)
-  const [expandedPillar, setExpandedPillar] = useState<string | null>(null)
-  const [pillarIdeas,    setPillarIdeas]    = useState<Record<string, string[]>>({})
-  const [pillarIdeaLoading, setPillarIdeaLoading] = useState<string | null>(null)
+  const [pillarsLoading,       setPillarsLoading]       = useState(false)
+  const [pillarsIdeaGenerating, setPillarsIdeaGenerating] = useState(false)
+  const [collapsedPillars,     setCollapsedPillars]     = useState<Record<string, boolean>>({})
   const pt  = currentApp?.productTest
   const ua  = (currentApp as any)?.url_analysis
   const ca  = (currentApp as any)?.competitor_url_analysis
@@ -91,6 +90,40 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
       }
     }).catch(() => {}).finally(() => setUaLoading(false))
   }, [currentApp?.id])
+
+  // Reset collapsed state when switching apps
+  useEffect(() => { setCollapsedPillars({}) }, [currentApp?.id])
+
+  // Weekly pillar suggestions — generate once per 7 days, cache in Supabase
+  useEffect(() => {
+    if (!currentApp?.pillars?.length) return
+    const saved   = currentApp.pillar_suggestions
+    const savedAt = currentApp.pillar_suggestions_at
+    const isFresh = !!saved && !!savedAt
+      && (Date.now() - new Date(savedAt).getTime()) < 7 * 24 * 60 * 60 * 1000
+    if (isFresh) return
+
+    const headline    = (currentApp as any)?.url_analysis?.headline ?? currentApp.url
+    const pillarNames = (currentApp.pillars ?? []).map((p: string) => p.replace(/\*/g, '').trim())
+
+    setPillarsIdeaGenerating(true)
+    callClaude(
+      `For this app: "${headline}", generate 2 Instagram post ideas for each of these content pillars:\n${pillarNames.map((n: string) => `- ${n}`).join('\n')}\n\nReturn ONLY valid JSON where each key is the exact pillar name and the value is an array of 2 post idea strings. Example format:\n{"pillar name": ["post idea 1", "post idea 2"]}`,
+      'Return ONLY valid JSON. Keys must be the exact pillar names provided. No markdown, no explanation.',
+      1200
+    ).then(raw => {
+      try {
+        const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+        const parsed = JSON.parse(cleaned)
+        if (typeof parsed === 'object' && parsed !== null) {
+          updateApp(currentApp.id, {
+            pillar_suggestions:    parsed,
+            pillar_suggestions_at: new Date().toISOString()
+          })
+        }
+      } catch { /* malformed JSON — silently skip */ }
+    }).catch(() => {}).finally(() => setPillarsIdeaGenerating(false))
+  }, [currentApp?.id, currentApp?.pillars?.length])
 
   async function runCompetitorAnalysis() {
     setCompLoading(true)
@@ -512,46 +545,29 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
           {(currentApp.pillars ?? []).length > 0 ? (
             <>
               {(currentApp.pillars ?? []).map((p, i) => {
-                const pillarName = p.replace(/\*/g, '').trim()
-                const isExpanded = expandedPillar === pillarName
-                const ideas = pillarIdeas[pillarName]
-                const isLoadingThis = pillarIdeaLoading === pillarName
-                const dotColor = ['#7c6ff7','#34c98a','#4f9cf7','#f5a623','#e26faf','#e55555'][i%6]
+                const pillarName  = p.replace(/\*/g, '').trim()
+                const isCollapsed = !!collapsedPillars[pillarName]
+                const ideas       = currentApp.pillar_suggestions?.[pillarName]
+                const dotColor    = ['#7c6ff7','#34c98a','#4f9cf7','#f5a623','#e26faf','#e55555'][i%6]
                 return (
                   <div key={i} style={{ borderBottom:'1px solid var(--border)' }}>
                     <div
-                      onClick={async () => {
-                        if (isExpanded) { setExpandedPillar(null); return }
-                        setExpandedPillar(pillarName)
-                        if (ideas) return
-                        setPillarIdeaLoading(pillarName)
-                        try {
-                          const headline = ua?.headline ?? currentApp.url
-                          const raw = await callClaude(
-                            `Generate 3 specific Instagram post ideas for the content pillar "${pillarName}" for this app: "${headline}". Each idea should be a concrete, actionable post concept — not a generic tip.\n\nOutput exactly 3 ideas, one per line, starting with a dash. No numbering, no extra text.`,
-                            'Output ONLY 3 post ideas, one per line, each starting with a dash.',
-                            200
-                          )
-                          const parsed = raw.split('\n').map((s: string) => s.replace(/^[-–•*]\s*/, '').trim()).filter(Boolean).slice(0, 3)
-                          setPillarIdeas(prev => ({ ...prev, [pillarName]: parsed }))
-                        } catch {}
-                        setPillarIdeaLoading(null)
-                      }}
+                      onClick={() => setCollapsedPillars(prev => ({ ...prev, [pillarName]: !prev[pillarName] }))}
                       style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', cursor:'pointer', userSelect:'none' as const }}>
                       <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:dotColor }} />
                       <span style={{ fontSize:12, flex:1 }}>{pillarName}</span>
-                      {isLoadingThis
-                        ? <span className="spinner" style={{ fontSize:10, color:'var(--accent)' }} />
-                        : <span style={{ fontSize:10, color:'var(--text3)' }}>{isExpanded ? '▲' : '▼'}</span>
-                      }
+                      <span style={{ fontSize:10, color:'var(--text3)' }}>{isCollapsed ? '▼' : '▲'}</span>
                     </div>
-                    {isExpanded && (
+                    {!isCollapsed && (
                       <div style={{ paddingBottom:10, paddingLeft:16 }}>
-                        {isLoadingThis ? (
-                          <div style={{ fontSize:11, color:'var(--text3)' }}>Generating post ideas…</div>
+                        {pillarsIdeaGenerating && !ideas ? (
+                          <div style={{ fontSize:11, color:'var(--text3)', display:'flex', alignItems:'center', gap:6 }}>
+                            <span className="spinner" style={{ fontSize:10, color:'var(--accent)' }} />
+                            Generating ideas…
+                          </div>
                         ) : ideas && ideas.length > 0 ? (
                           <ul style={{ margin:0, padding:0, listStyle:'none' }}>
-                            {ideas.map((idea, j) => (
+                            {ideas.map((idea: string, j: number) => (
                               <li key={j} style={{ fontSize:11, color:'var(--text2)', lineHeight:1.6, paddingBottom:4, paddingLeft:10, position:'relative' as const }}>
                                 <span style={{ position:'absolute' as const, left:0, color:dotColor }}>›</span>
                                 {idea}
@@ -559,7 +575,7 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
                             ))}
                           </ul>
                         ) : (
-                          <div style={{ fontSize:11, color:'var(--text3)' }}>No ideas generated.</div>
+                          <div style={{ fontSize:11, color:'var(--text3)' }}>No ideas yet.</div>
                         )}
                       </div>
                     )}
