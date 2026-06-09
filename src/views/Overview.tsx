@@ -24,9 +24,13 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const [insight,    setInsight]    = useState<string | null>(null)
   const [loading,    setLoading]    = useState(false)
   const [uaLoading,    setUaLoading]    = useState(false)
-  const [compLoading,  setCompLoading]  = useState(false)
-  const [compStatus,   setCompStatus]   = useState<string | null>(null)
-  const [compError,    setCompError]    = useState<string | null>(null)
+  const [compLoading,       setCompLoading]       = useState(false)
+  const [compStatus,        setCompStatus]        = useState<string | null>(null)
+  const [compError,         setCompError]         = useState<string | null>(null)
+  const [compChangeMode,    setCompChangeMode]    = useState(false)
+  const [compChangeUrl,     setCompChangeUrl]     = useState('')
+  const [compChangeLoading, setCompChangeLoading] = useState(false)
+  const [compChangeError,   setCompChangeError]   = useState<string | null>(null)
   const [pillarsLoading,       setPillarsLoading]       = useState(false)
   const [pillarsIdeaGenerating, setPillarsIdeaGenerating] = useState(false)
   const [collapsedPillars,     setCollapsedPillars]     = useState<Record<string, boolean>>({})
@@ -271,6 +275,56 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
     }
     setCompLoading(false)
     setCompStatus(null)
+  }
+
+  async function submitCompChange() {
+    const url = compChangeUrl.trim()
+    if (!url) return
+    const normalized = url.startsWith('http') ? url : `https://${url}`
+    setCompChangeLoading(true)
+    setCompChangeError(null)
+    console.log('[comp-change] analyzing custom URL:', normalized)
+    try {
+      const r = await fetch('/api/analyze-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
+        body: JSON.stringify({ url: normalized })
+      })
+      if (r.ok) {
+        const result = await r.json()
+        if (result.error) {
+          setCompChangeError(`Analysis failed: ${result.error}`)
+        } else {
+          const hostname = (() => { try { return new URL(normalized).hostname.replace(/^www\./, '') } catch { return normalized } })()
+          updateApp(currentApp!.id, {
+            competitor_url_analysis: {
+              name:       hostname,
+              url:        normalized,
+              overall:    result.overall,
+              headline:   result.headline,
+              dimensions: result.dimensions,
+              bottleneck: result.bottleneck,
+              analyzed_at: new Date().toISOString()
+            }
+          } as any)
+          setCompChangeMode(false)
+          setCompChangeUrl('')
+          console.log('[comp-change] saved:', normalized)
+        }
+      } else if (r.status === 422) {
+        const body = await r.json().catch(() => ({}))
+        const msg = body.error ?? body.message ?? 'Page could not be scraped'
+        console.log('[comp-change] 422:', msg)
+        setCompChangeError(`Could not analyze that URL — ${msg}`)
+      } else {
+        console.log('[comp-change] HTTP error:', r.status)
+        setCompChangeError(`Request failed (HTTP ${r.status}) — check the URL and try again`)
+      }
+    } catch (e) {
+      console.log('[comp-change] unexpected error:', e)
+      setCompChangeError('Unexpected error — check the console')
+    }
+    setCompChangeLoading(false)
   }
 
   async function generateInsight() {
@@ -544,6 +598,45 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
                       </div>
                     )
                   })()}
+
+                  {/* Change competitor */}
+                  {compChangeMode ? (
+                    <div style={{ marginTop:12 }}>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <input
+                          type="url"
+                          placeholder="https://competitor.com"
+                          value={compChangeUrl}
+                          onChange={e => { setCompChangeUrl(e.target.value); setCompChangeError(null) }}
+                          onKeyDown={async e => { if (e.key === 'Enter') await submitCompChange() }}
+                          style={{ flex:1, fontSize:11, padding:'5px 8px', borderRadius:'var(--r)', border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', outline:'none' }}
+                          autoFocus
+                        />
+                        <button
+                          className="vbtn"
+                          style={{ fontSize:11, padding:'5px 10px', flexShrink:0 }}
+                          disabled={compChangeLoading || !compChangeUrl.trim()}
+                          onClick={submitCompChange}>
+                          {compChangeLoading ? <span className="spinner" style={{ color:'var(--accent)' }} /> : 'Analyze'}
+                        </button>
+                        <button
+                          className="vbtn"
+                          style={{ fontSize:11, padding:'5px 8px', flexShrink:0, opacity:.6 }}
+                          onClick={() => { setCompChangeMode(false); setCompChangeUrl(''); setCompChangeError(null) }}>
+                          ✕
+                        </button>
+                      </div>
+                      {compChangeError && (
+                        <div style={{ marginTop:6, fontSize:11, color:'#e55', lineHeight:1.4 }}>{compChangeError}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setCompChangeMode(true)}
+                      style={{ marginTop:10, fontSize:10, color:'var(--text3)', background:'none', border:'none', cursor:'pointer', padding:0, textDecoration:'underline', textDecorationStyle:'dotted' as const }}>
+                      Not your competitor? Change it
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
