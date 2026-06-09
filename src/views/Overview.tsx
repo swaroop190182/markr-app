@@ -25,6 +25,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const [loading,    setLoading]    = useState(false)
   const [uaLoading,    setUaLoading]    = useState(false)
   const [compLoading,  setCompLoading]  = useState(false)
+  const [compStatus,   setCompStatus]   = useState<string | null>(null)
   const [compError,    setCompError]    = useState<string | null>(null)
   const [pillarsLoading,       setPillarsLoading]       = useState(false)
   const [pillarsIdeaGenerating, setPillarsIdeaGenerating] = useState(false)
@@ -128,95 +129,148 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
   async function runCompetitorAnalysis() {
     setCompLoading(true)
     setCompError(null)
-    console.log('[competitor] start — ua:', ua, '| url:', currentApp?.url, '| desc:', currentApp?.desc)
-    try {
-      // First try: use competitor identified during URL analysis (based on actual content)
-      let topComp = (ua as any)?.closestCompetitor ?? null
-      console.log('[competitor] try 1 — topComp from ua.closestCompetitor:', topComp)
+    setCompStatus('Finding competitor…')
+    console.log('[competitor] start — url:', currentApp?.url, '| ua headline:', ua?.headline)
 
-      // Second try: ask Claude based on actual website headline
-      if (!topComp?.url) {
+    const callAnalyze = (u: string) => fetch('/api/analyze-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
+      body: JSON.stringify({ url: u })
+    })
+
+    const isValidUrl = (u?: string) => !!u && u.startsWith('https://') && u.includes('.')
+
+    // Persist a successful analyze-url response and return true
+    const trySave = async (r: Response, name: string, url: string): Promise<boolean> => {
+      if (!r.ok) return false
+      const result = await r.json().catch(() => null)
+      if (!result || result.error) {
+        console.log('[competitor] analyze-url returned error field:', result?.error)
+        return false
+      }
+      updateApp(currentApp!.id, {
+        competitor_url_analysis: {
+          name, url,
+          overall:    result.overall,
+          headline:   result.headline,
+          dimensions: result.dimensions,
+          bottleneck: result.bottleneck,
+          analyzed_at: new Date().toISOString()
+        }
+      } as any)
+      console.log('[competitor] saved result for:', url)
+      return true
+    }
+
+    try {
+      // ── Step 1: resolve competitor name+url ────────────────────────────────────
+      let topComp: { name: string; url: string } | null = ua?.closestCompetitor ?? null
+      console.log('[competitor] step 1 — closestCompetitor from ua:', topComp)
+
+      const askClaude = async (strict: boolean) => {
         const appDesc = ua?.headline || currentApp?.desc || currentApp?.name || ''
-        const raw = await callClaude(
-          `Based on this app's actual purpose, find the single closest direct competitor.
-App: "${appDesc}" (URL: ${currentApp?.url || ''})
-Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
-          'Output ONLY valid JSON. No markdown.', 150
+        const strictLine = strict
+          ? '\nCRITICAL: url MUST start with "https://" and be a real working domain — no paths, no guesses.'
+          : ''
+        return callClaude(
+          `Find the single closest direct competitor for this app.\nApp: "${appDesc}" (URL: ${currentApp?.url || ''})\nReturn ONLY JSON: {"name":"CompetitorName","url":"https://competitor.com"}${strictLine}`,
+          'Output ONLY valid JSON with name (string) and url (string). No markdown.',
+          150
         )
+      }
+
+      if (!isValidUrl(topComp?.url)) {
+        setCompStatus('Identifying closest competitor…')
+        const raw = await askClaude(false)
         try {
-          const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim()
-          topComp = JSON.parse(cleaned)
-          console.log('[competitor] try 2 — topComp from Claude:', topComp)
+          topComp = JSON.parse(raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim())
+          console.log('[competitor] step 1b — Claude returned:', topComp)
         } catch (e) {
-          console.log('[competitor] try 2 — JSON parse failed. Raw Claude response:', raw, '| error:', e)
-          setCompError('Could not identify a competitor — Claude returned unexpected output. Check the console.')
-          setCompLoading(false)
-          return
+          console.log('[competitor] step 1b — JSON parse failed:', raw, e)
         }
       }
 
-      console.log('[competitor] final topComp before fetch:', topComp)
-      if (!topComp?.url) {
-        setCompError('No competitor URL found. Try again or check that the app URL was analyzed correctly.')
-        setCompLoading(false)
+      // ── Step 2: validate URL — if bad, retry Claude once with stricter prompt ──
+      if (!isValidUrl(topComp?.url)) {
+        setCompStatus('Retrying competitor lookup…')
+        console.log('[competitor] step 2 — URL invalid:', topComp?.url, '— strict retry')
+        const raw2 = await askClaude(true)
+        try {
+          topComp = JSON.parse(raw2.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim())
+          console.log('[competitor] step 2 retry — Claude returned:', topComp)
+        } catch (e) {
+          console.log('[competitor] step 2 retry — JSON parse failed:', raw2, e)
+        }
+      }
+
+      if (!isValidUrl(topComp?.url)) {
+        console.log('[competitor] no valid URL after both Claude attempts')
+        setCompError('Could not identify a valid competitor URL — try running Competitive Analysis in Insights first.')
+        setCompLoading(false); setCompStatus(null)
         return
       }
 
-      const callAnalyze = (u: string) => fetch('/api/analyze-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
-        body: JSON.stringify({ url: u })
-      })
+      // ── Step 3a: analyze original competitor URL ───────────────────────────────
+      const comp = topComp!
+      setCompStatus(`Analyzing ${comp.name}…`)
+      console.log('[competitor] step 3a — analyze:', comp.url)
+      let r = await callAnalyze(comp.url)
+      if (await trySave(r, comp.name, comp.url)) { setCompLoading(false); setCompStatus(null); return }
 
-      let r = await callAnalyze(topComp.url)
-      let retriedWithBase = false
-
-      // On 422, log the error then retry with just the base domain
+      // ── Step 3b: 422 with path → strip to base domain ─────────────────────────
       if (r.status === 422) {
-        const errBody = await r.json().catch(() => ({}))
-        console.log('[competitor] 422 from', topComp.url, '— error:', errBody.error ?? errBody.message ?? errBody)
+        const err3a = await r.json().catch(() => ({}))
+        console.log('[competitor] step 3a — 422:', err3a.error ?? err3a.message ?? err3a)
         try {
-          const parsed = new URL(topComp.url)
-          const baseDomain = parsed.origin
+          const parsed = new URL(comp.url)
           if (parsed.pathname.replace(/\/$/, '') !== '') {
-            console.log('[competitor] retrying with base domain:', baseDomain)
-            r = await callAnalyze(baseDomain)
-            retriedWithBase = true
+            const base = parsed.origin
+            setCompStatus('Retrying with base domain…')
+            console.log('[competitor] step 3b — base domain retry:', base)
+            r = await callAnalyze(base)
+            if (await trySave(r, comp.name, base)) { setCompLoading(false); setCompStatus(null); return }
+            if (r.status === 422) {
+              const err3b = await r.json().catch(() => ({}))
+              console.log('[competitor] step 3b — base domain 422:', err3b.error ?? err3b.message ?? err3b)
+            }
           }
-        } catch {}
+        } catch (e) { console.log('[competitor] step 3b — URL parse error:', e) }
       }
 
-      if (r.ok) {
-        const result = await r.json()
-        if (!result.error) {
-          updateApp(currentApp!.id, {
-            competitor_url_analysis: {
-              name: topComp.name,
-              url: topComp.url,
-              overall: result.overall,
-              headline: result.headline,
-              dimensions: result.dimensions,
-              bottleneck: result.bottleneck,
-              analyzed_at: new Date().toISOString()
-            }
-          } as any)
-        } else {
-          console.log('[competitor] analyze-url returned error:', result.error)
-          setCompError(`Competitor analysis failed: ${result.error}`)
+      // ── Step 3c: try a URL from competitive_analysis cache ────────────────────
+      const caText = (currentApp as any).competitive_analysis as string | null | undefined
+      if (caText) {
+        const urlMatches = caText.match(/https?:\/\/(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s)"'>]*)?/g) ?? []
+        const myHost = (() => { try { return new URL(currentApp!.url).hostname } catch { return '' } })()
+        const altUrl = urlMatches.find(u => {
+          try { return new URL(u).hostname !== myHost } catch { return false }
+        })
+        if (altUrl) {
+          setCompStatus('Trying alternate competitor…')
+          console.log('[competitor] step 3c — from competitive_analysis cache:', altUrl)
+          r = await callAnalyze(altUrl)
+          const altHost = (() => { try { return new URL(altUrl).hostname } catch { return altUrl } })()
+          if (await trySave(r, altHost, altUrl)) { setCompLoading(false); setCompStatus(null); return }
+          if (r.status === 422) {
+            try {
+              const altBase = new URL(altUrl).origin
+              r = await callAnalyze(altBase)
+              if (await trySave(r, altHost, altBase)) { setCompLoading(false); setCompStatus(null); return }
+            } catch {}
+          }
+          console.log('[competitor] step 3c — alternate also failed:', r.status)
         }
-      } else if (r.status === 422) {
-        const errBody2 = await r.json().catch(() => ({}))
-        console.log('[competitor]', retriedWithBase ? 'base domain also 422' : '422 (path already root)', ':', errBody2.error ?? errBody2.message ?? errBody2)
-        setCompError('Could not analyze competitor — try running competitive analysis in Insights first')
-      } else {
-        console.log('[competitor] HTTP error:', r.status, r.statusText)
-        setCompError(`Failed to analyze competitor URL (HTTP ${r.status})`)
       }
+
+      // ── All tries exhausted ────────────────────────────────────────────────────
+      console.log('[competitor] all tries exhausted')
+      setCompError('Could not analyze any competitor site — try running Competitive Analysis in Insights first to seed the cache.')
     } catch (e) {
       console.log('[competitor] unexpected error:', e)
       setCompError('An unexpected error occurred — check the console for details.')
     }
     setCompLoading(false)
+    setCompStatus(null)
   }
 
   async function generateInsight() {
@@ -496,7 +550,7 @@ Return ONLY JSON: {"name":"X","url":"https://competitor.com"}`,
                   <button className="vbtn" style={{ width:'100%', justifyContent:'center', fontSize:11, marginTop:8 }}
                     onClick={runCompetitorAnalysis} disabled={compLoading}>
                     {compLoading
-                      ? <><span className="spinner" style={{ color:'var(--accent)' }} /> Finding &amp; analyzing closest competitor…</>
+                      ? <><span className="spinner" style={{ color:'var(--accent)' }} /> {compStatus ?? 'Finding competitor…'}</>
                       : '⚔ Compare with closest competitor →'}
                   </button>
                   {compError && (
