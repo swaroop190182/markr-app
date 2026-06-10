@@ -60,8 +60,31 @@ export default function Landing() {
   const [sent,      setSent]      = useState(false)
   const [scorecardId, setScorecardId] = useState<string | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
+  const [rates,       setRates]       = useState<Record<string, number>>({})
   const inputRef = useRef<HTMLInputElement>(null)
   const resultRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch('https://open.er-api.com/v6/latest/USD')
+      .then(r => r.json())
+      .then(data => setRates(data.rates || {}))
+      .catch(() => {})
+  }, [])
+
+  function localPrice(usd: number): string {
+    const locale = navigator.language
+    const currencyMap: Record<string, string> = {
+      'en-IN': 'INR', 'hi': 'INR',
+      'en-GB': 'GBP', 'en-AU': 'AUD',
+      'en-CA': 'CAD', 'de': 'EUR',
+      'fr': 'EUR', 'es': 'EUR',
+    }
+    const lang = locale.split('-')[0]
+    const currency = currencyMap[locale] || currencyMap[lang]
+    if (!currency || !rates[currency]) return ''
+    const amount = usd * rates[currency]
+    return `≈ ${new Intl.NumberFormat(locale, { style:'currency', currency, maximumFractionDigits:0 }).format(amount)}`
+  }
 
   const STEPS = ['Fetching your homepage…', 'Reading headlines & copy…', 'Scoring 5 dimensions…', 'Building your verdict…']
 
@@ -775,16 +798,19 @@ export default function Landing() {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }} className="pricing-grid">
             {[
-              { plan:'Free', price:'₹0', period:'forever', color:'rgba(255,255,255,.04)', border:'rgba(255,255,255,.1)', items:['1 app','5 AI calls/day','7-day trial of all features','Content Studio, Strategy & Insights'], cta:'Get started free', ctaHref:'/login', ctaBg:'rgba(255,255,255,.08)', ctaColor:'rgba(255,255,255,.8)', ctaBorder:'1px solid rgba(255,255,255,.12)', badge:null },
-              { plan:'Pro', price:'₹999', period:'/month', color:'rgba(124,111,247,.08)', border:'rgba(124,111,247,.4)', items:['Unlimited apps','200 AI calls/day','Daily email delivery — 3 posts/morning','AI Readiness Assessment','All 5 deep analyses'], cta:'Upgrade to Pro', ctaHref:'/login', ctaBg:'linear-gradient(135deg,#7c6ff7,#9b8af4)', ctaColor:'#fff', ctaBorder:'none', badge:'Most popular' },
+              { plan:'Free', usd:0,  period:'forever', color:'rgba(255,255,255,.04)', border:'rgba(255,255,255,.1)', items:['1 app','5 AI calls/day','7-day trial of all features','Content Studio, Strategy & Insights'], cta:'Get started free', ctaHref:'/login', ctaBg:'rgba(255,255,255,.08)', ctaColor:'rgba(255,255,255,.8)', ctaBorder:'1px solid rgba(255,255,255,.12)', badge:null },
+              { plan:'Pro',  usd:12, period:'/month',  color:'rgba(124,111,247,.08)', border:'rgba(124,111,247,.4)', items:['10 apps','50 AI calls/day','Daily email delivery — 3 posts/morning','AI Readiness Assessment','All 5 deep analyses'], cta:'Upgrade to Pro', ctaHref:'/login', ctaBg:'linear-gradient(135deg,#7c6ff7,#9b8af4)', ctaColor:'#fff', ctaBorder:'none', badge:'Most popular' },
             ].map(p=>(
               <div key={p.plan} style={{ background:p.color, border:`1.5px solid ${p.border}`, borderRadius:14, padding:'24px 20px', position:'relative' }}>
                 {p.badge && <div style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', background:'#7c6ff7', color:'#fff', fontSize:10, fontWeight:700, padding:'3px 12px', borderRadius:20, whiteSpace:'nowrap' }}>{p.badge}</div>}
                 <div style={{ fontFamily:D, fontSize:15, fontWeight:700, color:'#f0f0f5', marginBottom:6 }}>{p.plan}</div>
-                <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom:18 }}>
-                  <span style={{ fontFamily:D, fontSize:30, fontWeight:800, color:'#f0f0f5' }}>{p.price}</span>
+                <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom: localPrice(p.usd) ? 2 : 18 }}>
+                  <span style={{ fontFamily:D, fontSize:30, fontWeight:800, color:'#f0f0f5' }}>${p.usd}</span>
                   <span style={{ fontSize:12, color:'rgba(255,255,255,.4)' }}>{p.period}</span>
                 </div>
+                {localPrice(p.usd) && (
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,.35)', marginBottom:14 }}>{localPrice(p.usd)}</div>
+                )}
                 {p.items.map(item=>(
                   <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.6)', marginBottom:9, lineHeight:1.5 }}>
                     <span style={{ color:'#34c98a', flexShrink:0 }}>✓</span>{item}

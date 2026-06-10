@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useStore } from '../lib/store'
 import { toast } from './Toast'
@@ -17,6 +17,29 @@ declare global {
 export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   const { plan } = useStore()
   const [loading, setLoading] = useState(false)
+  const [rates,   setRates]   = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    fetch('https://open.er-api.com/v6/latest/USD')
+      .then(r => r.json())
+      .then(data => setRates(data.rates || {}))
+      .catch(() => {})
+  }, [])
+
+  function localPrice(usd: number): string {
+    const locale = navigator.language
+    const currencyMap: Record<string, string> = {
+      'en-IN': 'INR', 'hi': 'INR',
+      'en-GB': 'GBP', 'en-AU': 'AUD',
+      'en-CA': 'CAD', 'de': 'EUR',
+      'fr': 'EUR',    'es': 'EUR',
+    }
+    const lang = locale.split('-')[0]
+    const currency = currencyMap[locale] || currencyMap[lang]
+    if (!currency || !rates[currency]) return ''
+    const amount = usd * rates[currency]
+    return `≈ ${new Intl.NumberFormat(locale, { style:'currency', currency, maximumFractionDigits:0 }).format(amount)}`
+  }
 
   const triggerMessages = {
     trial_expired: 'Your free trial has ended. Upgrade to Pro to keep using Markr.',
@@ -113,9 +136,12 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
         {/* Price */}
         <div style={{ textAlign:'center', padding:'16px 0', marginBottom:20, borderTop:'1px solid var(--border)', borderBottom:'1px solid var(--border)' }}>
           <div style={{ display:'flex', alignItems:'baseline', gap:4, justifyContent:'center' }}>
-            <span style={{ fontFamily:"'Syne',sans-serif", fontSize:42, fontWeight:800, color:'#a599ff', letterSpacing:'-0.03em' }}>₹999</span>
+            <span style={{ fontFamily:"'Syne',sans-serif", fontSize:42, fontWeight:800, color:'#a599ff', letterSpacing:'-0.03em' }}>$12</span>
             <span style={{ fontSize:14, color:'var(--text3)' }}>/month</span>
           </div>
+          {localPrice(12) && (
+            <div style={{ fontSize:12, color:'var(--text3)', marginTop:2 }}>{localPrice(12)}</div>
+          )}
           <div style={{ fontSize:12, color:'var(--text3)', marginTop:4 }}>Cancel anytime · No hidden fees</div>
         </div>
 
@@ -146,7 +172,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
         >
           {loading
             ? <><span className="spinner" style={{ color:'#fff' }} /> Processing…</>
-            : '⚡ Upgrade to Pro — ₹999/month'
+            : `⚡ Upgrade to Pro — $12/month${localPrice(12) ? ` (${localPrice(12)})` : ''}`
           }
         </button>
 
