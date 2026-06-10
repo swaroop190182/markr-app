@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from './Toast'
 
@@ -116,6 +116,12 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   const [selectedId,   setSelectedId]   = useState<'analysis'|'content'|'pro'>('pro')
   const [rates,        setRates]        = useState<Record<string, number>>({})
   const isIndian = isIndianTimezone()
+
+  const localPrices = useMemo(() => ({
+    analysis: localPrice(10, rates),
+    content:  localPrice(6,  rates),
+    pro:      localPrice(14, rates),
+  }), [rates])
 
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -252,9 +258,9 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
                   <span style={{ fontSize:18, fontWeight:800, color: active ? p.accent : 'var(--text)' }}>${p.usd}</span>
                   <span style={{ fontSize:10, color:'var(--text3)' }}>{p.period}</span>
                 </div>
-                {localPrice(p.usd, rates) && (
+                {localPrices[p.id] && (
                   <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>
-                    {localPrice(p.usd, rates)}{p.period !== 'one-time' ? p.period : ''}
+                    {localPrices[p.id]}{p.period !== 'one-time' ? p.period : ''}
                   </div>
                 )}
               </div>
@@ -268,9 +274,9 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
             <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{selected.name} — what's included</div>
             <div style={{ fontSize:12, color:'var(--text2)', marginTop:2 }}>
               <span style={{ fontWeight:700 }}>${selected.usd}{selected.period}</span>
-              {localPrice(selected.usd, rates) && (
+              {localPrices[selected.id] && (
                 <span style={{ color:'var(--text2)', marginLeft:6 }}>
-                  {localPrice(selected.usd, rates)}{selected.period !== 'one-time' ? selected.period : ''}
+                  {localPrices[selected.id]}{selected.period !== 'one-time' ? selected.period : ''}
                 </span>
               )}
             </div>
