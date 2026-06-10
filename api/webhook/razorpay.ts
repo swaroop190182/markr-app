@@ -6,10 +6,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   // Verify webhook signature
-  const signature  = req.headers['x-razorpay-signature'] as string
-  const secret     = process.env.RAZORPAY_WEBHOOK_SECRET!
-  const body       = JSON.stringify(req.body)
-  const expected   = createHmac('sha256', secret).update(body).digest('hex')
+  const signature = req.headers['x-razorpay-signature'] as string
+  const secret    = process.env.RAZORPAY_WEBHOOK_SECRET!
+  const body      = JSON.stringify(req.body)
+  const expected  = createHmac('sha256', secret).update(body).digest('hex')
 
   if (signature !== expected) {
     console.error('Invalid webhook signature')
@@ -21,39 +21,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     process.env.SUPABASE_SERVICE_KEY!
   )
 
-  const event   = req.body.event
-  const payload = req.body.payload?.subscription?.entity
+  const event = req.body.event as string
 
-  if (!payload) return res.status(200).json({ received: true })
-
-  const subId  = payload.id
-  const notes  = payload.notes ?? {}
-  const userId = notes.user_id
-
-  console.log(`Webhook: ${event} | sub: ${subId} | user: ${userId}`)
+  console.log(`Webhook: ${event}`)
 
   try {
+    // ── One-time order payment (Analysis Pack) ──────────────────────────────
+    if (event === 'payment.captured') {
+      const payment = req.body.payload?.payment?.entity
+      if (!payment) return res.status(200).json({ received: true })
+
+      const notes  = payment.notes ?? {}
+      const userId = notes.user_id
+      const planId = notes.plan_id ?? 'analysis'
+
+      if (userId) {
+        await supabase.from('markr_subscriptions').upsert({
+          user_id:    userId,
+          plan:       planId,
+          status:     'active',
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' })
+        console.log(`✅ One-time payment: upgraded user ${userId} to ${planId}`)
+      }
+      return res.status(200).json({ received: true })
+    }
+
+    // ── Recurring subscription events ───────────────────────────────────────
+    const payload = req.body.payload?.subscription?.entity
+    if (!payload) return res.status(200).json({ received: true })
+
+    const subId  = payload.id
+    const notes  = payload.notes ?? {}
+    const userId = notes.user_id
+    const planId = notes.plan_id ?? 'pro'   // fallback for legacy subs
+
+    console.log(`Webhook: ${event} | sub: ${subId} | user: ${userId} | plan: ${planId}`)
+
     if (event === 'subscription.activated' || event === 'subscription.charged') {
-      // Payment successful — upgrade to Pro
       const periodEnd = payload.current_end
         ? new Date(payload.current_end * 1000).toISOString()
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
       if (userId) {
         await supabase.from('markr_subscriptions').upsert({
-          user_id:             userId,
-          plan:                'pro',
-          status:              'active',
-          razorpay_sub_id:     subId,
-          current_period_end:  periodEnd,
-          updated_at:          new Date().toISOString(),
+          user_id:            userId,
+          plan:               planId,
+          status:             'active',
+          razorpay_sub_id:    subId,
+          current_period_end: periodEnd,
+          updated_at:         new Date().toISOString(),
         }, { onConflict: 'user_id' })
-        console.log(`✅ Upgraded user ${userId} to Pro`)
+        console.log(`✅ Upgraded user ${userId} to ${planId}`)
       }
     }
 
     if (event === 'subscription.cancelled' || event === 'subscription.halted') {
-      // Payment failed or cancelled — downgrade to free
       if (userId) {
         await supabase.from('markr_subscriptions').upsert({
           user_id:    userId,
@@ -65,9 +88,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    res.status(200).json({ received: true })
+    return res.status(200).json({ received: true })
   } catch (e) {
     console.error('Webhook handler error:', e)
-    res.status(500).json({ error: (e as Error).message })
+    return res.status(500).json({ error: (e as Error).message })
   }
 }

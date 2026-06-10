@@ -108,12 +108,11 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
     try {
       await loadRazorpayScript()
 
-      // Fetch live INR rate; fallback to 84 if fetch fails
+      // Fetch live INR rate to pass to backend; fallback 95
       const inrRate: number = await fetch('https://open.er-api.com/v6/latest/USD')
         .then(r => r.json())
         .then(d => d.rates?.INR ?? 95)
         .catch(() => 95)
-      const amountPaise = Math.round(selected.usd * inrRate * 100)
 
       const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
@@ -122,9 +121,9 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
       const res = await fetch('/api/subscription/create', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
-        body: JSON.stringify({ planId: selected.id, amount: amountPaise, type: selected.rzpType }),
+        body: JSON.stringify({ planId: selected.id, type: selected.rzpType, usdAmount: selected.usd, inrRate }),
       })
-      const { subscription_id, order_id, key_id, error } = await res.json()
+      const { subscription_id, order_id, key_id, amount_paise, error } = await res.json()
       if (error) throw new Error(error)
 
       const { data: { user } } = await supabase.auth.getUser()
@@ -146,7 +145,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
 
       if (selected.rzpType === 'order') {
         options.order_id = order_id
-        options.amount   = amountPaise  // paise: usd × inrRate × 100
+        options.amount   = amount_paise   // authoritative paise from server
       } else {
         options.subscription_id = subscription_id
       }
