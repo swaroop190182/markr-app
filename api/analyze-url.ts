@@ -260,13 +260,32 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   // Combine ALL text from ALL pages
   const allPagesText = Object.values(pages).map(p => p.allText).join(' ')
   const allH2s       = Object.values(pages).flatMap(p => p.h2s)
+  const allH3s       = Object.values(pages).flatMap(p => p.h3s)
   const allParas     = Object.values(pages).flatMap(p => p.paras)
   const allBtns      = Object.values(pages).flatMap(p => p.btns)
+  const homeBodyText = home.body + ' ' + home.noscript + ' ' + home.allText
   const hasHow       = !!how
-    || (allPagesText.match(/\bstep\s*(?:\d+|one|two|three|four|five)\b/gi) ?? []).length >= 3
+    // "Step N" in any page text (2+ occurrences implies a sequence)
+    || (allPagesText.match(/\bstep\s*(?:\d+|one|two|three|four|five)\b/gi) ?? []).length >= 2
+    // H2 or H3 heading containing how / works / steps / get started
+    || [...allH2s, ...allH3s].some(h => /\bhow\b|\bworks?\b|\bsteps?\b|\bget\s*started\b/i.test(h))
+    // Numbered sequence "1. … 2. … 3." in body text
+    || /\b1\.\s.+\b2\.\s.+\b3\./s.test(homeBodyText)
+    // Ordinal labels "01 … 02 … 03" as used in hero sections
+    || /\b0?1\b[\s\S]{3,300}\b0?2\b[\s\S]{3,300}\b0?3\b/.test(homeBodyText)
+    // 3+ "N. word" numbered items anywhere in home text
+    || (homeBodyText.match(/(?<!\d)\d\.[ \t]+[A-Za-z]/g) ?? []).length >= 3
 
   const headline = home.bestH1 || home.bestTitle
   const desc     = home.bestDesc
+
+  // Truncate headline to a word boundary — never mid-word
+  const truncH = (s: string, max = 80): string => {
+    if (s.length <= max) return s
+    const cut = s.slice(0, max)
+    const lastSpace = cut.lastIndexOf(' ')
+    return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut) + '…'
+  }
 
   // ── 1. Clarity (0–10) ───────────────────────────────────────────────────────
   let clarity = 2
@@ -292,12 +311,12 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const clarityIssue = !headline || headline.length <= 8
     ? 'No clear headline found — add an H1 that states what users gain'
     : detectedBuzzwords.length > 0
-      ? `Headline: "${headline.slice(0,55)}" — buzzwords detected (${detectedBuzzwords.join(', ')}) — replace with specific outcomes`
+      ? `Headline: "${truncH(headline)}" — buzzwords detected (${detectedBuzzwords.join(', ')}) — replace with specific outcomes`
       : !hasOutcomeVerb
-        ? `Headline: "${headline.slice(0,55)}" — no outcome verb detected (get, save, build, fix, track, grow)`
+        ? `Headline: "${truncH(headline)}" — no outcome verb detected (get, save, build, fix, track, grow)`
         : !features && !hasHow
-          ? `Headline: "${headline.slice(0,55)}" — clear, but no features or how-it-works page in pages analyzed: ${crawledPages}`
-          : `Headline: "${headline.slice(0,55)}" — clear with outcome verb`
+          ? `Headline: "${truncH(headline)}" — clear, but no features or how-it-works page in pages analyzed: ${crawledPages}`
+          : `Headline: "${truncH(headline)}" — clear with outcome verb`
 
   // ── 2. User Journey (0–10) ──────────────────────────────────────────────────
   let journey = 3
