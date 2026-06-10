@@ -42,8 +42,9 @@ const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id:'product',     label:'AI Readiness Assessment', emoji:'🧪' },
 ]
 
-export default function Insights() {
-  const { currentApp, updateApp, userEmail } = useStore()
+export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
+  const { currentApp, updateApp, userEmail, plan } = useStore()
+  const canUseAnalysis = plan === 'analysis' || plan === 'pro'
   const [activeTab, setActiveTab] = useState<Tab>('competitive')
   const [cache, setCache] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
@@ -361,6 +362,10 @@ Output ONLY valid JSON:
     setRunningFull(false)
     toast('Deep analysis complete! All 5 insights ready. 🎉', 5000)
     setActiveTab('competitive')
+    // Track first analysis run for Analysis Pack (one-time plan)
+    if (plan === 'analysis' && !currentApp.analysis_used_at) {
+      await updateApp(currentApp.id, { analysis_used_at: new Date().toISOString() } as any)
+    }
   }
 
   const stepLabels: Record<string,string> = {
@@ -383,17 +388,49 @@ Output ONLY valid JSON:
           {currentApp.url && <> · <a href={currentApp.url} target="_blank" style={{ color:'var(--accent2)', textDecoration:'none' }}>{currentApp.url}</a></>}
         </div>
 
-        <button
-          id="run-full-analysis-btn"
-          onClick={runFullAnalysis}
-          disabled={runningFull}
-          style={{ width:'100%', padding:14, background: runningFull ? 'linear-gradient(135deg,rgba(124,111,247,.2),rgba(226,111,175,.15))' : 'linear-gradient(135deg,rgba(124,111,247,.15),rgba(226,111,175,.1))', border:'1px solid rgba(124,111,247,.3)', borderRadius:'var(--r2)', fontFamily:'DM Sans,sans-serif', fontSize:14, fontWeight:700, color:'var(--accent2)', cursor: runningFull ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, transition:'all .2s', opacity: runningFull ? .8 : 1 }}
-        >
-          {runningFull
-            ? <><span className="spinner" style={{ color:'var(--accent2)' }} /> Running deep analysis…</>
-            : <><i className="ti ti-telescope" style={{ fontSize:16 }} /> ✦ Run Deep AI Analysis — Competitive · BMC · SWOT · Growth · Pricing</>
-          }
-        </button>
+        {!canUseAnalysis ? (
+          <div style={{ width:'100%', padding:'20px 24px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r2)', textAlign:'center' }}>
+            <div style={{ fontSize:22, marginBottom:10 }}>🔒</div>
+            <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:6 }}>Insights & Analysis require Analysis Pack</div>
+            <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6, marginBottom:16 }}>
+              Get SWOT, Business Model Canvas, Competitive Intelligence, Growth Strategies, and Pricing analysis for your app.
+            </div>
+            <button
+              onClick={onUpgrade}
+              style={{ padding:'10px 24px', borderRadius:8, background:'linear-gradient(135deg,#34c98a,#22b573)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}
+            >
+              Upgrade to Analysis Pack →
+            </button>
+            <div style={{ marginTop:8, fontSize:11, color:'var(--text3)' }}>$10 one-time · 3 apps · Results saved permanently</div>
+          </div>
+        ) : plan === 'analysis' && currentApp.analysis_used_at ? (
+          <div style={{ width:'100%', padding:'16px 20px', background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' as const }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--green)', marginBottom:3 }}>
+                ✓ Analysis completed on {new Date(currentApp.analysis_used_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}
+              </div>
+              <div style={{ fontSize:11, color:'var(--text3)' }}>Results are saved permanently below · Purchase again to re-run</div>
+            </div>
+            <button
+              onClick={onUpgrade}
+              style={{ padding:'8px 18px', borderRadius:7, background:'linear-gradient(135deg,#34c98a,#22b573)', color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}
+            >
+              Buy Another Analysis →
+            </button>
+          </div>
+        ) : (
+          <button
+            id="run-full-analysis-btn"
+            onClick={runFullAnalysis}
+            disabled={runningFull}
+            style={{ width:'100%', padding:14, background: runningFull ? 'linear-gradient(135deg,rgba(124,111,247,.2),rgba(226,111,175,.15))' : 'linear-gradient(135deg,rgba(124,111,247,.15),rgba(226,111,175,.1))', border:'1px solid rgba(124,111,247,.3)', borderRadius:'var(--r2)', fontFamily:'DM Sans,sans-serif', fontSize:14, fontWeight:700, color:'var(--accent2)', cursor: runningFull ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, transition:'all .2s', opacity: runningFull ? .8 : 1 }}
+          >
+            {runningFull
+              ? <><span className="spinner" style={{ color:'var(--accent2)' }} /> Running deep analysis…</>
+              : <><i className="ti ti-telescope" style={{ fontSize:16 }} /> ✦ Run Deep AI Analysis — Competitive · BMC · SWOT · Growth · Pricing</>
+            }
+          </button>
+        )}
 
         {/* Progress steps */}
         {runningFull && (
@@ -421,6 +458,8 @@ Output ONLY valid JSON:
       {/* Tabs */}
       <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:22, paddingBottom:14, borderBottom:'1px solid var(--border)' }}>
         {TABS.map(tab => {
+          const isAnalysisTab = tab.id !== 'product'
+          const locked = isAnalysisTab && !canUseAnalysis
           const hasData = tab.id === 'product' ? !!(pt) : !!(cache[tab.id])
           const tsMap: Record<string,string> = {
             competitive: currentApp.competitive_analyzed_at ?? '',
@@ -436,14 +475,15 @@ Output ONLY valid JSON:
               onClick={() => setActiveTab(tab.id)}
               style={{
                 padding:'6px 14px', borderRadius:7, fontSize:12, fontWeight:600,
-                fontFamily:'DM Sans,sans-serif', cursor:'pointer', transition:'all .15s',
+                fontFamily:'DM Sans,sans-serif', cursor: locked ? 'default' : 'pointer', transition:'all .15s',
                 background: activeTab===tab.id ? 'rgba(124,111,247,.12)' : 'transparent',
                 border: `1px solid ${activeTab===tab.id ? 'var(--accent)' : 'var(--border)'}`,
-                color: activeTab===tab.id ? 'var(--accent2)' : hasData ? 'var(--text2)' : 'var(--text3)',
+                color: locked ? 'var(--text3)' : activeTab===tab.id ? 'var(--accent2)' : hasData ? 'var(--text2)' : 'var(--text3)',
+                opacity: locked ? 0.5 : 1,
               }}
             >
               <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:1 }}>
-                <span>{tab.emoji} {tab.label}{hasData ? ' ✓' : ''}</span>
+                <span>{tab.emoji} {tab.label}{locked ? ' 🔒' : (hasData ? ' ✓' : '')}</span>
                 {lastUpdated && <span style={{ fontSize:9, color:'var(--text3)', fontWeight:400 }}>{lastUpdated}</span>}
               </div>
             </button>
@@ -488,23 +528,41 @@ Output ONLY valid JSON:
           </div>
         )}
 
-        {activeTab === 'competitive' && (
-          <CompetitiveTab data={cache.competitive} loading={loading.competitive} onGenerate={genCompetitive} appName={currentApp.name} />
-        )}
-        {activeTab === 'bmc' && (
-          <BMCTab data={cache.bmc} loading={loading.bmc} onGenerate={genBMC} appName={currentApp.name} />
-        )}
-        {activeTab === 'swot' && (
-          <SWOTTab data={cache.swot} loading={loading.swot} onGenerate={genSWOT} />
-        )}
-        {activeTab === 'growth' && (
-          <GrowthTab data={cache.growth} loading={loading.growth} onGenerate={genGrowth} />
-        )}
-        {activeTab === 'pricing' && (
-          <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
-        )}
-        {activeTab === 'product' && (
-          <ProductTest />
+        {activeTab !== 'product' && !canUseAnalysis ? (
+          <div style={{ textAlign:'center', padding:'40px 20px' }}>
+            <div style={{ fontSize:28, marginBottom:12 }}>🔒</div>
+            <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:6 }}>Upgrade to Analysis Pack to unlock this tab</div>
+            <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.6, marginBottom:18 }}>
+              One-time purchase · Results saved permanently
+            </div>
+            <button
+              onClick={onUpgrade}
+              style={{ padding:'10px 24px', borderRadius:8, background:'linear-gradient(135deg,#34c98a,#22b573)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}
+            >
+              Upgrade to Analysis Pack →
+            </button>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'competitive' && (
+              <CompetitiveTab data={cache.competitive} loading={loading.competitive} onGenerate={genCompetitive} appName={currentApp.name} />
+            )}
+            {activeTab === 'bmc' && (
+              <BMCTab data={cache.bmc} loading={loading.bmc} onGenerate={genBMC} appName={currentApp.name} />
+            )}
+            {activeTab === 'swot' && (
+              <SWOTTab data={cache.swot} loading={loading.swot} onGenerate={genSWOT} />
+            )}
+            {activeTab === 'growth' && (
+              <GrowthTab data={cache.growth} loading={loading.growth} onGenerate={genGrowth} />
+            )}
+            {activeTab === 'pricing' && (
+              <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
+            )}
+            {activeTab === 'product' && (
+              <ProductTest />
+            )}
+          </>
         )}
       </div>
     </div>

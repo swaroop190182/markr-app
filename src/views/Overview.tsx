@@ -615,7 +615,7 @@ Return ONLY this JSON, no markdown:
               )}
 
               {/* AI Recommendations */}
-              {plan === 'pro' ? (() => {
+              {(plan === 'pro' || plan === 'analysis') ? (() => {
                 const rec = currentApp.ai_recommendations   // read directly — never from local state
                 const copy = (text: string) => navigator.clipboard.writeText(text).catch(() => {})
                 return (
@@ -713,7 +713,7 @@ Return ONLY this JSON, no markdown:
                 <div style={{ borderTop:'1px solid var(--border)', paddingTop:14, marginTop:4, marginBottom:4, padding:'12px', background:'var(--surface2)', borderRadius:'var(--r)', border:'1px solid var(--border)' }}>
                   <div style={{ fontSize:12, fontWeight:700, color:'var(--text3)', marginBottom:4 }}>✨ AI Recommendations</div>
                   <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>
-                    Upgrade to Pro to get specific copy rewrites and priority fixes tailored to your landing page score.
+                    Upgrade to Analysis Pack or Pro to get specific copy rewrites and priority fixes tailored to your landing page score.
                   </div>
                 </div>
               )}

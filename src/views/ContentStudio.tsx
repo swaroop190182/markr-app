@@ -25,8 +25,8 @@ function getTodaysPillars(pillars: string[]) {
   }
 }
 
-export default function ContentStudio() {
-  const { currentApp } = useStore()
+export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void }) {
+  const { currentApp, plan } = useStore()
   const pillars = currentApp.pillars ?? ['Content','Education','Tips','Community','Stories','Wins']
   const todaysPillars = getTodaysPillars(pillars)
   const pt = currentApp.productTest
@@ -94,6 +94,25 @@ Output ONLY valid JSON:
     generatePost('morning')
     setTimeout(() => generatePost('midday'),  1800)
     setTimeout(() => generatePost('evening'), 3600)
+  }
+
+  if (plan !== 'content' && plan !== 'pro') {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'60px 24px', textAlign:'center' }}>
+        <div style={{ fontSize:36, marginBottom:16 }}>🔒</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:700, marginBottom:8 }}>Content Studio</div>
+        <div style={{ fontSize:13, color:'var(--text3)', lineHeight:1.7, maxWidth:420, marginBottom:24 }}>
+          Generate 3 daily Instagram posts — morning saves, midday shares, and evening engagement — all grounded in your app's real features and brand voice.
+        </div>
+        <button
+          onClick={onUpgrade}
+          style={{ padding:'12px 28px', borderRadius:9, background:'linear-gradient(135deg,#e26faf,#c4559a)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}
+        >
+          Upgrade to Content Engine →
+        </button>
+        <div style={{ marginTop:10, fontSize:11, color:'var(--text3)' }}>$6/month · 30 AI posts/day · 3 apps</div>
+      </div>
+    )
   }
 
   return (

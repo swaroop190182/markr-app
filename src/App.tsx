@@ -86,10 +86,10 @@ function AppInner({ session }: { session: Session }) {
         <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} onSignOut={() => supabase.auth.signOut()} userEmail={session.user.email ?? ''} />
         <main className="app-content">
           {view === 'overview'  && <Overview onAddApp={() => setShowAddApp(true)} />}
-          {view === 'studio'    && <ContentStudio />}
+          {view === 'studio'    && <ContentStudio onUpgrade={() => setShowUpgrade(true)} />}
           {view === 'strategy'  && <Strategy />}
           {view === 'calendar'  && <Calendar />}
-          {view === 'insights'  && <Insights />}
+          {view === 'insights'  && <Insights onUpgrade={() => setShowUpgrade(true)} />}
           {view === 'admin'     && <Admin />}
         </main>
       </div>

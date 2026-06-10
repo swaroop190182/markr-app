@@ -137,6 +137,8 @@ export interface AppData {
   swot_analyzed_at?:        string | null
   growth_analyzed_at?:      string | null
   pricing_analyzed_at?:     string | null
+  // Analysis Pack one-time usage tracking
+  analysis_used_at?:        string | null
 }
 
 export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'
