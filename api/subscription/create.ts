@@ -32,17 +32,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const keySecret = process.env.RAZORPAY_KEY_SECRET!
   const auth      = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
 
-  // Resolve INR rate: use client-supplied rate, else fetch live, else fallback 95
-  const usd = usdAmount ?? PLAN_USD[planId] ?? 10
-  let inrRate = clientRate
-  if (!inrRate) {
-    inrRate = await fetch('https://open.er-api.com/v6/latest/USD')
-      .then(r => r.json())
-      .then(d => (d.rates?.INR as number) ?? 95)
-      .catch(() => 95)
-  }
-  const amountPaise = Math.round(usd * inrRate * 100)
-
   const notes = {
     user_id: user.id,
     email:   user.email,
@@ -52,7 +41,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (type === 'order') {
-      // One-time purchase (Analysis Pack)
+      // One-time purchase (Analysis Pack) — charge in INR paise
+      const usd = usdAmount ?? PLAN_USD[planId] ?? 10
+      let inrRate = clientRate
+      if (!inrRate) {
+        inrRate = await fetch('https://open.er-api.com/v6/latest/USD')
+          .then(r => r.json())
+          .then(d => (d.rates?.INR as number) ?? 95)
+          .catch(() => 95)
+      }
+      const amountPaise = Math.round(usd * inrRate * 100)
+
       const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
         method: 'POST',
         headers: {
