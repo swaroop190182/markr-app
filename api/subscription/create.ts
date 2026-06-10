@@ -32,6 +32,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const keySecret = process.env.RAZORPAY_KEY_SECRET!
   const auth      = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
 
+  console.log('[subscription/create] planId:', planId, 'type:', type)
+  console.log('[subscription/create] RAZORPAY_PLAN_ID_CONTENT:', process.env.RAZORPAY_PLAN_ID_CONTENT ?? '(not set)')
+  console.log('[subscription/create] RAZORPAY_PLAN_ID_PRO:    ', process.env.RAZORPAY_PLAN_ID_PRO     ?? '(not set)')
+  console.log('[subscription/create] RAZORPAY_PLAN_ID (fallback):', process.env.RAZORPAY_PLAN_ID ?? '(not set)')
+
   const notes = {
     user_id: user.id,
     email:   user.email,
