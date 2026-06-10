@@ -96,6 +96,16 @@ function detectCurrency(): string | null {
   return null
 }
 
+function localPrice(usd: number, rates: Record<string, number>): string {
+  const currency = detectCurrency()
+  console.log('[localPrice] usd:', usd, '| currency detected:', currency, '| rate available:', currency ? rates[currency] : 'n/a', '| rates empty:', Object.keys(rates).length === 0)
+  if (!currency || !rates[currency]) return ''
+  const amount = Math.round(usd * rates[currency])
+  const result = `≈ ${new Intl.NumberFormat(navigator.language, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)}`
+  console.log('[localPrice] result:', result)
+  return result
+}
+
 export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   const [loading,      setLoading]      = useState(false)
   const [selectedId,   setSelectedId]   = useState<'analysis'|'content'|'pro'>('pro')
@@ -104,16 +114,13 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   useEffect(() => {
     fetch('https://open.er-api.com/v6/latest/USD')
       .then(r => r.json())
-      .then(data => setRates(data.rates || {}))
-      .catch(() => {})
+      .then(data => {
+        const loaded = data.rates || {}
+        console.log('[UpgradeModal] rates loaded — INR:', loaded['INR'], '| total currencies:', Object.keys(loaded).length)
+        setRates(loaded)
+      })
+      .catch(err => console.error('[UpgradeModal] rates fetch failed:', err))
   }, [])
-
-  function localPrice(usd: number): string {
-    const currency = detectCurrency()
-    if (!currency || !rates[currency]) return ''
-    const amount = Math.round(usd * rates[currency])
-    return `≈ ${new Intl.NumberFormat(navigator.language, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)}`
-  }
 
   const selected = PLANS.find(p => p.id === selectedId)!
 
@@ -226,9 +233,9 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
                   <span style={{ fontSize:18, fontWeight:800, color: active ? p.accent : 'var(--text)' }}>${p.usd}</span>
                   <span style={{ fontSize:10, color:'var(--text3)' }}>{p.period}</span>
                 </div>
-                {localPrice(p.usd) && (
+                {localPrice(p.usd, rates) && (
                   <div style={{ fontSize:10, color:'var(--text3)', marginTop:1 }}>
-                    {localPrice(p.usd)}{p.period !== 'one-time' ? p.period : ''}
+                    {localPrice(p.usd, rates)}{p.period !== 'one-time' ? p.period : ''}
                   </div>
                 )}
               </div>
@@ -242,9 +249,9 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
             <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{selected.name} — what's included</div>
             <div style={{ fontSize:12, color:'var(--text2)', marginTop:2 }}>
               <span style={{ fontWeight:700 }}>${selected.usd}{selected.period}</span>
-              {localPrice(selected.usd) && (
+              {localPrice(selected.usd, rates) && (
                 <span style={{ color:'var(--text3)', marginLeft:6 }}>
-                  {localPrice(selected.usd)}{selected.period !== 'one-time' ? selected.period : ''}
+                  {localPrice(selected.usd, rates)}{selected.period !== 'one-time' ? selected.period : ''}
                 </span>
               )}
             </div>
@@ -264,7 +271,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
         >
           {loading
             ? <><span className="spinner" style={{ color:'#fff' }} /> Processing…</>
-            : `${selected.cta} — $${selected.usd}${selected.period}${localPrice(selected.usd) ? ` (${localPrice(selected.usd)}${selected.period !== 'one-time' ? selected.period : ''})` : ''}`
+            : `${selected.cta} — $${selected.usd}${selected.period}${localPrice(selected.usd, rates) ? ` (${localPrice(selected.usd, rates)}${selected.period !== 'one-time' ? selected.period : ''})` : ''}`
           }
         </button>
 
