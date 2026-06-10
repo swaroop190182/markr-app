@@ -21,18 +21,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: { user }, error: authError } = await supabase.auth.getUser(token)
   if (authError || !user) return res.status(401).json({ error: 'Invalid session' })
 
-  const { planId, type, usdAmount, inrRate: clientRate } = req.body as {
+  const { planId, type, usdAmount, inrRate: clientRate, isIndian } = req.body as {
     planId:     string
     type:       'order' | 'subscription'
     usdAmount?: number
     inrRate?:   number
+    isIndian?:  boolean
   }
 
   const keyId     = process.env.RAZORPAY_KEY_ID!
   const keySecret = process.env.RAZORPAY_KEY_SECRET!
   const auth      = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
 
-  console.log('[subscription/create] planId:', planId, 'type:', type)
+  console.log('[subscription/create] planId:', planId, '| type:', type, '| isIndian:', isIndian)
   console.log('[subscription/create] RAZORPAY_PLAN_ID_CONTENT:', process.env.RAZORPAY_PLAN_ID_CONTENT ?? '(not set)')
   console.log('[subscription/create] RAZORPAY_PLAN_ID_PRO:    ', process.env.RAZORPAY_PLAN_ID_PRO     ?? '(not set)')
   console.log('[subscription/create] RAZORPAY_PLAN_ID (fallback):', process.env.RAZORPAY_PLAN_ID ?? '(not set)')
@@ -46,7 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (type === 'order') {
-      // One-time purchase (Analysis Pack) — charge in INR paise
+      // One-time purchase: Analysis Pack always; subscription plans for international users
+      const isInternationalSubscription = planId !== 'analysis' && !isIndian
+      if (isInternationalSubscription) {
+        console.log(`[subscription/create] International one-time order for ${planId} — renewal reminder needed for user ${user.id}`)
+      }
+
       const usd = usdAmount ?? PLAN_USD[planId] ?? 10
       let inrRate = clientRate
       if (!inrRate) {
@@ -78,6 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         plan:            planId,
         status:          'created',
         razorpay_sub_id: order.id,
+        billing_cycle:   isIndian ? 'one_time' : (planId === 'analysis' ? 'one_time' : 'one_time_international'),
         updated_at:      new Date().toISOString(),
       }, { onConflict: 'user_id' })
 

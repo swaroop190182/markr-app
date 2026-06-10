@@ -96,6 +96,11 @@ function detectCurrency(): string | null {
   return null
 }
 
+function isIndianTimezone(): boolean {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  return tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta'
+}
+
 function localPrice(usd: number, rates: Record<string, number>): string {
   const currency = detectCurrency()
   console.log('[localPrice] usd:', usd, '| currency detected:', currency, '| rate available:', currency ? rates[currency] : 'n/a', '| rates empty:', Object.keys(rates).length === 0)
@@ -110,6 +115,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   const [loading,      setLoading]      = useState(false)
   const [selectedId,   setSelectedId]   = useState<'analysis'|'content'|'pro'>('pro')
   const [rates,        setRates]        = useState<Record<string, number>>({})
+  const isIndian = isIndianTimezone()
 
   useEffect(() => {
     fetch('https://open.er-api.com/v6/latest/USD')
@@ -129,6 +135,12 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
     try {
       await loadRazorpayScript()
 
+      // Indian users get auto-recurring INR subscriptions; international get one-time orders
+      const actualType: 'order' | 'subscription' =
+        selected.rzpType === 'order' ? 'order'
+        : isIndian ? 'subscription'
+        : 'order'
+
       // Fetch live INR rate to pass to backend; fallback 95
       const inrRate: number = await fetch('https://open.er-api.com/v6/latest/USD')
         .then(r => r.json())
@@ -142,7 +154,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
       const res = await fetch('/api/subscription/create', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
-        body: JSON.stringify({ planId: selected.id, type: selected.rzpType, usdAmount: selected.usd, inrRate }),
+        body: JSON.stringify({ planId: selected.id, type: actualType, usdAmount: selected.usd, inrRate, isIndian }),
       })
       const { subscription_id, order_id, key_id, amount_paise, error } = await res.json()
       if (error) throw new Error(error)
@@ -164,7 +176,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
         modal: { ondismiss: () => setLoading(false) },
       }
 
-      if (selected.rzpType === 'order') {
+      if (actualType === 'order') {
         options.order_id = order_id
         options.amount   = amount_paise   // authoritative paise from server
       } else {
@@ -261,6 +273,14 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
               <span style={{ color: selected.accent, flexShrink:0 }}>✓</span>{item}
             </div>
           ))}
+          <div style={{ marginTop:10, paddingTop:8, borderTop:'1px solid var(--border)', fontSize:11, color:'var(--text3)' }}>
+            {selected.rzpType === 'order'
+              ? '🔒 One-time purchase — no recurring charges'
+              : isIndian
+                ? '🔄 Auto-renews monthly via Razorpay · Cancel anytime'
+                : '💳 One-time payment · Renewal reminder sent by email'
+            }
+          </div>
         </div>
 
         {/* CTA */}
@@ -283,7 +303,10 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
         </button>
 
         <div style={{ textAlign:'center', fontSize:11, color:'var(--text3)', marginTop:8 }}>
-          Secured by Razorpay · UPI, cards, net banking accepted
+          {isIndian
+            ? 'Secured by Razorpay · UPI, cards, net banking accepted'
+            : 'Secured by Razorpay · International cards accepted'
+          }
         </div>
       </div>
     </div>
