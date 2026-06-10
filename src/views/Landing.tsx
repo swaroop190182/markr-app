@@ -796,29 +796,57 @@ export default function Landing() {
             <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Pricing</div>
             <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,36px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>Start free. Upgrade when ready.</h2>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }} className="pricing-grid">
-            {[
-              { plan:'Free', usd:0,  period:'forever', color:'rgba(255,255,255,.04)', border:'rgba(255,255,255,.1)', items:['1 app','5 AI calls/day','7-day trial of all features','Content Studio, Strategy & Insights'], cta:'Get started free', ctaHref:'/login', ctaBg:'rgba(255,255,255,.08)', ctaColor:'rgba(255,255,255,.8)', ctaBorder:'1px solid rgba(255,255,255,.12)', badge:null },
-              { plan:'Pro',  usd:12, period:'/month',  color:'rgba(124,111,247,.08)', border:'rgba(124,111,247,.4)', items:['10 apps','50 AI calls/day','Daily email delivery — 3 posts/morning','AI Readiness Assessment','All 5 deep analyses'], cta:'Upgrade to Pro', ctaHref:'/login', ctaBg:'linear-gradient(135deg,#7c6ff7,#9b8af4)', ctaColor:'#fff', ctaBorder:'none', badge:'Most popular' },
-            ].map(p=>(
-              <div key={p.plan} style={{ background:p.color, border:`1.5px solid ${p.border}`, borderRadius:14, padding:'24px 20px', position:'relative' }}>
-                {p.badge && <div style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', background:'#7c6ff7', color:'#fff', fontSize:10, fontWeight:700, padding:'3px 12px', borderRadius:20, whiteSpace:'nowrap' }}>{p.badge}</div>}
-                <div style={{ fontFamily:D, fontSize:15, fontWeight:700, color:'#f0f0f5', marginBottom:6 }}>{p.plan}</div>
-                <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom: localPrice(p.usd) ? 2 : 18 }}>
-                  <span style={{ fontFamily:D, fontSize:30, fontWeight:800, color:'#f0f0f5' }}>${p.usd}</span>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:14 }} className="pricing-grid">
+            {([
+              {
+                plan:'Free', usd:0, period:'forever',
+                color:'rgba(255,255,255,.04)', border:'rgba(255,255,255,.1)',
+                items:['1 app','5 AI calls/day','Landing page score','View saved results'],
+                cta:'Get started free', ctaBg:'rgba(255,255,255,.08)', ctaColor:'rgba(255,255,255,.8)', ctaBorder:'1px solid rgba(255,255,255,.12)',
+                badge:null, highlight:false,
+              },
+              {
+                plan:'Analysis Pack', usd:10, period:'one-time',
+                color:'rgba(52,201,138,.05)', border:'rgba(52,201,138,.3)',
+                items:['3 apps','Full landing page analysis','Competitive intelligence','SWOT, BMC, Growth & Pricing strategy','AI copy recommendations','Shareable scorecards','Results saved permanently'],
+                cta:'Buy analysis pack', ctaBg:'linear-gradient(135deg,#34c98a,#22b573)', ctaColor:'#fff', ctaBorder:'none',
+                badge:'One-time', highlight:false,
+              },
+              {
+                plan:'Content Engine', usd:6, period:'/month',
+                color:'rgba(226,111,175,.05)', border:'rgba(226,111,175,.3)',
+                items:['3 apps','30 AI calls/day','3 daily Instagram posts every morning','Weekly content pillar refresh'],
+                cta:'Start content engine', ctaBg:'linear-gradient(135deg,#e26faf,#c4559a)', ctaColor:'#fff', ctaBorder:'none',
+                badge:null, highlight:false,
+              },
+              {
+                plan:'Pro Bundle', usd:14, period:'/month',
+                color:'rgba(124,111,247,.08)', border:'rgba(124,111,247,.5)',
+                items:['10 apps','50 AI calls/day','Everything in Analysis Pack','Everything in Content Engine','Daily email delivery'],
+                cta:'Get Pro Bundle', ctaBg:'linear-gradient(135deg,#7c6ff7,#9b8af4)', ctaColor:'#fff', ctaBorder:'none',
+                badge:'Best value', highlight:true,
+              },
+            ] as const).map(p => (
+              <div key={p.plan} style={{ background:p.color, border:`1.5px solid ${p.border}`, borderRadius:14, padding:'24px 20px', position:'relative', boxShadow: p.highlight ? '0 0 0 1px rgba(124,111,247,.3), 0 8px 32px rgba(124,111,247,.15)' : 'none' }}>
+                {p.badge && (
+                  <div style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', background: p.highlight ? '#7c6ff7' : '#34c98a', color:'#fff', fontSize:10, fontWeight:700, padding:'3px 12px', borderRadius:20, whiteSpace:'nowrap' as const }}>{p.badge}</div>
+                )}
+                <div style={{ fontFamily:D, fontSize:15, fontWeight:700, color:'#f0f0f5', marginBottom:4 }}>{p.plan}</div>
+                <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom:2 }}>
+                  <span style={{ fontFamily:D, fontSize:28, fontWeight:800, color:'#f0f0f5' }}>${p.usd}</span>
                   <span style={{ fontSize:12, color:'rgba(255,255,255,.4)' }}>{p.period}</span>
                 </div>
-                {localPrice(p.usd) && (
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,.35)', marginBottom:14 }}>{localPrice(p.usd)}</div>
-                )}
-                {p.items.map(item=>(
-                  <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.6)', marginBottom:9, lineHeight:1.5 }}>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', marginBottom:14, minHeight:16 }}>
+                  {p.usd > 0 ? (localPrice(p.usd) || ' ') : ' '}
+                </div>
+                {p.items.map(item => (
+                  <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.6)', marginBottom:8, lineHeight:1.5 }}>
                     <span style={{ color:'#34c98a', flexShrink:0 }}>✓</span>{item}
                   </div>
                 ))}
-                <a href={p.ctaHref} style={{ display:'block', textAlign:'center', padding:'11px', borderRadius:8, fontSize:13, fontWeight:700, textDecoration:'none', marginTop:18, fontFamily:B, background:p.ctaBg, color:p.ctaColor, border:p.ctaBorder, transition:'opacity .15s' }}
-                  onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.85'}
-                  onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>{p.cta}</a>
+                <a href="/login" style={{ display:'block', textAlign:'center', padding:'11px', borderRadius:8, fontSize:13, fontWeight:700, textDecoration:'none', marginTop:18, fontFamily:B, background:p.ctaBg, color:p.ctaColor, border:p.ctaBorder, transition:'opacity .15s' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '.85'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>{p.cta}</a>
               </div>
             ))}
           </div>
