@@ -21,9 +21,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: { user }, error: authError } = await supabase.auth.getUser(token)
   if (authError || !user) return res.status(401).json({ error: 'Invalid session' })
 
-  const { planId, type, usdAmount, inrRate: clientRate, isIndian } = req.body as {
+  const { planId, usdAmount, inrRate: clientRate, isIndian } = req.body as {
     planId:     string
-    type:       'order' | 'subscription'
     usdAmount?: number
     inrRate?:   number
     isIndian?:  boolean
@@ -33,10 +32,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const keySecret = process.env.RAZORPAY_KEY_SECRET!
   const auth      = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
 
-  console.log('[subscription/create] planId:', planId, '| type:', type, '| isIndian:', isIndian)
+  // Routing decision is server-authoritative:
+  // - Analysis Pack: always one-time order
+  // - Content Engine / Pro Bundle + Indian: Razorpay subscription (pre-created INR plan)
+  // - Content Engine / Pro Bundle + international: one-time order (dynamic INR paise)
+  const useSubscription = planId !== 'analysis' && !!isIndian
+
+  console.log('[subscription/create] planId:', planId, '| isIndian:', isIndian, '| useSubscription:', useSubscription)
   console.log('[subscription/create] RAZORPAY_PLAN_ID_CONTENT:', process.env.RAZORPAY_PLAN_ID_CONTENT ?? '(not set)')
   console.log('[subscription/create] RAZORPAY_PLAN_ID_PRO:    ', process.env.RAZORPAY_PLAN_ID_PRO     ?? '(not set)')
-  console.log('[subscription/create] RAZORPAY_PLAN_ID (fallback):', process.env.RAZORPAY_PLAN_ID ?? '(not set)')
 
   const notes = {
     user_id: user.id,
@@ -46,9 +50,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    if (type === 'order') {
-      // One-time purchase: Analysis Pack always; subscription plans for international users
-      const isInternationalSubscription = planId !== 'analysis' && !isIndian
+    if (useSubscription) {
+      // ── Indian user: auto-recurring INR subscription ───────────────────────
+      const rzpPlanId = planId === 'content'
+        ? process.env.RAZORPAY_PLAN_ID_CONTENT!
+        : process.env.RAZORPAY_PLAN_ID_PRO!
+
+      if (!rzpPlanId) {
+        throw new Error(`Razorpay plan ID not configured for plan: ${planId}`)
+      }
+
+      console.log('[subscription/create] Creating INR subscription with plan:', rzpPlanId)
+
+      const rzpRes = await fetch('https://api.razorpay.com/v1/subscriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_id:         rzpPlanId,
+          total_count:     120,
+          quantity:        1,
+          customer_notify: 1,
+          notes,
+        }),
+      })
+      const sub = await rzpRes.json()
+      if (sub.error) throw new Error(sub.error.description)
+
+      await supabase.from('markr_subscriptions').upsert({
+        user_id:         user.id,
+        plan:            planId,
+        status:          'created',
+        razorpay_sub_id: sub.id,
+        billing_cycle:   'recurring_inr',
+        updated_at:      new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+
+      return res.status(200).json({ subscription_id: sub.id, key_id: keyId })
+
+    } else {
+      // ── One-time order: Analysis Pack (all users) or subscription plan (international) ──
+      const isInternationalSubscription = planId !== 'analysis'
       if (isInternationalSubscription) {
         console.log(`[subscription/create] International one-time order for ${planId} — renewal reminder needed for user ${user.id}`)
       }
@@ -63,12 +104,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const amountPaise = Math.round(usd * inrRate * 100)
 
+      console.log(`[subscription/create] Creating order: $${usd} × ${inrRate} = ${amountPaise} paise`)
+
       const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
         method: 'POST',
-        headers: {
-          'Authorization':  `Basic ${auth}`,
-          'Content-Type':   'application/json',
-        },
+        headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount:   amountPaise,
           currency: 'INR',
@@ -84,52 +124,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         plan:            planId,
         status:          'created',
         razorpay_sub_id: order.id,
-        billing_cycle:   isIndian ? 'one_time' : (planId === 'analysis' ? 'one_time' : 'one_time_international'),
+        billing_cycle:   isInternationalSubscription ? 'one_time_international' : 'one_time',
         updated_at:      new Date().toISOString(),
       }, { onConflict: 'user_id' })
 
-      return res.status(200).json({
-        order_id:     order.id,
-        key_id:       keyId,
-        amount_paise: amountPaise,
-      })
-    } else {
-      // Recurring subscription (Content Engine or Pro Bundle)
-      // Use per-plan Razorpay plan ID from env, falling back to the default
-      const rzpPlanId = planId === 'content'
-        ? (process.env.RAZORPAY_PLAN_ID_CONTENT ?? process.env.RAZORPAY_PLAN_ID!)
-        : (process.env.RAZORPAY_PLAN_ID_PRO     ?? process.env.RAZORPAY_PLAN_ID!)
-
-      const rzpRes = await fetch('https://api.razorpay.com/v1/subscriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type':  'application/json',
-        },
-        body: JSON.stringify({
-          plan_id:         rzpPlanId,
-          total_count:     120,   // 10 years max
-          quantity:        1,
-          customer_notify: 1,
-          notes,
-        }),
-      })
-      const sub = await rzpRes.json()
-      if (sub.error) throw new Error(sub.error.description)
-
-      await supabase.from('markr_subscriptions').upsert({
-        user_id:         user.id,
-        plan:            planId,
-        status:          'created',
-        razorpay_sub_id: sub.id,
-        updated_at:      new Date().toISOString(),
-      }, { onConflict: 'user_id' })
-
-      return res.status(200).json({
-        subscription_id: sub.id,
-        key_id:          keyId,
-      })
+      return res.status(200).json({ order_id: order.id, key_id: keyId, amount_paise: amountPaise })
     }
+
   } catch (e) {
     console.error('Create subscription error:', e)
     return res.status(500).json({ error: (e as Error).message })

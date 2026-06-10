@@ -154,7 +154,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
       const res = await fetch('/api/subscription/create', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
-        body: JSON.stringify({ planId: selected.id, type: actualType, usdAmount: selected.usd, inrRate, isIndian }),
+        body: JSON.stringify({ planId: selected.id, usdAmount: selected.usd, inrRate, isIndian }),
       })
       const { subscription_id, order_id, key_id, amount_paise, error } = await res.json()
       if (error) throw new Error(error)
