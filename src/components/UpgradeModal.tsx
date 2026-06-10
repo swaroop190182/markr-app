@@ -86,24 +86,18 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
       .catch(() => {})
   }, [])
 
-  function localPrice(usd: number, period?: string): string {
+  function localPrice(usd: number): string {
     const locale = navigator.language
     const currencyMap: Record<string, string> = {
       'en-IN': 'INR', 'hi': 'INR', 'hi-IN': 'INR',
-      'en-GB': 'GBP', 'en-AU': 'AUD', 'en-CA': 'CAD',
-      'de': 'EUR', 'de-DE': 'EUR', 'fr': 'EUR', 'fr-FR': 'EUR',
-      'es': 'EUR', 'es-ES': 'EUR', 'it': 'EUR', 'it-IT': 'EUR',
-      'ja': 'JPY', 'ja-JP': 'JPY',
-      'ko': 'KRW', 'ko-KR': 'KRW',
-      'pt-BR': 'BRL', 'pt': 'BRL',
+      'en-GB': 'GBP', 'en-AU': 'AUD',
+      'en-CA': 'CAD', 'de': 'EUR', 'fr': 'EUR', 'es': 'EUR',
     }
     const lang = locale.split('-')[0]
     const currency = currencyMap[locale] || currencyMap[lang]
     if (!currency || !rates[currency]) return ''
-    const amount = usd * rates[currency]
-    const formatted = `≈ ${new Intl.NumberFormat(locale, { style:'currency', currency, maximumFractionDigits:0 }).format(amount)}`
-    if (!period || period === 'one-time') return formatted
-    return `${formatted}${period}`
+    const amount = Math.round(usd * rates[currency])
+    return `≈ ${new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)}`
   }
 
   const selected = PLANS.find(p => p.id === selectedId)!
@@ -217,8 +211,10 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
                   <span style={{ fontSize:18, fontWeight:800, color: active ? p.accent : 'var(--text)' }}>${p.usd}</span>
                   <span style={{ fontSize:10, color:'var(--text3)' }}>{p.period}</span>
                 </div>
-                {localPrice(p.usd, p.period) && (
-                  <div style={{ fontSize:10, color:'var(--text3)', marginTop:1 }}>{localPrice(p.usd, p.period)}</div>
+                {localPrice(p.usd) && (
+                  <div style={{ fontSize:10, color:'var(--text3)', marginTop:1 }}>
+                    {localPrice(p.usd)}{p.period !== 'one-time' ? p.period : ''}
+                  </div>
                 )}
               </div>
             )
@@ -231,8 +227,10 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
             <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{selected.name} — what's included</div>
             <div style={{ fontSize:12, color:'var(--text2)', marginTop:2 }}>
               <span style={{ fontWeight:700 }}>${selected.usd}{selected.period}</span>
-              {localPrice(selected.usd, selected.period) && (
-                <span style={{ color:'var(--text3)', marginLeft:6 }}>{localPrice(selected.usd, selected.period)}</span>
+              {localPrice(selected.usd) && (
+                <span style={{ color:'var(--text3)', marginLeft:6 }}>
+                  {localPrice(selected.usd)}{selected.period !== 'one-time' ? selected.period : ''}
+                </span>
               )}
             </div>
           </div>
@@ -251,7 +249,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
         >
           {loading
             ? <><span className="spinner" style={{ color:'#fff' }} /> Processing…</>
-            : `${selected.cta} — $${selected.usd}${selected.period}${localPrice(selected.usd, selected.period) ? ` (${localPrice(selected.usd, selected.period)})` : ''}`
+            : `${selected.cta} — $${selected.usd}${selected.period}${localPrice(selected.usd) ? ` (${localPrice(selected.usd)}${selected.period !== 'one-time' ? selected.period : ''})` : ''}`
           }
         </button>
 
