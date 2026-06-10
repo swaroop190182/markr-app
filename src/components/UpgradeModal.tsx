@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { useStore } from '../lib/store'
 import { toast } from './Toast'
 
 interface Props {
@@ -9,15 +8,79 @@ interface Props {
 }
 
 declare global {
-  interface Window {
-    Razorpay: any
-  }
+  interface Window { Razorpay: any }
 }
 
+const PLANS = [
+  {
+    id:        'analysis' as const,
+    name:      'Analysis Pack',
+    usd:       10,
+    period:    'one-time',
+    badge:     null,
+    accent:    '#34c98a',
+    border:    'rgba(52,201,138,.35)',
+    bg:        'rgba(52,201,138,.06)',
+    ctaBg:     'linear-gradient(135deg,#34c98a,#22b573)',
+    rzpAmount: 1000,
+    rzpType:   'order' as const,
+    items: [
+      '3 apps',
+      'Full landing page analysis',
+      'Competitive intelligence',
+      'SWOT, BMC, Growth & Pricing strategy',
+      'AI copy recommendations',
+      'One-time purchase — results saved permanently',
+    ],
+    cta: 'Buy Analysis Pack',
+  },
+  {
+    id:        'content' as const,
+    name:      'Content Engine',
+    usd:       6,
+    period:    '/month',
+    badge:     null,
+    accent:    '#e26faf',
+    border:    'rgba(226,111,175,.35)',
+    bg:        'rgba(226,111,175,.06)',
+    ctaBg:     'linear-gradient(135deg,#e26faf,#c4559a)',
+    rzpAmount: 600,
+    rzpType:   'subscription' as const,
+    items: [
+      '3 apps',
+      '30 AI calls/day',
+      '3 daily Instagram posts every morning',
+      'Weekly content pillar refresh',
+    ],
+    cta: 'Start Content Engine',
+  },
+  {
+    id:        'pro' as const,
+    name:      'Pro Bundle',
+    usd:       14,
+    period:    '/month',
+    badge:     'Best value',
+    accent:    '#7c6ff7',
+    border:    'rgba(124,111,247,.5)',
+    bg:        'rgba(124,111,247,.08)',
+    ctaBg:     'linear-gradient(135deg,#7c6ff7,#9b8af4)',
+    rzpAmount: 1400,
+    rzpType:   'subscription' as const,
+    items: [
+      '10 apps',
+      '50 AI calls/day',
+      'Everything in Analysis Pack',
+      'Everything in Content Engine',
+      'Daily email delivery',
+    ],
+    cta: 'Get Pro Bundle',
+  },
+] as const
+
 export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
-  const { plan } = useStore()
-  const [loading, setLoading] = useState(false)
-  const [rates,   setRates]   = useState<Record<string, number>>({})
+  const [loading,      setLoading]      = useState(false)
+  const [selectedId,   setSelectedId]   = useState<'analysis'|'content'|'pro'>('pro')
+  const [rates,        setRates]        = useState<Record<string, number>>({})
 
   useEffect(() => {
     fetch('https://open.er-api.com/v6/latest/USD')
@@ -41,66 +104,50 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
     return `≈ ${new Intl.NumberFormat(locale, { style:'currency', currency, maximumFractionDigits:0 }).format(amount)}`
   }
 
-  const triggerMessages = {
-    trial_expired: 'Your free trial has ended. Upgrade to Pro to keep using Markr.',
-    feature_gate:  'This feature is available on Pro. Upgrade to unlock it.',
-    manual:        'Upgrade to Pro for unlimited apps, full AI features, and product testing.',
-  }
+  const selected = PLANS.find(p => p.id === selectedId)!
 
   async function handleUpgrade() {
     setLoading(true)
     try {
-      // Load Razorpay script
       await loadRazorpayScript()
 
-      // Get auth token
       const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
       if (!token) throw new Error('Not logged in')
 
-      // Create subscription on server
       const res = await fetch('/api/subscription/create', {
         method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
+        body: JSON.stringify({ planId: selected.id, amount: selected.rzpAmount, type: selected.rzpType }),
       })
-      const { subscription_id, key_id, error } = await res.json()
+      const { subscription_id, order_id, key_id, error } = await res.json()
       if (error) throw new Error(error)
 
-      // Get user details
       const { data: { user } } = await supabase.auth.getUser()
 
-      // Open Razorpay checkout
-      const options = {
-        key:             key_id,
-        subscription_id: subscription_id,
-        name:            'Markr',
-        description:     'Pro Plan — ₹999/month',
-        image:           'https://markr.mindprintjournal.com/icon.png',
-        prefill: {
-          email: user?.email ?? '',
-        },
-        theme: {
-          color: '#7c6ff7',
-        },
-        handler: async function(response: any) {
-          // Payment successful
-          toast('🎉 Welcome to Pro! Your account is being upgraded…', 5000)
+      const options: any = {
+        key:   key_id,
+        name:  'Markr',
+        description: `${selected.name} — $${selected.usd}${selected.period}`,
+        image: 'https://markr.mindprintjournal.com/icon.png',
+        prefill: { email: user?.email ?? '' },
+        theme: { color: selected.accent },
+        handler: () => {
+          toast(`🎉 Welcome to ${selected.name}! Your account is being upgraded…`, 5000)
           onClose()
-          // Poll for webhook to update plan (usually takes 2-5 seconds)
           setTimeout(() => window.location.reload(), 3000)
         },
-        modal: {
-          ondismiss: () => {
-            setLoading(false)
-          }
-        }
+        modal: { ondismiss: () => setLoading(false) },
       }
 
-      const rzp = new window.Razorpay(options)
-      rzp.open()
+      if (selected.rzpType === 'order') {
+        options.order_id = order_id
+        options.amount   = selected.rzpAmount
+      } else {
+        options.subscription_id = subscription_id
+      }
+
+      new window.Razorpay(options).open()
     } catch (e) {
       toast('Payment failed: ' + (e as Error).message)
       setLoading(false)
@@ -118,48 +165,66 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
     })
   }
 
+  const triggerMessages: Record<string, string> = {
+    trial_expired: 'Your free trial has ended. Choose a plan to keep using Markr.',
+    feature_gate:  'This feature requires a paid plan. Upgrade to unlock it.',
+    manual:        'Choose the plan that fits how you use Markr.',
+  }
+
   return (
     <div
-      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}
+      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:'16px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background:'var(--surface)', border:'1px solid rgba(124,111,247,.3)', borderRadius:'var(--r2)', padding:28, width:440, maxWidth:'95vw' }}
-        onClick={e => e.stopPropagation()}>
-
+      <div
+        style={{ background:'var(--surface)', border:'1px solid rgba(124,111,247,.25)', borderRadius:'var(--r2)', padding:24, width:560, maxWidth:'100%', maxHeight:'90vh', overflowY:'auto' }}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
-        <div style={{ textAlign:'center', marginBottom:24 }}>
-          <div style={{ width:56, height:56, borderRadius:16, background:'linear-gradient(135deg,rgba(124,111,247,.2),rgba(226,111,175,.15))', border:'1px solid rgba(124,111,247,.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 14px' }}>⚡</div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, marginBottom:8 }}>Upgrade to Markr Pro</div>
-          <div style={{ fontSize:13, color:'var(--text3)', lineHeight:1.6 }}>{triggerMessages[trigger]}</div>
+        <div style={{ textAlign:'center', marginBottom:20 }}>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:19, fontWeight:800, marginBottom:6 }}>Upgrade Markr</div>
+          <div style={{ fontSize:13, color:'var(--text3)', lineHeight:1.5 }}>{triggerMessages[trigger]}</div>
         </div>
 
-        {/* Price */}
-        <div style={{ textAlign:'center', padding:'16px 0', marginBottom:20, borderTop:'1px solid var(--border)', borderBottom:'1px solid var(--border)' }}>
-          <div style={{ display:'flex', alignItems:'baseline', gap:4, justifyContent:'center' }}>
-            <span style={{ fontFamily:"'Syne',sans-serif", fontSize:42, fontWeight:800, color:'#a599ff', letterSpacing:'-0.03em' }}>$12</span>
-            <span style={{ fontSize:14, color:'var(--text3)' }}>/month</span>
+        {/* Plan selector — 3 compact cards */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:20 }}>
+          {PLANS.map(p => {
+            const active = selectedId === p.id
+            return (
+              <div
+                key={p.id}
+                onClick={() => setSelectedId(p.id)}
+                style={{
+                  position:'relative', borderRadius:10, padding:'12px 10px', cursor:'pointer',
+                  background: active ? p.bg : 'var(--surface2)',
+                  border: `1.5px solid ${active ? p.border : 'var(--border)'}`,
+                  transition:'border .15s, background .15s',
+                }}
+              >
+                {p.badge && (
+                  <div style={{ position:'absolute', top:-8, left:'50%', transform:'translateX(-50%)', background:p.accent, color:'#fff', fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:20, whiteSpace:'nowrap' as const }}>{p.badge}</div>
+                )}
+                <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:3 }}>{p.name}</div>
+                <div style={{ display:'flex', alignItems:'baseline', gap:2 }}>
+                  <span style={{ fontSize:18, fontWeight:800, color: active ? p.accent : 'var(--text)' }}>${p.usd}</span>
+                  <span style={{ fontSize:10, color:'var(--text3)' }}>{p.period}</span>
+                </div>
+                {localPrice(p.usd) && (
+                  <div style={{ fontSize:10, color:'var(--text3)', marginTop:1 }}>{localPrice(p.usd)}</div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Selected plan details */}
+        <div style={{ border:`1px solid ${selected.border}`, borderRadius:10, padding:'14px 16px', marginBottom:20, background: selected.bg }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:10 }}>
+            {selected.name} — what's included
           </div>
-          {localPrice(12) && (
-            <div style={{ fontSize:12, color:'var(--text3)', marginTop:2 }}>{localPrice(12)}</div>
-          )}
-          <div style={{ fontSize:12, color:'var(--text3)', marginTop:4 }}>Cancel anytime · No hidden fees</div>
-        </div>
-
-        {/* Features */}
-        <div style={{ marginBottom:24 }}>
-          {[
-            ['🚀', 'Unlimited apps'],
-            ['✍️', 'Daily content generation'],
-            ['🧪', 'AI Readiness Assessment — scores how well your app communicates its value'],
-            ['🔍', 'Competitive intelligence'],
-            ['📊', 'Growth playbook & SWOT'],
-            ['💰', 'Pricing strategy'],
-            ['⚡', '200 AI calls/day'],
-          ].map(([icon, label]) => (
-            <div key={label} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderBottom:'1px solid var(--border)', fontSize:13 }}>
-              <span style={{ fontSize:16, flexShrink:0 }}>{icon}</span>
-              <span style={{ color:'var(--text)' }}>{label}</span>
-              <span style={{ marginLeft:'auto', color:'var(--green)', fontSize:12 }}>✓</span>
+          {selected.items.map(item => (
+            <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'var(--text2)', marginBottom:7, lineHeight:1.5 }}>
+              <span style={{ color: selected.accent, flexShrink:0 }}>✓</span>{item}
             </div>
           ))}
         </div>
@@ -168,11 +233,11 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
         <button
           onClick={handleUpgrade}
           disabled={loading}
-          style={{ width:'100%', padding:'13px 20px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', fontSize:15, fontWeight:700, cursor: loading?'not-allowed':'pointer', fontFamily:"'DM Sans',sans-serif", opacity: loading?0.7:1, transition:'all .2s', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 0 30px rgba(124,111,247,.3)' }}
+          style={{ width:'100%', padding:'13px 20px', borderRadius:9, background: selected.ctaBg, color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily:"'DM Sans',sans-serif", opacity: loading ? 0.7 : 1, transition:'all .2s', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}
         >
           {loading
             ? <><span className="spinner" style={{ color:'#fff' }} /> Processing…</>
-            : `⚡ Upgrade to Pro — $12/month${localPrice(12) ? ` (${localPrice(12)})` : ''}`
+            : `${selected.cta} — $${selected.usd}${selected.period}${localPrice(selected.usd) ? ` (${localPrice(selected.usd)})` : ''}`
           }
         </button>
 
