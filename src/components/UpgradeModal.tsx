@@ -22,7 +22,6 @@ const PLANS = [
     border:    'rgba(52,201,138,.35)',
     bg:        'rgba(52,201,138,.06)',
     ctaBg:     'linear-gradient(135deg,#34c98a,#22b573)',
-    rzpAmount: 1000,
     rzpType:   'order' as const,
     items: [
       '3 apps',
@@ -44,7 +43,6 @@ const PLANS = [
     border:    'rgba(226,111,175,.35)',
     bg:        'rgba(226,111,175,.06)',
     ctaBg:     'linear-gradient(135deg,#e26faf,#c4559a)',
-    rzpAmount: 600,
     rzpType:   'subscription' as const,
     items: [
       '3 apps',
@@ -64,7 +62,6 @@ const PLANS = [
     border:    'rgba(124,111,247,.5)',
     bg:        'rgba(124,111,247,.08)',
     ctaBg:     'linear-gradient(135deg,#7c6ff7,#9b8af4)',
-    rzpAmount: 1400,
     rzpType:   'subscription' as const,
     items: [
       '10 apps',
@@ -111,6 +108,13 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
     try {
       await loadRazorpayScript()
 
+      // Fetch live INR rate; fallback to 84 if fetch fails
+      const inrRate: number = await fetch('https://open.er-api.com/v6/latest/USD')
+        .then(r => r.json())
+        .then(d => d.rates?.INR ?? 95)
+        .catch(() => 95)
+      const amountPaise = Math.round(selected.usd * inrRate * 100)
+
       const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
       if (!token) throw new Error('Not logged in')
@@ -118,7 +122,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
       const res = await fetch('/api/subscription/create', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${token}` },
-        body: JSON.stringify({ planId: selected.id, amount: selected.rzpAmount, type: selected.rzpType }),
+        body: JSON.stringify({ planId: selected.id, amount: amountPaise, type: selected.rzpType }),
       })
       const { subscription_id, order_id, key_id, error } = await res.json()
       if (error) throw new Error(error)
@@ -142,7 +146,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
 
       if (selected.rzpType === 'order') {
         options.order_id = order_id
-        options.amount   = selected.rzpAmount
+        options.amount   = amountPaise  // paise: usd × inrRate × 100
       } else {
         options.subscription_id = subscription_id
       }
