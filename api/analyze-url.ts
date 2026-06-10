@@ -533,7 +533,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   return {
     overall: finalOverall,
     cappedBy,
-    headline: headline.slice(0,80) || 'No headline detected',
+    headline: headline || 'No headline detected',
     category,
     dimensions,
     bottleneck:   { label: bottleneck.label, issue: bottleneck.issue },
