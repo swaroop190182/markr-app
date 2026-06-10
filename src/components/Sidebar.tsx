@@ -211,7 +211,7 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
             </div>
           )}
           <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700, background: plan === 'pro' ? 'rgba(52,201,138,.12)' : 'rgba(124,111,247,.1)', color: plan === 'pro' ? 'var(--green)' : 'var(--accent2)', border: `1px solid ${plan === 'pro' ? 'rgba(52,201,138,.25)' : 'rgba(124,111,247,.2)'}` }}>
-            {plan === 'pro' ? '✓ Pro' : `Free · ${daysLeftInTrial}d left`}
+            {plan === 'pro' ? '✓ Pro' : plan === 'analysis' ? '✓ Analysis' : plan === 'content' ? '✓ Content' : `Free · ${daysLeftInTrial}d left`}
           </span>
         </div>
       </div>
@@ -220,7 +220,7 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
         <div style={{ padding: '6px 10px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div style={{ fontSize: 11, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex:1 }}>{userEmail}</div>
           <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700, flexShrink:0, background: plan === 'pro' ? 'rgba(52,201,138,.12)' : 'rgba(124,111,247,.1)', color: plan === 'pro' ? 'var(--green)' : 'var(--accent2)', border: `1px solid ${plan === 'pro' ? 'rgba(52,201,138,.25)' : 'rgba(124,111,247,.2)'}` }}>
-            {plan === 'pro' ? '✓ Pro' : `Free`}
+            {plan === 'pro' ? '✓ Pro' : plan === 'analysis' ? '✓ Analysis' : plan === 'content' ? '✓ Content' : 'Free'}
           </span>
         </div>
       </div>

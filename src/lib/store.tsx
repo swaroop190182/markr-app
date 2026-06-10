@@ -6,39 +6,64 @@ import { supabase } from './supabase'
 // ── Plan config ────────────────────────────────────────────────────────────────
 const PRO_EMAILS = ['swaroop.raghu@gmail.com', 'swaroop.82@gmail.com']
 
-export const PLAN_CONFIG = {
-  pro: {
-    callsPerDay:    200,
-    appLimit:       Infinity,
-    trialDays:      null,       // no trial — always Pro
-    productTest:    true,
-    fullInsights:   true,
-  },
+export type PlanType = 'free' | 'analysis' | 'content' | 'pro'
+
+export const PLAN_CONFIG: Record<PlanType, {
+  callsPerDay: number
+  appLimit:    number
+  features:    string[]
+  trialDays:   number | null
+  oneTime:     boolean
+}> = {
   free: {
-    callsPerDay:    5,          // reduced from 20 — protects margins
-    appLimit:       1,
-    trialDays:      7,          // 7 days then locked
-    productTest:    false,      // Pro only — most expensive call
-    fullInsights:   true,       // competitive/BMC/SWOT/growth/pricing still free
+    callsPerDay: 5,
+    appLimit:    1,
+    features:    ['score'],
+    trialDays:   7,
+    oneTime:     false,
+  },
+  analysis: {
+    callsPerDay: 0,
+    appLimit:    3,
+    features:    ['score','competitive','swot','bmc','growth','pricing','ai_recommendations'],
+    trialDays:   null,
+    oneTime:     true,   // one-time purchase — never expires
+  },
+  content: {
+    callsPerDay: 30,
+    appLimit:    3,
+    features:    ['score','content_studio','pillars'],
+    trialDays:   null,
+    oneTime:     false,
+  },
+  pro: {
+    callsPerDay: 50,
+    appLimit:    10,
+    features:    ['all'],
+    trialDays:   null,
+    oneTime:     false,
   },
 }
 
-export function getUserPlan(email: string): 'pro' | 'free' {
+export function planHasFeature(plan: PlanType, feature: string): boolean {
+  const { features } = PLAN_CONFIG[plan]
+  return features.includes('all') || features.includes(feature)
+}
+
+export function getUserPlan(email: string): PlanType {
   return PRO_EMAILS.includes(email.toLowerCase()) ? 'pro' : 'free'
 }
 
-export function getAppLimit(plan: 'pro' | 'free'): number {
+export function getAppLimit(plan: PlanType): number {
   return PLAN_CONFIG[plan].appLimit
 }
 
-// Check if trial has expired (based on account created_at from Supabase)
-export function isTrialExpired(createdAt: string, plan: 'pro' | 'free'): boolean {
-  if (plan === 'pro') return false
+// Check if trial has expired (only free plan has a trial)
+export function isTrialExpired(createdAt: string, plan: PlanType): boolean {
+  if (plan !== 'free') return false
   const trialDays = PLAN_CONFIG.free.trialDays
   if (!trialDays) return false
-  const created  = new Date(createdAt).getTime()
-  const now      = Date.now()
-  const daysPassed = (now - created) / (1000 * 60 * 60 * 24)
+  const daysPassed = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24)
   return daysPassed > trialDays
 }
 
@@ -47,7 +72,7 @@ interface AppStore {
   currentApp: AppData
   view: ViewType
   loading: boolean
-  plan: 'pro' | 'free'
+  plan: PlanType
   userEmail: string
   canAddApp: boolean
   canUseProductTest: boolean
@@ -74,15 +99,15 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
   const [view,          setView]          = useState<ViewType>('overview')
   const [loading,       setLoading]       = useState(true)
   const [userCreatedAt, setUserCreatedAt] = useState<string>(new Date().toISOString())
-  const [dbPlan,        setDbPlan]        = useState<'pro'|'free'|null>(null)
+  const [dbPlan,        setDbPlan]        = useState<PlanType | null>(null)
 
   // Plan: hardcoded pro emails always win, otherwise read from DB
   const emailPlan = getUserPlan(userEmail)
-  const plan: 'pro'|'free' = emailPlan === 'pro' ? 'pro' : (dbPlan ?? 'free')
+  const plan: PlanType = emailPlan === 'pro' ? 'pro' : (dbPlan ?? 'free')
 
   const appLimit          = getAppLimit(plan)
   const canAddApp         = apps.length < appLimit
-  const canUseProductTest = PLAN_CONFIG[plan].productTest
+  const canUseProductTest = planHasFeature(plan, 'product_test')  // only 'pro' (features:['all'])
   const trialExpired      = isTrialExpired(userCreatedAt, plan)
   const daysLeftInTrial   = plan === 'free'
     ? Math.max(0, Math.ceil((PLAN_CONFIG.free.trialDays! - (Date.now() - new Date(userCreatedAt).getTime()) / (1000*60*60*24))))
@@ -99,11 +124,13 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
       .eq('user_id', userId)
       .single()
       .then(({ data }) => {
-        if (data?.plan === 'pro' && data?.status === 'active') {
-          // Check if subscription is still valid
-          const periodEnd = data.current_period_end
-          if (!periodEnd || new Date(periodEnd) > new Date()) {
-            setDbPlan('pro')
+        const validPlans: PlanType[] = ['pro', 'analysis', 'content', 'free']
+        if (data?.status === 'active' && validPlans.includes(data?.plan)) {
+          const loadedPlan = data.plan as PlanType
+          const periodEnd  = data.current_period_end
+          // oneTime plans (analysis) never expire; others check period_end
+          if (PLAN_CONFIG[loadedPlan].oneTime || !periodEnd || new Date(periodEnd) > new Date()) {
+            setDbPlan(loadedPlan)
           }
         }
       })

@@ -61,9 +61,9 @@ export default function Admin() {
     setLoading(false)
   }
 
-  async function setPlan(id: string, plan: 'pro'|'free') {
+  async function setPlan(id: string, plan: 'pro'|'analysis'|'content'|'free') {
     const { error } = await supabase.from('markr_subscriptions')
-      .upsert({ user_id:id, plan, status:plan==='pro'?'active':'inactive', updated_at:new Date().toISOString() }, { onConflict:'user_id' })
+      .upsert({ user_id:id, plan, status: plan !== 'free' ? 'active' : 'inactive', updated_at:new Date().toISOString() }, { onConflict:'user_id' })
     if (error) { msg('Error: '+error.message); return }
     msg('Updated to '+plan)
     setUsers(p => p.map(u => u.id===id ? {...u,plan} : u))
