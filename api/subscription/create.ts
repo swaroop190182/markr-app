@@ -53,10 +53,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (useSubscription) {
-      // ── Indian user: auto-recurring INR subscription ───────────────────────
+      // ── Indian user: auto-recurring subscription using INR plan IDs ────────
+      // useSubscription is only true when isIndian=true, so always use INR plans here
       const rzpPlanId = planId === 'content'
-        ? (isIndian ? process.env.RAZORPAY_PLAN_ID_CONTENT_INR! : process.env.RAZORPAY_PLAN_ID_CONTENT!)
-        : (isIndian ? process.env.RAZORPAY_PLAN_ID_PRO_INR!     : process.env.RAZORPAY_PLAN_ID_PRO!)
+        ? process.env.RAZORPAY_PLAN_ID_CONTENT_INR!
+        : process.env.RAZORPAY_PLAN_ID_PRO_INR!
 
       if (!rzpPlanId) {
         throw new Error(`Razorpay plan ID not configured for plan: ${planId}`)
