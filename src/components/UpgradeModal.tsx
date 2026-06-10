@@ -17,6 +17,7 @@ const PLANS = [
     name:      'Analysis Pack',
     usd:       10,
     period:    'one-time',
+    billingLabel: 'ONE-TIME PURCHASE',
     badge:     null,
     accent:    '#34c98a',
     border:    'rgba(52,201,138,.35)',
@@ -24,53 +25,35 @@ const PLANS = [
     ctaBg:     'linear-gradient(135deg,#34c98a,#22b573)',
     rzpType:   'order' as const,
     items: [
-      '3 apps',
-      'Full landing page analysis',
-      'Competitive intelligence',
+      'Full growth audit for your app',
+      'Competitive intelligence — 5 real competitors',
       'SWOT, BMC, Growth & Pricing strategy',
-      'AI copy recommendations',
-      'One-time purchase — results saved permanently',
+      'AI copy recommendations & headline rewrites',
+      'Shareable scorecard',
+      'Results saved permanently · 1 app',
     ],
-    cta: 'Buy Analysis Pack',
-  },
-  {
-    id:        'content' as const,
-    name:      'Content Engine',
-    usd:       6,
-    period:    '/month',
-    badge:     null,
-    accent:    '#e26faf',
-    border:    'rgba(226,111,175,.35)',
-    bg:        'rgba(226,111,175,.06)',
-    ctaBg:     'linear-gradient(135deg,#e26faf,#c4559a)',
-    rzpType:   'subscription' as const,
-    items: [
-      '3 apps',
-      '30 AI calls/day',
-      '3 daily Instagram posts every morning',
-      'Weekly content pillar refresh',
-    ],
-    cta: 'Start Content Engine',
+    cta: 'Buy audit — $10',
   },
   {
     id:        'pro' as const,
-    name:      'Pro Bundle',
+    name:      'Pro',
     usd:       14,
     period:    '/month',
-    badge:     'Best value',
+    billingLabel: '/month · cancel anytime',
+    badge:     'Most popular',
     accent:    '#7c6ff7',
-    border:    'rgba(124,111,247,.5)',
-    bg:        'rgba(124,111,247,.08)',
+    border:    'rgba(124,111,247,.6)',
+    bg:        'rgba(124,111,247,.1)',
     ctaBg:     'linear-gradient(135deg,#7c6ff7,#9b8af4)',
     rzpType:   'subscription' as const,
     items: [
-      '10 apps',
-      '50 AI calls/day',
       'Everything in Analysis Pack',
-      'Everything in Content Engine',
+      '3 daily Instagram posts every morning',
+      'Weekly content refresh',
+      '3 apps',
       'Daily email delivery',
     ],
-    cta: 'Get Pro Bundle',
+    cta: 'Start Pro — $14/month',
   },
 ] as const
 
@@ -113,13 +96,12 @@ function localPrice(usd: number, rates: Record<string, number>): string {
 
 export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   const [loading,      setLoading]      = useState(false)
-  const [selectedId,   setSelectedId]   = useState<'analysis'|'content'|'pro'>('pro')
+  const [selectedId,   setSelectedId]   = useState<'analysis'|'pro'>('pro')
   const [rates,        setRates]        = useState<Record<string, number>>({})
   const isIndian = isIndianTimezone()
 
   const localPrices = useMemo(() => ({
     analysis: localPrice(10, rates),
-    content:  localPrice(6,  rates),
     pro:      localPrice(14, rates),
   }), [rates])
 
@@ -235,31 +217,35 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
           <div style={{ fontSize:13, color:'var(--text3)', lineHeight:1.5 }}>{triggerMessages[trigger]}</div>
         </div>
 
-        {/* Plan selector — 3 compact cards */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:20 }}>
+        {/* Plan selector — 2 cards */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:20 }}>
           {PLANS.map(p => {
             const active = selectedId === p.id
+            const isPro  = p.id === 'pro'
             return (
               <div
                 key={p.id}
                 onClick={() => setSelectedId(p.id)}
                 style={{
-                  position:'relative', borderRadius:10, padding:'12px 10px', cursor:'pointer',
+                  position:'relative', borderRadius:11, padding: isPro ? '16px 14px' : '14px 12px', cursor:'pointer',
                   background: active ? p.bg : 'var(--surface2)',
-                  border: `1.5px solid ${active ? p.border : 'var(--border)'}`,
-                  transition:'border .15s, background .15s',
+                  border: `${isPro ? '2px' : '1.5px'} solid ${active ? p.border : 'var(--border)'}`,
+                  boxShadow: active && isPro ? `0 0 0 1px ${p.border}, 0 6px 24px rgba(124,111,247,.2)` : 'none',
+                  transition:'border .15s, background .15s, box-shadow .15s',
                 }}
               >
                 {p.badge && (
-                  <div style={{ position:'absolute', top:-8, left:'50%', transform:'translateX(-50%)', background:p.accent, color:'#fff', fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:20, whiteSpace:'nowrap' as const }}>{p.badge}</div>
+                  <div style={{ position:'absolute', top:-9, left:'50%', transform:'translateX(-50%)', background:p.accent, color:'#fff', fontSize:9, fontWeight:700, padding:'2px 10px', borderRadius:20, whiteSpace:'nowrap' as const }}>{p.badge}</div>
                 )}
-                <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:3 }}>{p.name}</div>
-                <div style={{ display:'flex', alignItems:'baseline', gap:2 }}>
-                  <span style={{ fontSize:18, fontWeight:800, color: active ? p.accent : 'var(--text)' }}>${p.usd}</span>
-                  <span style={{ fontSize:10, color:'var(--text3)' }}>{p.period}</span>
+                <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:4 }}>{p.name}</div>
+                <div style={{ display:'flex', alignItems:'baseline', gap:2, marginBottom:2 }}>
+                  <span style={{ fontSize: isPro ? 22 : 20, fontWeight:800, color: active ? p.accent : 'var(--text)' }}>${p.usd}</span>
+                </div>
+                <div style={{ fontSize:9, fontWeight:600, color: active ? p.accent : 'var(--text3)', textTransform:'uppercase' as const, letterSpacing:'.05em', marginBottom: localPrices[p.id] ? 2 : 0 }}>
+                  {p.billingLabel}
                 </div>
                 {localPrices[p.id] && (
-                  <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>
+                  <div style={{ fontSize:11, color:'var(--text2)' }}>
                     {localPrices[p.id]}{p.period !== 'one-time' ? p.period : ''}
                   </div>
                 )}
@@ -273,10 +259,11 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
           <div style={{ marginBottom:10 }}>
             <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{selected.name} — what's included</div>
             <div style={{ fontSize:12, color:'var(--text2)', marginTop:2 }}>
-              <span style={{ fontWeight:700 }}>${selected.usd}{selected.period}</span>
+              <span style={{ fontWeight:700 }}>${selected.usd}</span>
+              <span style={{ color: selected.accent, fontWeight:600, fontSize:11, marginLeft:5 }}>{selected.billingLabel}</span>
               {localPrices[selected.id] && (
-                <span style={{ color:'var(--text2)', marginLeft:6 }}>
-                  {localPrices[selected.id]}{selected.period !== 'one-time' ? selected.period : ''}
+                <span style={{ color:'var(--text3)', marginLeft:6, fontSize:11 }}>
+                  ({localPrices[selected.id]}{selected.period !== 'one-time' ? selected.period : ''})
                 </span>
               )}
             </div>
@@ -288,10 +275,10 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
           ))}
           <div style={{ marginTop:10, paddingTop:8, borderTop:'1px solid var(--border)', fontSize:11, color:'var(--text3)' }}>
             {selected.rzpType === 'order'
-              ? '🔒 One-time purchase — no recurring charges'
+              ? '🔒 One-time purchase — no subscription, no recurring charges'
               : isIndian
-                ? '🔄 Auto-renews monthly via Razorpay · Cancel anytime'
-                : '💳 One-time payment · Renewal reminder sent by email'
+                ? '🔄 Billed monthly via Razorpay · Cancel anytime from your account'
+                : '💳 Billed monthly · Cancel anytime from your account'
             }
           </div>
         </div>
@@ -304,7 +291,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
         >
           {loading
             ? <><span className="spinner" style={{ color:'#fff' }} /> Processing…</>
-            : `${selected.cta} — $${selected.usd}${selected.period}${localPrice(selected.usd, rates) ? ` (${localPrice(selected.usd, rates)}${selected.period !== 'one-time' ? selected.period : ''})` : ''}`
+            : selected.cta
           }
         </button>
 

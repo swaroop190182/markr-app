@@ -810,59 +810,57 @@ export default function Landing() {
             <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Pricing</div>
             <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,36px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>Start free. Upgrade when ready.</h2>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:14 }} className="pricing-grid">
-            {([
-              {
-                plan:'Free', usd:0, period:'forever',
-                color:'rgba(255,255,255,.04)', border:'rgba(255,255,255,.1)',
-                items:['1 app','5 AI calls/day','Landing page score','View saved results'],
-                cta:'Get started free', ctaBg:'rgba(255,255,255,.08)', ctaColor:'rgba(255,255,255,.8)', ctaBorder:'1px solid rgba(255,255,255,.12)',
-                badge:null, highlight:false,
-              },
-              {
-                plan:'Analysis Pack', usd:10, period:'one-time',
-                color:'rgba(52,201,138,.05)', border:'rgba(52,201,138,.3)',
-                items:['3 apps','Full landing page analysis','Competitive intelligence','SWOT, BMC, Growth & Pricing strategy','AI copy recommendations','Shareable scorecards','Results saved permanently'],
-                cta:'Buy analysis pack', ctaBg:'linear-gradient(135deg,#34c98a,#22b573)', ctaColor:'#fff', ctaBorder:'none',
-                badge:'One-time', highlight:false,
-              },
-              {
-                plan:'Content Engine', usd:6, period:'/month',
-                color:'rgba(226,111,175,.05)', border:'rgba(226,111,175,.3)',
-                items:['3 apps','30 AI calls/day','3 daily Instagram posts every morning','Weekly content pillar refresh'],
-                cta:'Start content engine', ctaBg:'linear-gradient(135deg,#e26faf,#c4559a)', ctaColor:'#fff', ctaBorder:'none',
-                badge:null, highlight:false,
-              },
-              {
-                plan:'Pro Bundle', usd:14, period:'/month',
-                color:'rgba(124,111,247,.08)', border:'rgba(124,111,247,.5)',
-                items:['10 apps','50 AI calls/day','Everything in Analysis Pack','Everything in Content Engine','Daily email delivery'],
-                cta:'Get Pro Bundle', ctaBg:'linear-gradient(135deg,#7c6ff7,#9b8af4)', ctaColor:'#fff', ctaBorder:'none',
-                badge:'Best value', highlight:true,
-              },
-            ] as const).map(p => (
-              <div key={p.plan} style={{ background:p.color, border:`1.5px solid ${p.border}`, borderRadius:14, padding:'24px 20px', position:'relative', boxShadow: p.highlight ? '0 0 0 1px rgba(124,111,247,.3), 0 8px 32px rgba(124,111,247,.15)' : 'none' }}>
-                {p.badge && (
-                  <div style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', background: p.highlight ? '#7c6ff7' : '#34c98a', color:'#fff', fontSize:10, fontWeight:700, padding:'3px 12px', borderRadius:20, whiteSpace:'nowrap' as const }}>{p.badge}</div>
-                )}
-                <div style={{ fontFamily:D, fontSize:15, fontWeight:700, color:'#f0f0f5', marginBottom:4 }}>{p.plan}</div>
-                <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom:2 }}>
-                  <span style={{ fontFamily:D, fontSize:28, fontWeight:800, color:'#f0f0f5' }}>${p.usd}</span>
-                  <span style={{ fontSize:12, color:'rgba(255,255,255,.4)' }}>{p.period}</span>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1.3fr', gap:14, alignItems:'start' }} className="pricing-grid">
+
+            {/* Free */}
+            <div style={{ background:'rgba(255,255,255,.04)', border:'1.5px solid rgba(255,255,255,.1)', borderRadius:14, padding:'24px 20px' }}>
+              <div style={{ fontFamily:D, fontSize:15, fontWeight:700, color:'#f0f0f5', marginBottom:6 }}>Free</div>
+              <div style={{ fontFamily:D, fontSize:28, fontWeight:800, color:'#f0f0f5', marginBottom:2 }}>$0</div>
+              <div style={{ fontSize:10, fontWeight:600, color:'rgba(255,255,255,.3)', textTransform:'uppercase' as const, letterSpacing:'.06em', marginBottom:16 }}>forever</div>
+              {(['Score your landing page', '1 app', "See what's broken"] as const).map(item => (
+                <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.6)', marginBottom:8, lineHeight:1.5 }}>
+                  <span style={{ color:'#34c98a', flexShrink:0 }}>✓</span>{item}
                 </div>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', marginBottom:14, minHeight:16 }}>
-                  {p.usd > 0 ? (localPrice(p.usd) || ' ') : ' '}
+              ))}
+              <a href="/login" style={{ display:'block', textAlign:'center', padding:'11px', borderRadius:8, fontSize:13, fontWeight:700, textDecoration:'none', marginTop:18, fontFamily:B, background:'rgba(255,255,255,.08)', color:'rgba(255,255,255,.8)', border:'1px solid rgba(255,255,255,.12)', transition:'opacity .15s' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '.85'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>Get started free</a>
+            </div>
+
+            {/* Analysis Pack */}
+            <div style={{ background:'rgba(52,201,138,.05)', border:'1.5px solid rgba(52,201,138,.3)', borderRadius:14, padding:'24px 20px', position:'relative' }}>
+              <div style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', background:'#34c98a', color:'#fff', fontSize:9, fontWeight:700, padding:'3px 12px', borderRadius:20, whiteSpace:'nowrap' as const }}>ONE-TIME PURCHASE</div>
+              <div style={{ fontFamily:D, fontSize:15, fontWeight:700, color:'#f0f0f5', marginBottom:6 }}>Analysis Pack</div>
+              <div style={{ fontFamily:D, fontSize:28, fontWeight:800, color:'#34c98a', marginBottom:2 }}>$10</div>
+              <div style={{ fontSize:10, fontWeight:600, color:'#34c98a', textTransform:'uppercase' as const, letterSpacing:'.06em', marginBottom: localPrice(10) ? 2 : 16 }}>one-time · no subscription</div>
+              {localPrice(10) && <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', marginBottom:14 }}>{localPrice(10)}</div>}
+              {(['Full growth audit for your app', 'Competitive intelligence', 'SWOT, BMC, Growth & Pricing strategy', 'AI copy recommendations', 'Shareable scorecard · 1 app', 'Results saved permanently'] as const).map(item => (
+                <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.6)', marginBottom:8, lineHeight:1.5 }}>
+                  <span style={{ color:'#34c98a', flexShrink:0 }}>✓</span>{item}
                 </div>
-                {p.items.map(item => (
-                  <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.6)', marginBottom:8, lineHeight:1.5 }}>
-                    <span style={{ color:'#34c98a', flexShrink:0 }}>✓</span>{item}
-                  </div>
-                ))}
-                <a href="/login" style={{ display:'block', textAlign:'center', padding:'11px', borderRadius:8, fontSize:13, fontWeight:700, textDecoration:'none', marginTop:18, fontFamily:B, background:p.ctaBg, color:p.ctaColor, border:p.ctaBorder, transition:'opacity .15s' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '.85'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>{p.cta}</a>
-              </div>
-            ))}
+              ))}
+              <a href="/login" style={{ display:'block', textAlign:'center', padding:'11px', borderRadius:8, fontSize:13, fontWeight:700, textDecoration:'none', marginTop:18, fontFamily:B, background:'linear-gradient(135deg,#34c98a,#22b573)', color:'#fff', border:'none', transition:'opacity .15s' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '.85'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>Buy audit — $10</a>
+            </div>
+
+            {/* Pro — hero */}
+            <div style={{ background:'rgba(124,111,247,.1)', border:'2px solid rgba(124,111,247,.65)', borderRadius:14, padding:'28px 22px', position:'relative', boxShadow:'0 0 0 1px rgba(124,111,247,.2), 0 12px 40px rgba(124,111,247,.2)' }}>
+              <div style={{ position:'absolute', top:-10, left:'50%', transform:'translateX(-50%)', background:'#7c6ff7', color:'#fff', fontSize:9, fontWeight:700, padding:'3px 14px', borderRadius:20, whiteSpace:'nowrap' as const }}>MOST POPULAR</div>
+              <div style={{ fontFamily:D, fontSize:16, fontWeight:700, color:'#f0f0f5', marginBottom:6 }}>Pro</div>
+              <div style={{ fontFamily:D, fontSize:32, fontWeight:800, color:'#a599ff', marginBottom:2 }}>$14</div>
+              <div style={{ fontSize:10, fontWeight:600, color:'#a599ff', textTransform:'uppercase' as const, letterSpacing:'.06em', marginBottom: localPrice(14) ? 2 : 16 }}>/month · cancel anytime</div>
+              {localPrice(14) && <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', marginBottom:14 }}>{localPrice(14)}/month</div>}
+              {(['Everything in Analysis Pack', '3 daily Instagram posts every morning', 'Weekly content refresh', '3 apps', 'Daily email delivery'] as const).map(item => (
+                <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.75)', marginBottom:9, lineHeight:1.5 }}>
+                  <span style={{ color:'#a599ff', flexShrink:0 }}>✓</span>{item}
+                </div>
+              ))}
+              <a href="/login" style={{ display:'block', textAlign:'center', padding:'13px', borderRadius:8, fontSize:14, fontWeight:700, textDecoration:'none', marginTop:20, fontFamily:B, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', border:'none', transition:'opacity .15s', boxShadow:'0 4px 16px rgba(124,111,247,.35)' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '.85'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>Start Pro — $14/month</a>
+            </div>
+
           </div>
         </div>
       </section>
