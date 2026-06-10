@@ -48,6 +48,28 @@ interface AnalysisResult {
   totalWords?: number
 }
 
+function detectCurrency(): string | null {
+  const locale = navigator.language
+  const currencyMap: Record<string, string> = {
+    'en-IN': 'INR', 'hi': 'INR', 'hi-IN': 'INR',
+    'en-GB': 'GBP', 'en-AU': 'AUD',
+    'en-CA': 'CAD', 'de': 'EUR', 'fr': 'EUR', 'es': 'EUR',
+  }
+  const lang = locale.split('-')[0]
+  const fromLocale = currencyMap[locale] || currencyMap[lang]
+  if (fromLocale) return fromLocale
+
+  // Timezone fallback — handles en-US on Indian devices
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (tz === 'Asia/Calcutta' || tz === 'Asia/Kolkata') return 'INR'
+  if (tz?.startsWith('Europe/')) return 'EUR'
+  if (tz === 'Europe/London') return 'GBP'
+  if (tz?.startsWith('Australia/')) return 'AUD'
+  if (tz?.startsWith('America/Toronto') || tz?.startsWith('America/Vancouver')) return 'CAD'
+
+  return null
+}
+
 export default function Landing() {
   const [scrolled,  setScrolled]  = useState(false)
   const [url,       setUrl]       = useState('')
@@ -72,18 +94,10 @@ export default function Landing() {
   }, [])
 
   function localPrice(usd: number): string {
-    const locale = navigator.language
-    const currencyMap: Record<string, string> = {
-      'en-IN': 'INR', 'hi': 'INR',
-      'en-GB': 'GBP', 'en-AU': 'AUD',
-      'en-CA': 'CAD', 'de': 'EUR',
-      'fr': 'EUR', 'es': 'EUR',
-    }
-    const lang = locale.split('-')[0]
-    const currency = currencyMap[locale] || currencyMap[lang]
+    const currency = detectCurrency()
     if (!currency || !rates[currency]) return ''
-    const amount = usd * rates[currency]
-    return `≈ ${new Intl.NumberFormat(locale, { style:'currency', currency, maximumFractionDigits:0 }).format(amount)}`
+    const amount = Math.round(usd * rates[currency])
+    return `≈ ${new Intl.NumberFormat(navigator.language, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)}`
   }
 
   const STEPS = ['Fetching your homepage…', 'Reading headlines & copy…', 'Scoring 5 dimensions…', 'Building your verdict…']

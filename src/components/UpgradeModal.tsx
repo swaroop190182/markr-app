@@ -74,6 +74,28 @@ const PLANS = [
   },
 ] as const
 
+function detectCurrency(): string | null {
+  const locale = navigator.language
+  const currencyMap: Record<string, string> = {
+    'en-IN': 'INR', 'hi': 'INR', 'hi-IN': 'INR',
+    'en-GB': 'GBP', 'en-AU': 'AUD',
+    'en-CA': 'CAD', 'de': 'EUR', 'fr': 'EUR', 'es': 'EUR',
+  }
+  const lang = locale.split('-')[0]
+  const fromLocale = currencyMap[locale] || currencyMap[lang]
+  if (fromLocale) return fromLocale
+
+  // Timezone fallback — handles en-US on Indian devices
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (tz === 'Asia/Calcutta' || tz === 'Asia/Kolkata') return 'INR'
+  if (tz?.startsWith('Europe/')) return 'EUR'
+  if (tz === 'Europe/London') return 'GBP'
+  if (tz?.startsWith('Australia/')) return 'AUD'
+  if (tz?.startsWith('America/Toronto') || tz?.startsWith('America/Vancouver')) return 'CAD'
+
+  return null
+}
+
 export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   const [loading,      setLoading]      = useState(false)
   const [selectedId,   setSelectedId]   = useState<'analysis'|'content'|'pro'>('pro')
@@ -87,17 +109,10 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   }, [])
 
   function localPrice(usd: number): string {
-    const locale = navigator.language
-    const currencyMap: Record<string, string> = {
-      'en-IN': 'INR', 'hi': 'INR', 'hi-IN': 'INR',
-      'en-GB': 'GBP', 'en-AU': 'AUD',
-      'en-CA': 'CAD', 'de': 'EUR', 'fr': 'EUR', 'es': 'EUR',
-    }
-    const lang = locale.split('-')[0]
-    const currency = currencyMap[locale] || currencyMap[lang]
+    const currency = detectCurrency()
     if (!currency || !rates[currency]) return ''
     const amount = Math.round(usd * rates[currency])
-    return `≈ ${new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)}`
+    return `≈ ${new Intl.NumberFormat(navigator.language, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount)}`
   }
 
   const selected = PLANS.find(p => p.id === selectedId)!
