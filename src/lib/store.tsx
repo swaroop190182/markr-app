@@ -24,21 +24,21 @@ export const PLAN_CONFIG: Record<PlanType, {
   },
   analysis: {
     callsPerDay: 0,
-    appLimit:    3,
+    appLimit:    1,
     features:    ['score','competitive','swot','bmc','growth','pricing','ai_recommendations'],
     trialDays:   null,
     oneTime:     true,   // one-time purchase — never expires
   },
   content: {
     callsPerDay: 30,
-    appLimit:    3,
+    appLimit:    2,
     features:    ['score','content_studio','pillars'],
     trialDays:   null,
     oneTime:     false,
   },
   pro: {
     callsPerDay: 50,
-    appLimit:    10,
+    appLimit:    3,
     features:    ['all'],
     trialDays:   null,
     oneTime:     false,
@@ -54,7 +54,8 @@ export function getUserPlan(email: string): PlanType {
   return PRO_EMAILS.includes(email.toLowerCase()) ? 'pro' : 'free'
 }
 
-export function getAppLimit(plan: PlanType): number {
+export function getAppLimit(plan: PlanType, email?: string): number {
+  if (email && PRO_EMAILS.includes(email.toLowerCase())) return 10
   return PLAN_CONFIG[plan].appLimit
 }
 
@@ -105,7 +106,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
   const emailPlan = getUserPlan(userEmail)
   const plan: PlanType = emailPlan === 'pro' ? 'pro' : (dbPlan ?? 'free')
 
-  const appLimit          = getAppLimit(plan)
+  const appLimit          = getAppLimit(plan, userEmail)
   const canAddApp         = apps.length < appLimit
   const canUseProductTest = planHasFeature(plan, 'product_test')  // only 'pro' (features:['all'])
   const trialExpired      = isTrialExpired(userCreatedAt, plan)
