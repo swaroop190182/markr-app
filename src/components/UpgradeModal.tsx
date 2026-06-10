@@ -234,7 +234,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
                   <span style={{ fontSize:10, color:'var(--text3)' }}>{p.period}</span>
                 </div>
                 {localPrice(p.usd, rates) && (
-                  <div style={{ fontSize:10, color:'var(--text3)', marginTop:1 }}>
+                  <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>
                     {localPrice(p.usd, rates)}{p.period !== 'one-time' ? p.period : ''}
                   </div>
                 )}
@@ -250,7 +250,7 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
             <div style={{ fontSize:12, color:'var(--text2)', marginTop:2 }}>
               <span style={{ fontWeight:700 }}>${selected.usd}{selected.period}</span>
               {localPrice(selected.usd, rates) && (
-                <span style={{ color:'var(--text3)', marginLeft:6 }}>
+                <span style={{ color:'var(--text2)', marginLeft:6 }}>
                   {localPrice(selected.usd, rates)}{selected.period !== 'one-time' ? selected.period : ''}
                 </span>
               )}
