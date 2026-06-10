@@ -39,8 +39,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const useSubscription = planId !== 'analysis' && !!isIndian
 
   console.log('[subscription/create] planId:', planId, '| isIndian:', isIndian, '| useSubscription:', useSubscription)
-  console.log('[subscription/create] RAZORPAY_PLAN_ID_CONTENT:', process.env.RAZORPAY_PLAN_ID_CONTENT ?? '(not set)')
-  console.log('[subscription/create] RAZORPAY_PLAN_ID_PRO:    ', process.env.RAZORPAY_PLAN_ID_PRO     ?? '(not set)')
+  console.log('[subscription/create] RAZORPAY_PLAN_ID_CONTENT:     ', process.env.RAZORPAY_PLAN_ID_CONTENT      ?? '(not set)')
+  console.log('[subscription/create] RAZORPAY_PLAN_ID_PRO:         ', process.env.RAZORPAY_PLAN_ID_PRO          ?? '(not set)')
+  console.log('[subscription/create] RAZORPAY_PLAN_ID_CONTENT_INR: ', process.env.RAZORPAY_PLAN_ID_CONTENT_INR  ?? '(not set)')
+  console.log('[subscription/create] RAZORPAY_PLAN_ID_PRO_INR:     ', process.env.RAZORPAY_PLAN_ID_PRO_INR      ?? '(not set)')
 
   const notes = {
     user_id: user.id,
@@ -53,8 +55,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (useSubscription) {
       // ── Indian user: auto-recurring INR subscription ───────────────────────
       const rzpPlanId = planId === 'content'
-        ? process.env.RAZORPAY_PLAN_ID_CONTENT!
-        : process.env.RAZORPAY_PLAN_ID_PRO!
+        ? (isIndian ? process.env.RAZORPAY_PLAN_ID_CONTENT_INR! : process.env.RAZORPAY_PLAN_ID_CONTENT!)
+        : (isIndian ? process.env.RAZORPAY_PLAN_ID_PRO_INR!     : process.env.RAZORPAY_PLAN_ID_PRO!)
 
       if (!rzpPlanId) {
         throw new Error(`Razorpay plan ID not configured for plan: ${planId}`)
