@@ -542,8 +542,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     pagesRead,
     isJSApp: home.wordCount < 100,
     scraped: {
-      title:    home.bestTitle.slice(0,80),
-      h1:       home.bestH1.slice(0,80),
+      title:    home.bestTitle,
+      h1:       home.bestH1,
       metaDesc: home.bestDesc.slice(0,120),
     },
   }
