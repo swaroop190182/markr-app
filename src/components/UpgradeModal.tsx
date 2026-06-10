@@ -118,6 +118,13 @@ export default function UpgradeModal({ onClose, trigger = 'manual' }: Props) {
   const isIndian = isIndianTimezone()
 
   useEffect(() => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    console.log('[UpgradeModal] navigator.language:', navigator.language)
+    console.log('[UpgradeModal] timezone:', tz)
+    console.log('[UpgradeModal] isIndian:', isIndian)
+  }, [])
+
+  useEffect(() => {
     fetch('https://open.er-api.com/v6/latest/USD')
       .then(r => r.json())
       .then(data => {
