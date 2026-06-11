@@ -139,6 +139,8 @@ export interface AppData {
   pricing_analyzed_at?:     string | null
   // Analysis Pack one-time usage tracking
   analysis_used_at?:        string | null
+  // Content Studio preferences
+  post_style?:              string | null
 }
 
 export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'

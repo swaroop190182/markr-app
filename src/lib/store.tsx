@@ -190,6 +190,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           pricing_analysis:     row.pricing_analysis ?? null,
           content_studio_cache: row.content_studio_cache ?? null,
           strategy_cache:       row.strategy_cache ?? null,
+          post_style:           row.post_style ?? null,
           // Analysis timestamps
           competitive_analyzed_at: row.competitive_analyzed_at ?? null,
           bmc_analyzed_at:         row.bmc_analyzed_at ?? null,
@@ -281,6 +282,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.pricing_analysis     !== undefined && { pricing_analysis:     updates.pricing_analysis }),
         ...(updates.content_studio_cache !== undefined && { content_studio_cache: updates.content_studio_cache }),
         ...(updates.strategy_cache       !== undefined && { strategy_cache:       updates.strategy_cache }),
+        ...(updates.post_style           !== undefined && { post_style:           updates.post_style }),
         ...(updates.competitive_analyzed_at !== undefined && { competitive_analyzed_at: updates.competitive_analyzed_at }),
         ...(updates.bmc_analyzed_at         !== undefined && { bmc_analyzed_at:         updates.bmc_analyzed_at }),
         ...(updates.swot_analyzed_at        !== undefined && { swot_analyzed_at:        updates.swot_analyzed_at }),
