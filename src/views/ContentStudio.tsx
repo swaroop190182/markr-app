@@ -50,12 +50,62 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
 
     const brandVoice = currentApp.brand ?? `You are the Instagram content strategist for ${currentApp.name}, a ${currentApp.category} app.`
     const testCtx = getTestContext(currentApp)
-    const metricGoal = type==='morning' ? 'SAVES' : type==='midday' ? 'SHARES' : 'COMMENTS'
-    const slotGuide = {
-      morning: 'Morning post — grounding, valuable, bookmark-worthy. Optimised for SAVES.',
-      midday:  'Midday post — insightful, shareable. Optimised for SHARES.',
-      evening: 'Evening post — warm, relatable, community-building. Ask a question. Optimised for COMMENTS.',
+
+    // Format assignment — each slot has a fixed content type
+    const FORMAT = {
+      morning: {
+        label:       'EDUCATIONAL TIP OR FACT (Post 1 of 3)',
+        instruction: 'Teach something concrete and specific — a tip, a stat, a non-obvious insight the reader can use today. NOT a personal story, NOT a question as the main hook, NOT a poll.',
+        metric:      'SAVES',
+        hook:        'save_hook',
+      },
+      midday: {
+        label:       'STORY OR PERSONAL MOMENT (Post 2 of 3)',
+        instruction: 'First-person narrative — a real challenge, moment, or win. Build emotional connection. NOT a listicle, NOT a pure tip, NOT a poll. Open mid-action or with vulnerability.',
+        metric:      'SHARES',
+        hook:        'share_hook',
+      },
+      evening: {
+        label:       'QUESTION OR POLL (Post 3 of 3)',
+        instruction: 'Pure engagement driver — spark conversation. Open with curiosity or a provocative take, then close with a clear question or two-option poll. NOT a tip, NOT a story.',
+        metric:      'COMMENTS',
+        hook:        'comment_hook',
+      },
     }[type]
+
+    // Gather already-generated captions from other slots for uniqueness constraints
+    const otherSlots = (['morning', 'midday', 'evening'] as SlotKey[]).filter(s => s !== type)
+    const existingCaptions = otherSlots
+      .map(s => slots[s].post?.caption ?? '')
+      .filter(Boolean)
+
+    const avoidFirstWords = existingCaptions
+      .map(cap => cap.trim().split(/\s+/)[0].replace(/[^a-zA-Z]/g, '').toLowerCase())
+      .filter(Boolean)
+
+    const avoidCTAs = existingCaptions
+      .map(cap => {
+        const sentences = cap.split(/(?<=[.!?])\s+/)
+        return sentences[sentences.length - 1]?.trim().slice(0, 80) ?? ''
+      })
+      .filter(Boolean)
+
+    const justDidUsed = existingCaptions.some(cap =>
+      /just\s+(did|finished|tried|launched|shipped|built|ran)/i.test(cap) &&
+      /what'?s\s+your/i.test(cap)
+    )
+
+    const uniquenessRules = existingCaptions.length > 0 ? `
+CROSS-POST UNIQUENESS — other posts already generated:
+${existingCaptions.map((cap, i) => `  Post already written: "${cap.slice(0, 100)}…"`).join('\n')}
+
+HARD RULES — violating any of these makes the output invalid:
+1. Do NOT start your caption with any of these words (case-insensitive): ${avoidFirstWords.map(w => `"${w}"`).join(', ')}
+2. Do NOT use any of these closing CTAs or near-variants: ${avoidCTAs.map(s => `"${s}"`).join(' | ')}
+3. ${justDidUsed ? 'The "Just did X, what\'s your Y?" pattern is ALREADY USED — do not use it at all.' : 'Do NOT use the "Just did X, what\'s your Y?" pattern — it is banned across all 3 posts.'}
+4. Your caption MUST begin with a different word than every other post.
+5. Your CTA/closing line MUST be meaningfully different from every other post's closing line.` : `
+HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
 
     const prompt = `${brandVoice}
 ${testCtx}
@@ -64,16 +114,21 @@ ${testCtx ? `CRITICAL: Reference specific features and real UX details from the 
 Content pillar today: ${pillar}
 App: ${currentApp.name} — ${currentApp.desc ?? currentApp.category}
 
-Generate a ${slotGuide}
+━━━ FORMAT REQUIREMENT ━━━
+This is the ${FORMAT.label}.
+${FORMAT.instruction}
+Optimised for ${FORMAT.metric}.
+${uniquenessRules}
+━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Output ONLY valid JSON:
 {
-  "caption": "max 250 chars — authentic Instagram caption about ${pillar}. End with a question. NO buzzwords.",
+  "caption": "max 250 chars — authentic Instagram caption about ${pillar}. Must match the format requirement above exactly. NO buzzwords.",
   "hashtags": ["12 hashtags without # — mix niche + broad"],
   "image_prompt": "Detailed Canva/DALL-E prompt — specific scene, lighting, mood, 1:1 format",
   "best_posting_time": "${c.time}",
   "pillar": "${pillar}",
-  "${type==='morning'?'save_hook':type==='midday'?'share_hook':'comment_hook'}": "3-6 words to drive ${metricGoal.toLowerCase()}",
+  "${FORMAT.hook}": "3-6 words to drive ${FORMAT.metric.toLowerCase()}",
   ${type==='midday' ? '"insight_headline": "punchy 8-word headline for image overlay",' : ''}
   ${type==='evening' ? '"poll_options": ["Option A (2-4 words)", "Option B (2-4 words)"],' : ''}
   "post_idea": "one specific reel or carousel idea referencing a real feature",
@@ -81,7 +136,7 @@ Output ONLY valid JSON:
 }`
 
     try {
-      const raw = await callClaude(prompt, 'You are an expert Instagram content strategist. Output ONLY valid JSON.', 1800)
+      const raw = await callClaude(prompt, 'You are an expert Instagram content strategist. Output ONLY valid JSON. Follow the FORMAT REQUIREMENT exactly — the post type is mandatory.', 1800)
       const post = safeParseJSON<AgentPost>(raw)
       updateSlot(type, { state:'ready', post })
       toast(`${c.label} ready! ✓`)
