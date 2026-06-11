@@ -9,6 +9,20 @@ import type { AgentPost } from '../types'
 type SlotKey = 'morning' | 'midday' | 'evening'
 type SlotState = 'idle' | 'generating' | 'ready' | 'error'
 
+const POST_STYLES = [
+  { id: 'educational',    emoji: '🎓', label: 'Educational',    desc: 'Tips, facts, how-tos',
+    voice: 'Authoritative yet approachable. Lead with a concrete insight, actionable tip, or non-obvious fact. Use specific numbers and examples. Structure clearly. Avoid vague generalities.' },
+  { id: 'conversational', emoji: '💬', label: 'Conversational', desc: 'Questions, polls, community',
+    voice: 'Warm, casual, community-driven. Write like a real person talking to a friend. Use "you" and "we" freely. Invite participation. Keep sentences short and punchy.' },
+  { id: 'story',          emoji: '📖', label: 'Story',          desc: 'Personal moments, behind the scenes',
+    voice: 'Vulnerable, narrative, first-person. Open mid-action or with a specific moment. Build to a realisation or lesson. Sensory details welcome. Make the reader feel they were there.' },
+  { id: 'bold',           emoji: '🔥', label: 'Bold',           desc: 'Strong opinions, contrarian takes',
+    voice: 'Confident, direct, unapologetic. Open with a strong claim or counter-intuitive truth. No hedging language ("maybe", "kind of", "perhaps"). Challenge conventional wisdom. Take a clear side.' },
+  { id: 'warm',           emoji: '😊', label: 'Warm',           desc: 'Nurturing, supportive, emotional',
+    voice: 'Empathetic, encouraging, emotionally resonant. Acknowledge struggles before offering solutions. Use inclusive, affirming language. End with genuine encouragement or a heartfelt question.' },
+] as const
+type StyleId = typeof POST_STYLES[number]['id']
+
 interface SlotData {
   state: SlotState
   post: AgentPost | null
@@ -26,7 +40,7 @@ function getTodaysPillars(pillars: string[]) {
 }
 
 export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void }) {
-  const { currentApp, plan } = useStore()
+  const { currentApp, plan, updateApp } = useStore()
   const pillars = currentApp.pillars ?? ['Content','Education','Tips','Community','Stories','Wins']
   const todaysPillars = getTodaysPillars(pillars)
   const pt = currentApp.productTest
@@ -39,17 +53,26 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
   const [activeTab, setActiveTab] = useState<Record<SlotKey, string>>({
     morning:'caption', midday:'caption', evening:'caption'
   })
+  const [postStyle, setPostStyle] = useState<StyleId>(
+    (currentApp.post_style as StyleId | null) ?? 'conversational'
+  )
+
+  function changeStyle(id: StyleId) {
+    setPostStyle(id)
+    updateApp(currentApp.id, { post_style: id } as any)
+  }
 
   const updateSlot = (key: SlotKey, update: Partial<SlotData>) =>
     setSlots(prev => ({ ...prev, [key]: { ...prev[key], ...update } }))
 
-  const generatePost = useCallback(async (type: SlotKey) => {
+  const generatePost = useCallback(async (type: SlotKey, style: StyleId) => {
     const c = SLOT_CONFIGS[type]
     const pillar = todaysPillars[type]
     updateSlot(type, { state:'generating', post:null })
 
     const brandVoice = currentApp.brand ?? `You are the Instagram content strategist for ${currentApp.name}, a ${currentApp.category} app.`
     const testCtx = getTestContext(currentApp)
+    const styleConfig = POST_STYLES.find(s => s.id === style) ?? POST_STYLES[1]
 
     // Format assignment — each slot has a fixed content type
     const FORMAT = {
@@ -114,6 +137,12 @@ ${testCtx ? `CRITICAL: Reference specific features and real UX details from the 
 Content pillar today: ${pillar}
 App: ${currentApp.name} — ${currentApp.desc ?? currentApp.category}
 
+━━━ POST STYLE ━━━
+Style: ${styleConfig.emoji} ${styleConfig.label.toUpperCase()} (${styleConfig.desc})
+Voice direction: ${styleConfig.voice}
+Every word of the caption must reflect this style. If bold, open boldly. If warm, open warmly. The style overrides any default tone.
+━━━━━━━━━━━━━━━━━
+
 ━━━ FORMAT REQUIREMENT ━━━
 This is the ${FORMAT.label}.
 ${FORMAT.instruction}
@@ -136,19 +165,19 @@ Output ONLY valid JSON:
 }`
 
     try {
-      const raw = await callClaude(prompt, 'You are an expert Instagram content strategist. Output ONLY valid JSON. Follow the FORMAT REQUIREMENT exactly — the post type is mandatory.', 1800)
+      const raw = await callClaude(prompt, 'You are an expert Instagram content strategist. Output ONLY valid JSON. Follow both the POST STYLE and FORMAT REQUIREMENT exactly — both are mandatory.', 1800)
       const post = safeParseJSON<AgentPost>(raw)
       updateSlot(type, { state:'ready', post })
       toast(`${c.label} ready! ✓`)
     } catch(e) {
       updateSlot(type, { state:'error', error:(e as Error).message })
     }
-  }, [currentApp, todaysPillars])
+  }, [currentApp, todaysPillars, postStyle])
 
   const generateAll = () => {
-    generatePost('morning')
-    setTimeout(() => generatePost('midday'),  1800)
-    setTimeout(() => generatePost('evening'), 3600)
+    generatePost('morning', postStyle)
+    setTimeout(() => generatePost('midday',  postStyle), 1800)
+    setTimeout(() => generatePost('evening', postStyle), 3600)
   }
 
   if (plan !== 'content' && plan !== 'pro' && plan !== 'guest_pro') {
@@ -180,6 +209,25 @@ Output ONLY valid JSON:
           </div>
         </div>
       )}
+
+      {/* Post Style selector */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>
+        <span style={{ fontSize:11, color:'var(--text3)', fontWeight:500, flexShrink:0 }}>Post style →</span>
+        {POST_STYLES.map(s => (
+          <button
+            key={s.id}
+            onClick={() => changeStyle(s.id)}
+            style={{
+              fontSize:11, padding:'4px 12px', borderRadius:20, fontWeight:600, cursor:'pointer', border:'none',
+              background: postStyle === s.id ? 'var(--accent)' : 'var(--surface2)',
+              color: postStyle === s.id ? '#fff' : 'var(--text2)',
+              transition:'background .15s,color .15s',
+            }}
+          >
+            {s.emoji} {s.label}
+          </button>
+        ))}
+      </div>
 
       {/* Pillar strip */}
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
@@ -214,7 +262,7 @@ Output ONLY valid JSON:
             pillar={todaysPillars[type]}
             activeTab={activeTab[type]}
             onTabChange={tab => setActiveTab(prev => ({...prev, [type]:tab}))}
-            onGenerate={() => generatePost(type)}
+            onGenerate={() => generatePost(type, postStyle)}
           />
         ))}
       </div>
