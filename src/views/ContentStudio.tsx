@@ -10,16 +10,41 @@ type SlotKey = 'morning' | 'midday' | 'evening'
 type SlotState = 'idle' | 'generating' | 'ready' | 'error'
 
 const POST_STYLES = [
-  { id: 'educational',    emoji: '🎓', label: 'Educational',    desc: 'Tips, facts, how-tos',
-    voice: 'Authoritative yet approachable. Lead with a concrete insight, actionable tip, or non-obvious fact. Use specific numbers and examples. Structure clearly. Avoid vague generalities.' },
+  { id: 'educational', emoji: '🎓', label: 'Educational', desc: 'Tips, facts, how-tos',
+    voice: 'Authoritative yet approachable. Lead with concrete insight. Use specific numbers and examples.',
+    subFormats: [
+      'POST 1 — CONCRETE TIP OR NON-OBVIOUS INSIGHT: Open with a specific, usable insight (include a number or stat where possible). Structure clearly. Optimised for SAVES.',
+      'POST 2 — MYTH VS REALITY OR COMMON MISTAKE: Challenge a wrong assumption the target user holds. Format: "Most people think X. Actually Y." Make it feel like a revelation. Optimised for SHARES.',
+      'POST 3 — STEP-BY-STEP OR 3-POINT LIST: Actionable and scannable. Each point must be concrete and distinct. End with a question asking which step they have tried. Optimised for COMMENTS.',
+    ] as const },
   { id: 'conversational', emoji: '💬', label: 'Conversational', desc: 'Questions, polls, community',
-    voice: 'Warm, casual, community-driven. Write like a real person talking to a friend. Use "you" and "we" freely. Invite participation. Keep sentences short and punchy.' },
-  { id: 'story',          emoji: '📖', label: 'Story',          desc: 'Personal moments, behind the scenes',
-    voice: 'Vulnerable, narrative, first-person. Open mid-action or with a specific moment. Build to a realisation or lesson. Sensory details welcome. Make the reader feel they were there.' },
-  { id: 'bold',           emoji: '🔥', label: 'Bold',           desc: 'Strong opinions, contrarian takes',
-    voice: 'Confident, direct, unapologetic. Open with a strong claim or counter-intuitive truth. No hedging language ("maybe", "kind of", "perhaps"). Challenge conventional wisdom. Take a clear side.' },
-  { id: 'warm',           emoji: '😊', label: 'Warm',           desc: 'Nurturing, supportive, emotional',
-    voice: 'Empathetic, encouraging, emotionally resonant. Acknowledge struggles before offering solutions. Use inclusive, affirming language. End with genuine encouragement or a heartfelt question.' },
+    voice: 'Warm, casual, community-driven. Write like a real person talking to a friend. Short punchy sentences.',
+    subFormats: [
+      'POST 1 — RELATABLE OBSERVATION: Open with a shared struggle or "Have you ever..." hook. Make the reader feel seen. Close with a soft moment of connection. Optimised for SAVES.',
+      'POST 2 — HONEST CONFESSION OR BEHIND-THE-SCENES: Casual and real. Something the brand or user would actually admit. No polish, no buzzwords. Optimised for SHARES.',
+      'POST 3 — DIRECT QUESTION OR TWO-OPTION POLL: Pure community engagement. Open with curiosity or a light take, close with a clear question or two poll options. Optimised for COMMENTS.',
+    ] as const },
+  { id: 'story', emoji: '📖', label: 'Story', desc: 'Personal moments, behind the scenes',
+    voice: 'Narrative, visual, human. Each post is a distinct story format. Use the app name, category, and target user from context. Never generic.',
+    subFormats: [
+      'POST 1 — BEFORE/AFTER MOMENT: "[Target user] used to struggle with [problem this app solves]. Now [specific positive change]." Use the app actual value proposition. Concrete, not generic. Optimised for SAVES.',
+      'POST 2 — REAL-LIFE SCENE: Describe a specific moment in the target user day where this app made a difference. Visual and sensory. No product features — just the human moment. Optimised for SHARES.',
+      'POST 3 — MINI JOURNEY (3 sentences + question): Show progression — where the user started, what changed, where they are now. End with an open question inviting others to share their experience. Optimised for COMMENTS.',
+    ] as const },
+  { id: 'bold', emoji: '🔥', label: 'Bold', desc: 'Strong opinions, contrarian takes',
+    voice: 'Confident, direct, unapologetic. Open with a strong claim. No hedging ("maybe", "kind of", "perhaps"). Take a clear side.',
+    subFormats: [
+      'POST 1 — COUNTER-INTUITIVE CLAIM: Open with a statement that challenges what people believe. Back it up in 2-3 sentences. No hedging. Optimised for SAVES.',
+      'POST 2 — HOT TAKE OR UNPOPULAR OPINION: State a clear position most people avoid taking. One strong claim + brief explanation + why it matters. Optimised for SHARES.',
+      'POST 3 — DIRECT CHALLENGE TO THE AUDIENCE: Call out a bad habit or limiting belief the target user holds. End with a sharp question that forces reflection. Optimised for COMMENTS.',
+    ] as const },
+  { id: 'warm', emoji: '😊', label: 'Warm', desc: 'Nurturing, supportive, emotional',
+    voice: 'Empathetic, encouraging, emotionally resonant. Acknowledge struggles before offering hope. Avoid generic affirmations.',
+    subFormats: [
+      'POST 1 — ACKNOWLEDGMENT + GENTLE REFRAME: Open by naming a real struggle the target user faces. Then offer a gentle reframe or small shift in perspective. Optimised for SAVES.',
+      'POST 2 — SMALL WIN CELEBRATION: Celebrate a specific, relatable moment of progress. Make the reader feel proud. Concrete and grounded — not generic \"you\'ve got this\". Optimised for SHARES.',
+      'POST 3 — HEARTFELT ENCOURAGEMENT + OPEN QUESTION: Warm close with genuine encouragement and a question inviting the community to share their experience or struggle. Optimised for COMMENTS.',
+    ] as const },
 ] as const
 type StyleId = typeof POST_STYLES[number]['id']
 
@@ -74,27 +99,13 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     const testCtx = getTestContext(currentApp)
     const styleConfig = POST_STYLES.find(s => s.id === style) ?? POST_STYLES[1]
 
-    // Format assignment — each slot has a fixed content type
-    const FORMAT = {
-      morning: {
-        label:       'EDUCATIONAL TIP OR FACT (Post 1 of 3)',
-        instruction: 'Teach something concrete and specific — a tip, a stat, a non-obvious insight the reader can use today. NOT a personal story, NOT a question as the main hook, NOT a poll.',
-        metric:      'SAVES',
-        hook:        'save_hook',
-      },
-      midday: {
-        label:       'STORY OR PERSONAL MOMENT (Post 2 of 3)',
-        instruction: 'First-person narrative — a real challenge, moment, or win. Build emotional connection. NOT a listicle, NOT a pure tip, NOT a poll. Open mid-action or with vulnerability.',
-        metric:      'SHARES',
-        hook:        'share_hook',
-      },
-      evening: {
-        label:       'QUESTION OR POLL (Post 3 of 3)',
-        instruction: 'Pure engagement driver — spark conversation. Open with curiosity or a provocative take, then close with a clear question or two-option poll. NOT a tip, NOT a story.',
-        metric:      'COMMENTS',
-        hook:        'comment_hook',
-      },
-    }[type]
+    // Slot metadata — metric and hook per slot; format instruction driven by chosen style
+    const SLOT_META = {
+      morning: { metric: 'SAVES',    hook: 'save_hook',    idx: 0 },
+      midday:  { metric: 'SHARES',   hook: 'share_hook',   idx: 1 },
+      evening: { metric: 'COMMENTS', hook: 'comment_hook', idx: 2 },
+    }[type] as { metric: string; hook: string; idx: number }
+    const formatInstruction = styleConfig.subFormats[SLOT_META.idx]
 
     // Gather already-generated captions from other slots for uniqueness constraints
     const otherSlots = (['morning', 'midday', 'evening'] as SlotKey[]).filter(s => s !== type)
@@ -140,13 +151,18 @@ App: ${currentApp.name} — ${currentApp.desc ?? currentApp.category}
 ━━━ POST STYLE ━━━
 Style: ${styleConfig.emoji} ${styleConfig.label.toUpperCase()} (${styleConfig.desc})
 Voice direction: ${styleConfig.voice}
-Every word of the caption must reflect this style. If bold, open boldly. If warm, open warmly. The style overrides any default tone.
+Every word of the caption must reflect this style. The style overrides any default tone.
+
+UNIVERSAL RULES (apply to every post regardless of style):
+- Never use the words "just", "simply", or "easily"
+- No generic questions like "What's your go-to X?"
+- Each post must feel like a different moment, tone, and format from the others
+- Reference the app's actual value proposition — not generic wellness or productivity language
+- Write for the specific target user detected from the app description, not a generic audience
 ━━━━━━━━━━━━━━━━━
 
 ━━━ FORMAT REQUIREMENT ━━━
-This is the ${FORMAT.label}.
-${FORMAT.instruction}
-Optimised for ${FORMAT.metric}.
+${formatInstruction}
 ${uniquenessRules}
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -157,7 +173,7 @@ Output ONLY valid JSON:
   "image_prompt": "Detailed Canva/DALL-E prompt — specific scene, lighting, mood, 1:1 format",
   "best_posting_time": "${c.time}",
   "pillar": "${pillar}",
-  "${FORMAT.hook}": "3-6 words to drive ${FORMAT.metric.toLowerCase()}",
+  "${SLOT_META.hook}": "3-6 words to drive ${SLOT_META.metric.toLowerCase()}",
   ${type==='midday' ? '"insight_headline": "punchy 8-word headline for image overlay",' : ''}
   ${type==='evening' ? '"poll_options": ["Option A (2-4 words)", "Option B (2-4 words)"],' : ''}
   "post_idea": "one specific reel or carousel idea referencing a real feature",
