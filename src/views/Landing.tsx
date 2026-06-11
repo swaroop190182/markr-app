@@ -193,7 +193,7 @@ export default function Landing() {
           <span style={{ fontFamily:D, fontSize:14, fontWeight:600 }}>Markr</span>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:24, fontSize:13, color:'rgba(255,255,255,.5)' }} className="landing-nav-links">
-          {[['How it works','#how'],['Why Markr','#why'],['Founder','#about'],['Pricing','#pricing']].map(([l,h])=>(
+          {[['How it works','#how'],['Why Markr','#why'],['For Whom','#forwho'],['Founder','#about'],['Pricing','#pricing']].map(([l,h])=>(
             <a key={l} href={h} style={{ color:'inherit', textDecoration:'none', transition:'color .15s' }}
               onMouseEnter={e=>e.currentTarget.style.color='#fff'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,.5)'}>{l}</a>
           ))}
@@ -805,7 +805,7 @@ export default function Landing() {
         </div>
       </section>
       {/* ── WHO USES MARKR ── */}
-      <section style={{ padding:'80px 6%', borderTop:'1px solid rgba(255,255,255,.06)' }}>
+      <section id="forwho" style={{ padding:'80px 6%', borderTop:'1px solid rgba(255,255,255,.06)' }}>
         <div style={{ maxWidth:960, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:40 }}>
             <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Who uses Markr</div>
