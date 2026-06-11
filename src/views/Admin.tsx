@@ -9,11 +9,12 @@ export default function Admin() {
   const [authed,  setAuthed]  = useState(false)
   const [loading, setLoading] = useState(true)
   const [tab,     setTab]     = useState<'overview'|'users'|'leads'|'usage'>('overview')
-  const [users,   setUsers]   = useState<any[]>([])
-  const [leads,   setLeads]   = useState<any[]>([])
-  const [stats,   setStats]   = useState<any>(null)
-  const [search,  setSearch]  = useState('')
-  const [toast,   setToast]   = useState('')
+  const [users,    setUsers]    = useState<any[]>([])
+  const [leads,    setLeads]    = useState<any[]>([])
+  const [stats,    setStats]    = useState<any>(null)
+  const [search,   setSearch]   = useState('')
+  const [toast,    setToast]    = useState('')
+  const [authEmails, setAuthEmails] = useState<Record<string,string>>({})
 
   const msg = (t: string) => { setToast(t); setTimeout(() => setToast(''), 3000) }
 
@@ -24,7 +25,18 @@ export default function Admin() {
     })
   }, [])
 
-  useEffect(() => { if (authed) load() }, [authed])
+  useEffect(() => {
+    if (!authed) return
+    load()
+    // Fetch real emails from auth.users via service-role API
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.access_token) return
+      fetch('/api/admin/users', { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then(r => r.json())
+        .then(d => { if (d.emails) setAuthEmails(d.emails) })
+        .catch(() => {})
+    })
+  }, [authed])
 
   async function load() {
     setLoading(true)
@@ -46,7 +58,8 @@ export default function Admin() {
       const emailMap: Record<string,string> = {}
       s6.data?.forEach((d:any) => { if (d.email) emailMap[d.user_id] = d.email })
       const ul = (s1.data??[]).map((s:any) => ({
-        id: s.user_id, email: emailMap[s.user_id]??s.user_id.slice(0,12)+'…',
+        id: s.user_id,
+        email: emailMap[s.user_id] ?? s.user_id.slice(0,12)+'…',
         plan: s.plan??'free', apps: appMap[s.user_id]??0, calls: callMap[s.user_id]??0, since: s.created_at,
       }))
       setUsers(ul)
@@ -89,7 +102,8 @@ export default function Admin() {
     </div>
   )
 
-  const filtered = users.filter(u => u.email.toLowerCase().includes(search.toLowerCase()))
+  const email = (u: any) => authEmails[u.id] ?? u.email
+  const filtered = users.filter(u => email(u).toLowerCase().includes(search.toLowerCase()))
   const TABS = [
     { id:'overview', label:'Overview' },
     { id:'users',    label:'Users' },
@@ -157,9 +171,9 @@ export default function Admin() {
                 <div style={{ fontWeight:600, marginBottom:12 }}>Recent users</div>
                 {users.slice(0,6).map((u:any) => (
                   <div key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #f4f4f8' }}>
-                    <div style={{ width:30, height:30, borderRadius:'50%', background:'rgba(124,111,247,.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#7c6ff7' }}>{u.email[0].toUpperCase()}</div>
+                    <div style={{ width:30, height:30, borderRadius:'50%', background:'rgba(124,111,247,.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#7c6ff7' }}>{email(u)[0].toUpperCase()}</div>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.email}</div>
+                      <div style={{ fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{email(u)}</div>
                       <div style={{ fontSize:11, color:'#888' }}>{u.apps} apps · {u.calls} calls today</div>
                     </div>
                     <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:700, background:u.plan==='pro'?'rgba(52,201,138,.12)':'rgba(144,144,176,.1)', color:u.plan==='pro'?'#16a870':'#888' }}>{u.plan}</span>
@@ -186,15 +200,15 @@ export default function Admin() {
                       <tr key={u.id}>
                         <td style={TD}>
                           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                            <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(124,111,247,.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:'#7c6ff7' }}>{u.email[0].toUpperCase()}</div>
+                            <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(124,111,247,.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:'#7c6ff7' }}>{email(u)[0].toUpperCase()}</div>
                             <div>
-                              <div style={{ fontWeight:500 }}>{u.email}</div>
+                              <div style={{ fontWeight:500 }}>{email(u)}</div>
                               <div style={{ fontSize:10, color:'#aaa' }}>{new Date(u.since).toLocaleDateString('en-IN')}</div>
                             </div>
                           </div>
                         </td>
                         <td style={TD}>
-                          {u.plan==='pro' && ADMIN_EMAILS.includes(u.email.toLowerCase())
+                          {u.plan==='pro' && ADMIN_EMAILS.includes(email(u).toLowerCase())
                             ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(124,111,247,.12)', color:'#7c6ff7' }}>⭐ Admin Pro</span>
                             : u.plan==='pro'
                             ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(52,201,138,.12)', color:'#16a870' }}>✓ Guest Pro · 3 apps</span>
@@ -265,7 +279,7 @@ export default function Admin() {
                       const c   = pct>80?'#e55':pct>50?'#f5a623':'#34c98a'
                       return (
                         <tr key={u.id}>
-                          <td style={TD}>{u.email}</td>
+                          <td style={TD}>{email(u)}</td>
                           <td style={TD}><span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700, background:u.plan==='pro'?'rgba(52,201,138,.12)':'rgba(144,144,176,.1)', color:u.plan==='pro'?'#16a870':'#888' }}>{u.plan}</span></td>
                           <td style={{ ...TD, fontWeight:600, color:c }}>{u.calls}</td>
                           <td style={{ ...TD, width:140 }}>
