@@ -3,10 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 
 const RATE_LIMITS = { pro: 200, free: 5 }
 
-function getPlan(email: string): 'pro' | 'free' {
+function isProEmail(email: string): boolean {
   const PRO = (process.env.PRO_EMAILS ?? 'swaroop.raghu@gmail.com,swaroop.82@gmail.com')
     .split(',').map(e => e.trim().toLowerCase())
-  return PRO.includes(email.toLowerCase()) ? 'pro' : 'free'
+  return PRO.includes(email.toLowerCase())
+}
+
+async function getPlan(supabase: any, userId: string, email: string): Promise<'pro' | 'free'> {
+  if (isProEmail(email)) return 'pro'
+  // Check DB subscription — covers admin-granted Guest Pro users
+  const { data } = await supabase
+    .from('markr_subscriptions')
+    .select('plan, status')
+    .eq('user_id', userId)
+    .single()
+  if (data?.status === 'active' && (data?.plan === 'pro' || data?.plan === 'content')) return 'pro'
+  return 'free'
 }
 
 async function checkRateLimit(supabase: any, userId: string, plan: 'pro' | 'free'): Promise<{ allowed: boolean; remaining: number }> {
@@ -158,7 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Rate limiting — stored in Supabase, survives cold starts
   if (!isCronJob) {
-    const plan = getPlan(userEmail)
+    const plan = await getPlan(supabase, userId, userEmail)
     const { allowed, remaining } = await checkRateLimit(supabase, userId, plan)
     if (!allowed) {
       return res.status(429).json({
