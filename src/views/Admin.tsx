@@ -25,43 +25,47 @@ export default function Admin() {
     })
   }, [])
 
-  useEffect(() => {
-    if (!authed) return
-    load()
-    // Fetch real emails from auth.users via service-role API
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.access_token) return
-      fetch('/api/admin/users', { headers: { Authorization: `Bearer ${session.access_token}` } })
-        .then(r => r.json())
-        .then(d => { if (d.emails) setAuthEmails(d.emails) })
-        .catch(() => {})
-    })
-  }, [authed])
+  useEffect(() => { if (authed) load() }, [authed])
 
   async function load() {
     setLoading(true)
     try {
       const today   = new Date().toISOString().split('T')[0]
       const weekAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0]
-      const [s1,s2,s3,s4,s5,s6] = await Promise.all([
-        supabase.from('markr_subscriptions').select('*').order('created_at', { ascending: false }),
+
+      // Fetch auth users (all signups) + supporting tables in parallel
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token ?? ''
+
+      const [authRes, s2, s3, s4, s5, s6] = await Promise.all([
+        fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
         supabase.from('markr_apps').select('user_id'),
         supabase.from('markr_rate_limits').select('*').eq('date', today),
         supabase.from('markr_url_leads').select('*').order('created_at', { ascending: false }).limit(300),
         supabase.from('markr_rate_limits').select('count').gte('date', weekAgo),
-        supabase.from('markr_delivery_prefs').select('user_id, email'),
+        supabase.from('markr_subscriptions').select('user_id, plan, status'),
       ])
+
+      const authUsers: { id: string; email: string; created_at: string }[] = authRes.users ?? []
+      if (authUsers.length) setAuthEmails(Object.fromEntries(authUsers.map(u => [u.id, u.email])))
+
       const appMap: Record<string,number> = {}
       s2.data?.forEach((a:any) => { appMap[a.user_id] = (appMap[a.user_id]??0)+1 })
       const callMap: Record<string,number> = {}
       s3.data?.forEach((l:any) => { callMap[l.user_id] = l.count })
-      const emailMap: Record<string,string> = {}
-      s6.data?.forEach((d:any) => { if (d.email) emailMap[d.user_id] = d.email })
-      const ul = (s1.data??[]).map((s:any) => ({
-        id: s.user_id,
-        email: emailMap[s.user_id] ?? s.user_id.slice(0,12)+'…',
-        plan: s.plan??'free', apps: appMap[s.user_id]??0, calls: callMap[s.user_id]??0, since: s.created_at,
-      }))
+      const planMap: Record<string,string> = {}
+      s6.data?.forEach((s:any) => { if (s.status === 'active') planMap[s.user_id] = s.plan })
+
+      // Build user list from ALL auth users — not just those with subscriptions
+      const ul = authUsers.map(u => ({
+        id:    u.id,
+        email: u.email,
+        plan:  planMap[u.id] ?? 'free',
+        apps:  appMap[u.id] ?? 0,
+        calls: callMap[u.id] ?? 0,
+        since: u.created_at,
+      })).sort((a, b) => new Date(b.since).getTime() - new Date(a.since).getTime())
+
       setUsers(ul)
       setLeads(s4.data??[])
       setStats({

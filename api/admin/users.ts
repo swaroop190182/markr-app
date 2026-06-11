@@ -21,12 +21,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Admin only' })
   }
 
-  // Fetch all auth users — returns email + id
+  // Fetch all auth users — full records with id, email, created_at
   const { data, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 })
   if (listErr) return res.status(500).json({ error: listErr.message })
 
-  const map: Record<string, string> = {}
-  data.users.forEach(u => { if (u.email) map[u.id] = u.email })
+  const users = data.users.map(u => ({
+    id:         u.id,
+    email:      u.email ?? '',
+    created_at: u.created_at,
+  }))
 
-  return res.status(200).json({ emails: map })
+  return res.status(200).json({ users })
 }
