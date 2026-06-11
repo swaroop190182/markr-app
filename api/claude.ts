@@ -49,41 +49,65 @@ async function checkRateLimit(supabase: any, userId: string, plan: PlanKey): Pro
   return { allowed: true, remaining: limit - count - 1 }
 }
 
-// ── Call Anthropic ─────────────────────────────────────────────────────────────
-async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse): Promise<boolean> {
-  const key = process.env.ANTHROPIC_API_KEY
-  if (!key) return false
+type UsageInfo = { inputTokens: number; outputTokens: number; model: string }
+
+async function logUsage(supabase: any, userId: string, feature: string, u: UsageInfo) {
   try {
-    const body = JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:maxTokens, stream:doStream, system, messages:[{role:'user',content:prompt}] })
-    const headers = { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01' }
+    await supabase.from('markr_api_usage').insert({
+      user_id:       userId !== 'cron' ? userId : null,
+      feature,
+      tokens_input:  u.inputTokens,
+      tokens_output: u.outputTokens,
+      model:         u.model,
+    })
+  } catch { /* non-critical — never block the response */ }
+}
+
+// ── Call Anthropic ─────────────────────────────────────────────────────────────
+async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse): Promise<UsageInfo | null> {
+  const key = process.env.ANTHROPIC_API_KEY
+  if (!key) return null
+  const MODEL = 'claude-haiku-4-5-20251001'
+  try {
+    const body = JSON.stringify({ model: MODEL, max_tokens: maxTokens, stream: doStream, system, messages: [{role:'user', content: prompt}] })
+    const headers = { 'Content-Type':'application/json', 'x-api-key': key, 'anthropic-version':'2023-06-01' }
     if (doStream) {
       const upstream = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers, body })
       if (!upstream.ok) {
         const err = await upstream.json().catch(()=>({}))
-        if (upstream.status===429||upstream.status===402||(err as any)?.error?.type==='insufficient_balance_error') return false
-        return false
+        if (upstream.status===429||upstream.status===402||(err as any)?.error?.type==='insufficient_balance_error') return null
+        return null
       }
       const reader = upstream.body!.getReader(); const dec = new TextDecoder(); let buf = ''
+      let inputTokens = 0, outputTokens = 0
       while (true) {
-        const {done,value} = await reader.read(); if (done) break
-        buf += dec.decode(value,{stream:true})
-        const lines = buf.split('\n'); buf = lines.pop()??''
+        const {done, value} = await reader.read(); if (done) break
+        buf += dec.decode(value, {stream: true})
+        const lines = buf.split('\n'); buf = lines.pop() ?? ''
         for (const line of lines) {
           if (!line.startsWith('data:')) continue
           const d = line.slice(5).trim()
-          if (d==='[DONE]') { res.write('data: [DONE]\n\n'); res.end(); return true }
-          try { const j=JSON.parse(d); const t=j.delta?.text; if(t) res.write(`data: ${JSON.stringify({text:t})}\n\n`) } catch {}
+          if (d === '[DONE]') { res.write('data: [DONE]\n\n'); res.end(); return { inputTokens, outputTokens, model: MODEL } }
+          try {
+            const j = JSON.parse(d)
+            // Capture token counts from Anthropic SSE events
+            if (j.message?.usage?.input_tokens)  inputTokens  = j.message.usage.input_tokens
+            if (j.usage?.output_tokens)           outputTokens = j.usage.output_tokens
+            const t = j.delta?.text; if (t) res.write(`data: ${JSON.stringify({text: t})}\n\n`)
+          } catch {}
         }
       }
-      res.write('data: [DONE]\n\n'); res.end(); return true
+      res.write('data: [DONE]\n\n'); res.end()
+      return { inputTokens, outputTokens, model: MODEL }
     } else {
       const resp = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers, body })
-      if (!resp.ok) return false
+      if (!resp.ok) return null
       const data = await resp.json()
-      if (data.error) return false
-      res.status(200).json({ content:data.content, provider:'anthropic' }); return true
+      if (data.error) return null
+      res.status(200).json({ content: data.content, provider: 'anthropic' })
+      return { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0, model: MODEL }
     }
-  } catch { return false }
+  } catch { return null }
 }
 
 // ── Call Gemini ────────────────────────────────────────────────────────────────
@@ -170,7 +194,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     userId = user.id; userEmail = user.email ?? ''
   }
 
-  const { prompt, system, maxTokens, stream: doStream } = req.body
+  const { prompt, system, maxTokens, stream: doStream, feature = 'general' } = req.body
 
   // Rate limiting — stored in Supabase, survives cold starts
   if (!isCronJob) {
@@ -196,16 +220,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Connection', 'keep-alive')
   }
 
-  const anthropicOk = await callAnthropic(prompt, sys, tok, doStream, res)
-  if (anthropicOk) return
+  const anthropicUsage = await callAnthropic(prompt, sys, tok, doStream, res)
+  if (anthropicUsage) {
+    logUsage(supabase, userId, feature, anthropicUsage)
+    return
+  }
 
   console.log('Anthropic unavailable — falling back to Gemini')
   const geminiOk = await callGemini(prompt, sys, tok, doStream, res)
-  if (geminiOk) return
+  if (geminiOk) {
+    logUsage(supabase, userId, feature, { inputTokens: 0, outputTokens: 0, model: 'gemini-2.0-flash' })
+    return
+  }
 
   console.log('Gemini unavailable — falling back to Groq')
   const groqOk = await callGroq(prompt, sys, tok, doStream, res)
-  if (groqOk) return
+  if (groqOk) {
+    logUsage(supabase, userId, feature, { inputTokens: 0, outputTokens: 0, model: 'llama-3.3-70b' })
+    return
+  }
 
   res.status(503).json({ error:'AI service temporarily unavailable. Please try again in a moment.' })
 }

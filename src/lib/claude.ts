@@ -13,7 +13,8 @@ export async function callClaude(
   system?: string,
   maxTokens = 1400,
   onChunk?: (chunk: string) => void,
-  useModel: 'haiku' | 'sonnet' = 'haiku'  // haiku by default, sonnet for product test
+  useModel: 'haiku' | 'sonnet' = 'haiku',
+  feature = 'general'
 ): Promise<string> {
   const token = await getToken()
 
@@ -27,8 +28,9 @@ export async function callClaude(
       prompt,
       system,
       maxTokens,
-      model:  useModel,
-      stream: !!onChunk,
+      model:   useModel,
+      stream:  !!onChunk,
+      feature,
     }),
   })
 
