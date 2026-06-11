@@ -4,8 +4,7 @@ import { COLORS } from './data'
 import { supabase } from './supabase'
 
 // ── Plan config ────────────────────────────────────────────────────────────────
-const PRO_EMAILS       = ['swaroop.raghu@gmail.com', 'swaroop.82@gmail.com']  // appLimit=10
-const GUEST_PRO_EMAILS = ['parthi@vara-tech.com']                              // appLimit=3 (standard pro)
+const PRO_EMAILS = ['swaroop.raghu@gmail.com', 'swaroop.82@gmail.com']  // admin override: appLimit=10
 
 export type PlanType = 'free' | 'analysis' | 'content' | 'pro'
 
@@ -52,9 +51,7 @@ export function planHasFeature(plan: PlanType, feature: string): boolean {
 }
 
 export function getUserPlan(email: string): PlanType {
-  const e = email.toLowerCase()
-  if (PRO_EMAILS.includes(e) || GUEST_PRO_EMAILS.includes(e)) return 'pro'
-  return 'free'
+  return PRO_EMAILS.includes(email.toLowerCase()) ? 'pro' : 'free'
 }
 
 export function getAppLimit(plan: PlanType, email?: string): number {
