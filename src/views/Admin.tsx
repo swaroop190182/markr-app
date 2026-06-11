@@ -14,7 +14,8 @@ export default function Admin() {
   const [stats,    setStats]    = useState<any>(null)
   const [search,   setSearch]   = useState('')
   const [toast,    setToast]    = useState('')
-  const [authEmails, setAuthEmails] = useState<Record<string,string>>({})
+  const [authEmails,   setAuthEmails]   = useState<Record<string,string>>({})
+  const [editingCalls, setEditingCalls] = useState<{ id: string; value: string } | null>(null)
 
   const msg = (t: string) => { setToast(t); setTimeout(() => setToast(''), 3000) }
 
@@ -85,6 +86,17 @@ export default function Admin() {
     if (error) { msg('Error: '+error.message); return }
     msg('Updated to '+plan)
     setUsers(p => p.map(u => u.id===id ? {...u,plan} : u))
+  }
+
+  async function setCalls(id: string, count: number) {
+    const today = new Date().toISOString().split('T')[0]
+    const val   = Math.max(0, count)
+    const { error } = await supabase.from('markr_rate_limits')
+      .upsert({ user_id: id, date: today, count: val, updated_at: new Date().toISOString() }, { onConflict: 'user_id,date' })
+    if (error) { msg('Error: ' + error.message); return }
+    msg(`Calls set to ${val}`)
+    setUsers(p => p.map(u => u.id === id ? { ...u, calls: val } : u))
+    setEditingCalls(null)
   }
 
   async function deleteApps(id: string) {
@@ -222,7 +234,32 @@ export default function Admin() {
                           }
                         </td>
                         <td style={{ ...TD, color:'#555' }}>{u.apps}</td>
-                        <td style={{ ...TD, color:u.calls>100?'#e55':u.calls>50?'#f5a623':'#555' }}>{u.calls}</td>
+                        <td style={TD}>
+                          {editingCalls?.id === u.id ? (() => {
+                            const ec = editingCalls!
+                            return (
+                            <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                              <button onClick={()=>setCalls(u.id, parseInt(ec.value||'0')-5)} style={{ width:22, height:22, borderRadius:4, border:'1px solid #e4e4f0', background:'#fff', cursor:'pointer', fontSize:13, lineHeight:1, padding:0 }}>−</button>
+                              <input
+                                type="number" value={ec.value} min={0}
+                                onChange={e => setEditingCalls({ id: u.id, value: e.target.value })}
+                                onKeyDown={e => { if (e.key==='Enter') setCalls(u.id, parseInt(ec.value||'0')); if (e.key==='Escape') setEditingCalls(null) }}
+                                style={{ width:44, padding:'2px 4px', borderRadius:4, border:'1px solid #7c6ff7', fontSize:12, textAlign:'center' as const, outline:'none' }}
+                                autoFocus
+                              />
+                              <button onClick={()=>setCalls(u.id, parseInt(ec.value||'0')+5)} style={{ width:22, height:22, borderRadius:4, border:'1px solid #e4e4f0', background:'#fff', cursor:'pointer', fontSize:13, lineHeight:1, padding:0 }}>+</button>
+                              <button onClick={()=>setCalls(u.id, parseInt(ec.value||'0'))} style={{ padding:'2px 7px', borderRadius:4, background:'#7c6ff7', color:'#fff', border:'none', fontSize:11, fontWeight:600, cursor:'pointer' }}>✓</button>
+                              <button onClick={()=>setEditingCalls(null)} style={{ padding:'2px 6px', borderRadius:4, background:'transparent', color:'#aaa', border:'1px solid #e4e4f0', fontSize:11, cursor:'pointer' }}>✕</button>
+                            </div>
+                            )
+                          })() : (
+                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                              <span style={{ color:u.calls>100?'#e55':u.calls>50?'#f5a623':'#555', fontWeight:500 }}>{u.calls}</span>
+                              <button onClick={()=>setEditingCalls({ id: u.id, value: String(u.calls) })} style={{ padding:'2px 6px', borderRadius:4, border:'1px solid #e4e4f0', background:'#f8f8fc', color:'#888', fontSize:10, cursor:'pointer' }} title="Edit calls">✎</button>
+                              {u.calls > 0 && <button onClick={()=>setCalls(u.id, 0)} style={{ padding:'2px 6px', borderRadius:4, border:'1px solid rgba(220,38,38,.2)', background:'rgba(220,38,38,.04)', color:'#dc2626', fontSize:10, cursor:'pointer' }} title="Reset to 0">↺</button>}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ ...TD, color:'#888', fontSize:12 }}>{new Date(u.since).toLocaleDateString('en-IN')}</td>
                         <td style={TD}>
                           <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const }}>
