@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
-const RATE_LIMITS = { pro: 200, free: 5 }
+type PlanKey = 'free' | 'analysis' | 'content' | 'guest_pro' | 'pro'
+const RATE_LIMITS: Record<PlanKey, number> = { free: 5, analysis: 10, content: 30, guest_pro: 30, pro: 50 }
 
 function isProEmail(email: string): boolean {
   const PRO = (process.env.PRO_EMAILS ?? 'swaroop.raghu@gmail.com,swaroop.82@gmail.com')
@@ -9,19 +10,22 @@ function isProEmail(email: string): boolean {
   return PRO.includes(email.toLowerCase())
 }
 
-async function getPlan(supabase: any, userId: string, email: string): Promise<'pro' | 'free'> {
+async function getPlan(supabase: any, userId: string, email: string): Promise<PlanKey> {
   if (isProEmail(email)) return 'pro'
-  // Check DB subscription — covers admin-granted Guest Pro users
+  // Check DB subscription — covers all paid/admin-granted plans
   const { data } = await supabase
     .from('markr_subscriptions')
     .select('plan, status')
     .eq('user_id', userId)
     .single()
-  if (data?.status === 'active' && (data?.plan === 'pro' || data?.plan === 'content')) return 'pro'
+  if (data?.status === 'active') {
+    const p = data.plan as string
+    if (p in RATE_LIMITS) return p as PlanKey
+  }
   return 'free'
 }
 
-async function checkRateLimit(supabase: any, userId: string, plan: 'pro' | 'free'): Promise<{ allowed: boolean; remaining: number }> {
+async function checkRateLimit(supabase: any, userId: string, plan: PlanKey): Promise<{ allowed: boolean; remaining: number }> {
   const today = new Date().toISOString().split('T')[0]
   const limit = RATE_LIMITS[plan]
 

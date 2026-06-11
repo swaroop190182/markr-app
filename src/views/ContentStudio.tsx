@@ -96,7 +96,7 @@ Output ONLY valid JSON:
     setTimeout(() => generatePost('evening'), 3600)
   }
 
-  if (plan !== 'content' && plan !== 'pro') {
+  if (plan !== 'content' && plan !== 'pro' && plan !== 'guest_pro') {
     return (
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'60px 24px', textAlign:'center' }}>
         <div style={{ fontSize:36, marginBottom:16 }}>🔒</div>

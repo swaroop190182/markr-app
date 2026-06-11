@@ -615,7 +615,7 @@ Return ONLY this JSON, no markdown:
               )}
 
               {/* AI Recommendations */}
-              {(plan === 'pro' || plan === 'analysis') ? (() => {
+              {(plan === 'pro' || plan === 'guest_pro' || plan === 'analysis') ? (() => {
                 const rec = currentApp.ai_recommendations   // read directly — never from local state
                 const copy = (text: string) => navigator.clipboard.writeText(text).catch(() => {})
                 return (

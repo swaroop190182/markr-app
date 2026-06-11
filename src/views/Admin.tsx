@@ -80,7 +80,7 @@ export default function Admin() {
     setLoading(false)
   }
 
-  async function setPlan(id: string, plan: 'pro'|'analysis'|'content'|'free') {
+  async function setPlan(id: string, plan: 'pro'|'guest_pro'|'analysis'|'content'|'free') {
     const { error } = await supabase.from('markr_subscriptions')
       .upsert({ user_id:id, plan, status: plan !== 'free' ? 'active' : 'inactive', updated_at:new Date().toISOString() }, { onConflict:'user_id' })
     if (error) { msg('Error: '+error.message); return }
@@ -224,13 +224,15 @@ export default function Admin() {
                           </div>
                         </td>
                         <td style={TD}>
-                          {u.plan==='pro' && ADMIN_EMAILS.includes(email(u).toLowerCase())
-                            ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(124,111,247,.12)', color:'#7c6ff7' }}>⭐ Admin Pro</span>
-                            : u.plan==='pro'
-                            ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(52,201,138,.12)', color:'#16a870' }}>✓ Guest Pro · 3 apps</span>
+                          {u.plan==='pro'
+                            ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(124,111,247,.12)', color:'#7c6ff7' }}>⭐ Pro · 50/day</span>
+                            : u.plan==='guest_pro'
+                            ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(52,201,138,.12)', color:'#16a870' }}>✓ Guest Pro · 30/day</span>
                             : u.plan==='analysis'
-                            ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(245,166,35,.12)', color:'#c97d10' }}>Analysis</span>
-                            : <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(144,144,176,.1)', color:'#888' }}>Free</span>
+                            ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(245,166,35,.12)', color:'#c97d10' }}>Analysis · 10/day</span>
+                            : u.plan==='content'
+                            ? <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(52,139,201,.12)', color:'#1670c9' }}>Content · 30/day</span>
+                            : <span style={{ fontSize:11, padding:'2px 9px', borderRadius:20, fontWeight:700, background:'rgba(144,144,176,.1)', color:'#888' }}>Free · 5/day</span>
                           }
                         </td>
                         <td style={{ ...TD, color:'#555' }}>{u.apps}</td>
@@ -263,14 +265,11 @@ export default function Admin() {
                         <td style={{ ...TD, color:'#888', fontSize:12 }}>{new Date(u.since).toLocaleDateString('en-IN')}</td>
                         <td style={TD}>
                           <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const }}>
-                            {u.plan==='free' && (
-                              <button onClick={()=>setPlan(u.id,'pro')} style={{ padding:'4px 10px', borderRadius:6, border:'1px solid rgba(52,201,138,.3)', background:'rgba(52,201,138,.08)', color:'#16a870', fontSize:11, fontWeight:600, cursor:'pointer' }} title="Grants pro plan · 3 app limit">Grant Guest Pro</button>
+                            {(u.plan==='free' || u.plan==='analysis') && (
+                              <button onClick={()=>setPlan(u.id,'guest_pro')} style={{ padding:'4px 10px', borderRadius:6, border:'1px solid rgba(52,201,138,.3)', background:'rgba(52,201,138,.08)', color:'#16a870', fontSize:11, fontWeight:600, cursor:'pointer' }} title="30 calls/day · 3 app limit">Grant Guest Pro</button>
                             )}
-                            {u.plan==='pro' && (
-                              <button onClick={()=>setPlan(u.id,'free')} style={{ padding:'4px 10px', borderRadius:6, border:'1px solid rgba(220,38,38,.2)', background:'rgba(220,38,38,.06)', color:'#dc2626', fontSize:11, fontWeight:600, cursor:'pointer' }}>Revoke Pro</button>
-                            )}
-                            {u.plan==='analysis' && (
-                              <button onClick={()=>setPlan(u.id,'pro')} style={{ padding:'4px 10px', borderRadius:6, border:'1px solid rgba(52,201,138,.3)', background:'rgba(52,201,138,.08)', color:'#16a870', fontSize:11, fontWeight:600, cursor:'pointer' }} title="Grants pro plan · 3 app limit">↑ Guest Pro</button>
+                            {(u.plan==='guest_pro' || u.plan==='pro') && (
+                              <button onClick={()=>setPlan(u.id,'free')} style={{ padding:'4px 10px', borderRadius:6, border:'1px solid rgba(220,38,38,.2)', background:'rgba(220,38,38,.06)', color:'#dc2626', fontSize:11, fontWeight:600, cursor:'pointer' }}>Revoke</button>
                             )}
                             <button onClick={()=>deleteApps(u.id)} style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #e4e4f0', background:'#fff', color:'#888', fontSize:11, cursor:'pointer' }}>🗑</button>
                           </div>

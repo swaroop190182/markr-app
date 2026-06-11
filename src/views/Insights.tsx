@@ -44,7 +44,7 @@ const TABS: { id: Tab; label: string; emoji: string }[] = [
 
 export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
   const { currentApp, updateApp, userEmail, plan } = useStore()
-  const canUseAnalysis = plan === 'analysis' || plan === 'pro'
+  const canUseAnalysis = plan === 'analysis' || plan === 'pro' || plan === 'guest_pro'
   const [activeTab, setActiveTab] = useState<Tab>('competitive')
   const [cache, setCache] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})

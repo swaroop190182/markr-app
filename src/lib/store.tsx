@@ -6,7 +6,7 @@ import { supabase } from './supabase'
 // ── Plan config ────────────────────────────────────────────────────────────────
 const PRO_EMAILS = ['swaroop.raghu@gmail.com', 'swaroop.82@gmail.com']  // admin override: appLimit=10
 
-export type PlanType = 'free' | 'analysis' | 'content' | 'pro'
+export type PlanType = 'free' | 'analysis' | 'content' | 'pro' | 'guest_pro'
 
 export const PLAN_CONFIG: Record<PlanType, {
   callsPerDay: number
@@ -23,7 +23,7 @@ export const PLAN_CONFIG: Record<PlanType, {
     oneTime:     false,
   },
   analysis: {
-    callsPerDay: 0,
+    callsPerDay: 10,
     appLimit:    1,
     features:    ['score','competitive','swot','bmc','growth','pricing','ai_recommendations'],
     trialDays:   null,
@@ -33,6 +33,13 @@ export const PLAN_CONFIG: Record<PlanType, {
     callsPerDay: 30,
     appLimit:    2,
     features:    ['score','content_studio','pillars'],
+    trialDays:   null,
+    oneTime:     false,
+  },
+  guest_pro: {
+    callsPerDay: 30,
+    appLimit:    3,
+    features:    ['all'],
     trialDays:   null,
     oneTime:     false,
   },
