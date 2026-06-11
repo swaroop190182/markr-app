@@ -363,3 +363,7 @@
     line-height: 1.4;
   }
 }
+
+@media (max-width: 640px) {
+  .persona-grid { grid-template-columns: 1fr !important; }
+}

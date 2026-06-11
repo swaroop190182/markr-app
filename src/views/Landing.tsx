@@ -804,6 +804,29 @@ export default function Landing() {
           </div>
         </div>
       </section>
+      {/* ── WHO USES MARKR ── */}
+      <section style={{ padding:'80px 6%', borderTop:'1px solid rgba(255,255,255,.06)' }}>
+        <div style={{ maxWidth:960, margin:'0 auto' }}>
+          <div style={{ textAlign:'center', marginBottom:40 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Who uses Markr</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.8vw,32px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>Built for every stage of the founder journey</h2>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }} className="persona-grid">
+            {([
+              { role:'Solo Founder',    quote:'I finally know why my app isn\'t converting.',          desc:'Full landing page audit with specific fixes in 60 seconds.' },
+              { role:'Mentor & Coach',  quote:'I prep every mentee session with Markr data.',          desc:'Score any founder\'s page before your next call.' },
+              { role:'Accelerator',     quote:'We audited 20 cohort startups in one afternoon.',       desc:'Benchmark your entire batch. Track improvement weekly.' },
+            ] as const).map(({ role, quote, desc }) => (
+              <div key={role} style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, padding:'28px 24px', display:'flex', flexDirection:'column', gap:14 }}>
+                <div style={{ fontSize:10, fontWeight:700, letterSpacing:'.1em', textTransform:'uppercase' as const, color:'#7c6ff7', fontFamily:D }}>{role}</div>
+                <div style={{ fontSize:'clamp(15px,1.6vw,18px)', fontWeight:600, color:'#f5f5f7', lineHeight:1.45, fontFamily:D }}>"{quote}"</div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,.5)', lineHeight:1.6 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section id="pricing" style={{ padding:'80px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.05)' }}>
         <div style={{ maxWidth:700, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:40 }}>
