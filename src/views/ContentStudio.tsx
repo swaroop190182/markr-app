@@ -65,10 +65,22 @@ function getTodaysPillars(pillars: string[]) {
 }
 
 export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void }) {
-  const { currentApp, plan, updateApp } = useStore()
+  const { currentApp, plan, updateApp, setView } = useStore()
   const pillars = currentApp.pillars ?? ['Content','Education','Tips','Community','Stories','Wins']
   const todaysPillars = getTodaysPillars(pillars)
   const pt = currentApp.productTest
+  const pillarSuggestions = currentApp.pillar_suggestions ?? null
+  const hasPillars = !!(pillarSuggestions && Object.keys(pillarSuggestions).length > 0)
+  const weakestDim = currentApp.url_analysis?.dimensions
+    ?.slice().sort((a, b) => a.score - b.score)[0] ?? null
+
+  const defaultPillar = hasPillars
+    ? (Object.keys(pillarSuggestions!).find(p =>
+        weakestDim && p.toLowerCase().includes(weakestDim.label.toLowerCase().split(/\s+/)[0])
+      ) ?? Object.keys(pillarSuggestions!)[0])
+    : null
+
+  const [selectedPillar, setSelectedPillar] = useState<string | null>(defaultPillar)
 
   const [slots, setSlots] = useState<Record<SlotKey, SlotData>>({
     morning: { state:'idle', post:null },
@@ -92,7 +104,8 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
 
   const generatePost = useCallback(async (type: SlotKey, style: StyleId) => {
     const c = SLOT_CONFIGS[type]
-    const pillar = todaysPillars[type]
+    const pillar = selectedPillar ?? todaysPillars[type]
+    const pillarIdeas: string[] = (selectedPillar && pillarSuggestions?.[selectedPillar]) ? pillarSuggestions[selectedPillar] : []
     updateSlot(type, { state:'generating', post:null })
 
     const brandVoice = currentApp.brand ?? `You are the Instagram content strategist for ${currentApp.name}, a ${currentApp.category} app.`
@@ -145,8 +158,10 @@ HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
 ${testCtx}
 ${testCtx ? `CRITICAL: Reference specific features and real UX details from the product test. Caption must feel like it was written by someone who has actually used ${currentApp.name} deeply.` : ''}
 
-Content pillar today: ${pillar}
+Generate 3 posts for this content pillar: ${pillar}. The posts should directly support this pillar's goal.
 App: ${currentApp.name} — ${currentApp.desc ?? currentApp.category}
+${pillarIdeas.length > 0 ? `Pillar post ideas to draw from:\n${pillarIdeas.slice(0, 5).map((idea, i) => `  ${i + 1}. ${idea}`).join('\n')}` : ''}
+${weakestDim ? `Weakest landing page dimension: "${weakestDim.label}" (score: ${weakestDim.score}/10) — ${weakestDim.issue}. Posts should help build credibility in this area.` : ''}
 
 ━━━ POST STYLE ━━━
 Style: ${styleConfig.emoji} ${styleConfig.label.toUpperCase()} (${styleConfig.desc})
@@ -168,7 +183,7 @@ ${uniquenessRules}
 
 Output ONLY valid JSON:
 {
-  "caption": "max 250 chars — authentic Instagram caption about ${pillar}. Must match the format requirement above exactly. NO buzzwords.",
+  "caption": "max 250 chars — authentic Instagram caption for the ${pillar} content pillar. Must match the format requirement above exactly. NO buzzwords.",
   "hashtags": ["12 hashtags without # — mix niche + broad"],
   "image_prompt": "Detailed Canva/DALL-E prompt — specific scene, lighting, mood, 1:1 format",
   "best_posting_time": "${c.time}",
@@ -188,7 +203,7 @@ Output ONLY valid JSON:
     } catch(e) {
       updateSlot(type, { state:'error', error:(e as Error).message })
     }
-  }, [currentApp, todaysPillars, postStyle])
+  }, [currentApp, todaysPillars, postStyle, selectedPillar, pillarSuggestions])
 
   const generateAll = () => {
     generatePost('morning', postStyle)
@@ -245,21 +260,54 @@ Output ONLY valid JSON:
         ))}
       </div>
 
-      {/* Pillar strip */}
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
-        <span style={{ fontSize:11, color:'var(--text3)', fontWeight:500 }}>Today's pillars →</span>
-        {(['morning','midday','evening'] as SlotKey[]).map(t => {
-          const c = SLOT_CONFIGS[t]
-          return (
-            <span key={t} style={{ fontSize:11, padding:'3px 10px', borderRadius:20, fontWeight:600, background:c.bg, color:c.color, border:`1px solid ${c.border}` }}>
-              {c.emoji} {todaysPillars[t]}
-            </span>
-          )
-        })}
-        <button id="generate-all-btn" className="gen-btn" style={{ fontSize:11, padding:'5px 14px', marginLeft:'auto' }} onClick={generateAll}>
-          ✨ Generate All 3
-        </button>
-      </div>
+      {/* Pillar selector */}
+      {hasPillars ? (
+        <div style={{ marginBottom:14 }}>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:6 }}>
+            <span style={{ fontSize:11, color:'var(--text3)', fontWeight:500, flexShrink:0 }}>Content pillar →</span>
+            {Object.keys(pillarSuggestions!).map(p => (
+              <button
+                key={p}
+                onClick={() => setSelectedPillar(p)}
+                style={{
+                  fontSize:11, padding:'4px 12px', borderRadius:20, fontWeight:600, cursor:'pointer', border:'none',
+                  background: selectedPillar === p ? '#7c6ff7' : 'var(--surface2)',
+                  color: selectedPillar === p ? '#fff' : 'var(--text2)',
+                  transition:'background .15s,color .15s',
+                }}
+              >
+                {p}
+              </button>
+            ))}
+            {weakestDim && selectedPillar === defaultPillar && (
+              <span style={{ fontSize:10, color:'var(--text3)', marginLeft:2 }}>
+                ↑ auto-selected (weakest: {weakestDim.label})
+              </span>
+            )}
+            <button id="generate-all-btn" className="gen-btn" style={{ fontSize:11, padding:'5px 14px', marginLeft:'auto' }} onClick={generateAll}>
+              ✨ Generate All 3
+            </button>
+          </div>
+          {selectedPillar && pillarSuggestions![selectedPillar] && (
+            <div style={{ fontSize:10, color:'var(--text3)', paddingLeft:4, lineHeight:1.5 }}>
+              Ideas: {pillarSuggestions![selectedPillar].slice(0, 3).join(' · ')}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
+          <span style={{ fontSize:12, color:'var(--text3)' }}>📋 No content pillars yet.</span>
+          <button
+            onClick={() => setView('overview')}
+            style={{ fontSize:11, padding:'4px 12px', borderRadius:20, fontWeight:600, cursor:'pointer', background:'transparent', border:'1px solid var(--accent)', color:'var(--accent)' }}
+          >
+            Generate content pillars first →
+          </button>
+          <button id="generate-all-btn" className="gen-btn" style={{ fontSize:11, padding:'5px 14px', marginLeft:'auto' }} onClick={generateAll}>
+            ✨ Generate All 3
+          </button>
+        </div>
+      )}
 
       {/* Metric legend */}
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:20 }}>
@@ -275,7 +323,7 @@ Output ONLY valid JSON:
             key={type}
             type={type}
             slot={slots[type]}
-            pillar={todaysPillars[type]}
+            pillar={selectedPillar ?? todaysPillars[type]}
             activeTab={activeTab[type]}
             onTabChange={tab => setActiveTab(prev => ({...prev, [type]:tab}))}
             onGenerate={() => generatePost(type, postStyle)}
