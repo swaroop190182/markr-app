@@ -141,6 +141,15 @@ export interface AppData {
   analysis_used_at?:        string | null
   // Content Studio preferences
   post_style?:              string | null
+  // Content Studio context
+  content_context?: ContentContext | null
+}
+
+export interface ContentContext {
+  typical_user: string
+  real_result:  string
+  user_quote:   string
+  before_state: string
 }
 
 export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'

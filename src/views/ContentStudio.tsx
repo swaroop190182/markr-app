@@ -4,7 +4,7 @@ import { Card, CardHeader, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, safeParseJSON } from '../lib/claude'
 import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
-import type { AgentPost } from '../types'
+import type { AgentPost, ContentContext } from '../types'
 
 type SlotKey = 'morning' | 'midday' | 'evening'
 type SlotState = 'idle' | 'generating' | 'ready' | 'error'
@@ -64,6 +64,87 @@ function getTodaysPillars(pillars: string[]) {
   }
 }
 
+function ContentContextSetup({ existing, onSave, onCancel }: {
+  existing?: ContentContext | null
+  onSave: (ctx: ContentContext) => void
+  onCancel?: () => void
+}) {
+  const [form, setForm] = useState<ContentContext>({
+    typical_user: existing?.typical_user ?? '',
+    real_result:  existing?.real_result  ?? '',
+    user_quote:   existing?.user_quote   ?? '',
+    before_state: existing?.before_state ?? '',
+  })
+  const [saving, setSaving] = useState(false)
+
+  const field = (key: keyof ContentContext, label: string, placeholder: string, required = true, multiline = false) => (
+    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+      <label style={{ fontSize:12, fontWeight:600, color:'var(--text2)' }}>
+        {label}{required && <span style={{ color:'var(--accent)', marginLeft:3 }}>*</span>}
+      </label>
+      {multiline ? (
+        <textarea
+          rows={3}
+          placeholder={placeholder}
+          value={form[key]}
+          onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+          style={{ resize:'vertical', fontSize:13, padding:'9px 11px', borderRadius:'var(--r)', border:'1px solid var(--surface3)', background:'var(--surface2)', color:'var(--text)', fontFamily:'DM Sans, sans-serif', lineHeight:1.55, outline:'none' }}
+        />
+      ) : (
+        <input
+          type="text"
+          placeholder={placeholder}
+          value={form[key]}
+          onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+          style={{ fontSize:13, padding:'9px 11px', borderRadius:'var(--r)', border:'1px solid var(--surface3)', background:'var(--surface2)', color:'var(--text)', fontFamily:'DM Sans, sans-serif', outline:'none' }}
+        />
+      )}
+    </div>
+  )
+
+  async function submit() {
+    if (!form.typical_user.trim() || !form.real_result.trim() || !form.before_state.trim()) {
+      toast('Please fill in the required fields.')
+      return
+    }
+    setSaving(true)
+    onSave(form)
+  }
+
+  return (
+    <div style={{ maxWidth:540, margin:'0 auto', padding:'8px 0 24px' }}>
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:700, marginBottom:6 }}>Content Context Setup</div>
+        <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.7 }}>
+          Answer 4 quick questions so every post is grounded in your real audience and results — not generic language.
+        </div>
+      </div>
+
+      <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+        {field('typical_user', '1. Who is your typical user?', 'e.g. "Freelance designers who struggle to track invoices"')}
+        {field('real_result',  '2. What result have users seen from your app?', 'e.g. "Save 3 hours/week on invoicing"')}
+        {field('user_quote',   '3. Paste any real user feedback or review you\'ve received', 'e.g. "This app saved my business — Jane D." (optional)', false, true)}
+        {field('before_state', '4. What were users doing before they found your app?', 'e.g. "Using spreadsheets and chasing clients manually"')}
+
+        <div style={{ display:'flex', gap:10, marginTop:4 }}>
+          <button
+            onClick={submit}
+            disabled={saving}
+            style={{ flex:1, padding:'11px 0', borderRadius:9, background:'linear-gradient(135deg,#e26faf,#c4559a)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:saving?'default':'pointer', opacity:saving?.6:1, fontFamily:'DM Sans, sans-serif' }}
+          >
+            {saving ? 'Saving…' : (existing ? 'Save changes' : 'Save & start generating →')}
+          </button>
+          {onCancel && (
+            <button onClick={onCancel} style={{ padding:'11px 18px', borderRadius:9, background:'var(--surface2)', color:'var(--text2)', border:'none', fontSize:13, cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void }) {
   const { currentApp, plan, updateApp, setView } = useStore()
   const pillars = currentApp.pillars ?? ['Content','Education','Tips','Community','Stories','Wins']
@@ -81,6 +162,7 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     : null
 
   const [selectedPillar, setSelectedPillar] = useState<string | null>(defaultPillar)
+  const [editingContext, setEditingContext] = useState(false)
 
   const [slots, setSlots] = useState<Record<SlotKey, SlotData>>({
     morning: { state:'idle', post:null },
@@ -99,6 +181,12 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     updateApp(currentApp.id, { post_style: id } as any)
   }
 
+  async function saveContentContext(ctx: ContentContext) {
+    await updateApp(currentApp.id, { content_context: ctx } as any)
+    setEditingContext(false)
+    toast('Content context saved ✓')
+  }
+
   const updateSlot = (key: SlotKey, update: Partial<SlotData>) =>
     setSlots(prev => ({ ...prev, [key]: { ...prev[key], ...update } }))
 
@@ -111,6 +199,14 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     const brandVoice = currentApp.brand ?? `You are the Instagram content strategist for ${currentApp.name}, a ${currentApp.category} app.`
     const testCtx = getTestContext(currentApp)
     const styleConfig = POST_STYLES.find(s => s.id === style) ?? POST_STYLES[1]
+    const ctx = (currentApp as any).content_context as ContentContext | null | undefined
+    const contentCtxBlock = ctx ? `
+━━━ CONTENT CONTEXT (mandatory — use in every post) ━━━
+TARGET USER: ${ctx.typical_user}
+REAL RESULT: ${ctx.real_result}${ctx.user_quote?.trim() ? `\nACTUAL USER QUOTE: "${ctx.user_quote.trim()}"` : ''}
+BEFORE STATE: ${ctx.before_state}
+This context MUST shape every word. Never fall back to generic language — write for this specific user, their real result, and what they were doing before.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''
 
     // Slot metadata — metric and hook per slot; format instruction driven by chosen style
     const SLOT_META = {
@@ -157,6 +253,7 @@ HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
     const prompt = `${brandVoice}
 ${testCtx}
 ${testCtx ? `CRITICAL: Reference specific features and real UX details from the product test. Caption must feel like it was written by someone who has actually used ${currentApp.name} deeply.` : ''}
+${contentCtxBlock}
 
 Generate 3 posts for this content pillar: ${pillar}. The posts should directly support this pillar's goal.
 App: ${currentApp.name} — ${currentApp.desc ?? currentApp.category}
@@ -230,6 +327,18 @@ Output ONLY valid JSON:
     )
   }
 
+  const contentContext = (currentApp as any).content_context as ContentContext | null | undefined
+
+  if (!contentContext || editingContext) {
+    return (
+      <ContentContextSetup
+        existing={contentContext}
+        onSave={saveContentContext}
+        onCancel={contentContext ? () => setEditingContext(false) : undefined}
+      />
+    )
+  }
+
   return (
     <div>
       {pt && !pt.error && (
@@ -240,6 +349,20 @@ Output ONLY valid JSON:
           </div>
         </div>
       )}
+
+      {/* Content context bar */}
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12, padding:'8px 12px', borderRadius:'var(--r)', background:'var(--surface2)', border:'1px solid var(--surface3)' }}>
+        <div style={{ flex:1, fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>
+          <strong style={{ color:'var(--text2)' }}>Content context:</strong>{' '}
+          {contentContext.typical_user}{contentContext.real_result ? ` · ${contentContext.real_result}` : ''}
+        </div>
+        <button
+          onClick={() => setEditingContext(true)}
+          style={{ fontSize:11, padding:'4px 11px', borderRadius:20, border:'1px solid var(--surface3)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontFamily:'DM Sans, sans-serif', whiteSpace:'nowrap' }}
+        >
+          Edit context
+        </button>
+      </div>
 
       {/* Post Style selector */}
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>

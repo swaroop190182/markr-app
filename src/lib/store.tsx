@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import type { AppData, ViewType } from '../types'
+import type { AppData, ViewType, ContentContext } from '../types'
 import { COLORS } from './data'
 import { supabase } from './supabase'
 
@@ -191,6 +191,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           content_studio_cache: row.content_studio_cache ?? null,
           strategy_cache:       row.strategy_cache ?? null,
           post_style:           row.post_style ?? null,
+          content_context:      row.content_context ?? null,
           // Analysis timestamps
           competitive_analyzed_at: row.competitive_analyzed_at ?? null,
           bmc_analyzed_at:         row.bmc_analyzed_at ?? null,
@@ -283,6 +284,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.content_studio_cache !== undefined && { content_studio_cache: updates.content_studio_cache }),
         ...(updates.strategy_cache       !== undefined && { strategy_cache:       updates.strategy_cache }),
         ...(updates.post_style           !== undefined && { post_style:           updates.post_style }),
+        ...(updates.content_context      !== undefined && { content_context:      updates.content_context }),
         ...(updates.competitive_analyzed_at !== undefined && { competitive_analyzed_at: updates.competitive_analyzed_at }),
         ...(updates.bmc_analyzed_at         !== undefined && { bmc_analyzed_at:         updates.bmc_analyzed_at }),
         ...(updates.swot_analyzed_at        !== undefined && { swot_analyzed_at:        updates.swot_analyzed_at }),
