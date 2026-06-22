@@ -232,6 +232,20 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
 
     const derivedCtxBlock = deriveContentContext(currentApp, pillar, pillarSuggestions)
 
+    const ENDING_RULE = {
+      morning: 'THIS POST (morning) MUST end with a STATEMENT — never a question.',
+      midday:  'THIS POST (midday) MUST end with a TIP or OBSERVATION — never a question.',
+      evening: 'THIS POST (evening) is the only one in the set permitted to end with a question. It may also end with a statement.',
+    }[type]
+
+    const ABSOLUTE_RULES = `ABSOLUTE RULES — THESE OVERRIDE EVERYTHING ELSE:
+Rule 1: OUT OF 3 POSTS, MAXIMUM 1 CAN END WITH A QUESTION. The other 2 MUST end with a statement, tip, observation or CTA.
+Rule 2: NEVER use these phrases: "What's your", "How do you", "Do you", "Have you ever", "What do you think", "Share your"
+Rule 3: Each post MUST use a different ending type — cycle through: statement → tip → question (in that order, mapped to morning → midday → evening).
+Rule 4: If you find yourself writing a question at the end of the morning or midday post, STOP and rewrite it as a statement or tip instead.
+${ENDING_RULE}
+VIOLATION CHECK: Before returning JSON, check whether your caption ends with "?". If it does and this is not the evening slot, rewrite the ending as a statement or tip.`
+
     const ctx = (currentApp as any).content_context as ContentContext | null | undefined
     const sanitize = (s: string) => s?.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, '').trim() ?? ''
     const contentCtxBlock = ctx ? `
@@ -285,7 +299,9 @@ HARD RULES — violating any of these makes the output invalid:
 5. Your CTA/closing line MUST be meaningfully different from every other post's closing line.` : `
 HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
 
-    const prompt = `${brandVoice}
+    const prompt = `${ABSOLUTE_RULES}
+
+${brandVoice}
 ${testCtx}
 ${testCtx ? `CRITICAL: Reference specific features and real UX details from the product test. Caption must feel like it was written by someone who has actually used ${currentApp.name} deeply.` : ''}
 ${derivedCtxBlock}
@@ -328,7 +344,9 @@ Output ONLY valid JSON:
   "engagement_type": "${type==='evening'?'poll_or_question':type==='midday'?'share_trigger':'save_trigger'}"
 }`
 
-    const SYSTEM = 'You are an expert Instagram content strategist. Output ONLY valid JSON. Follow both the POST STYLE and FORMAT REQUIREMENT exactly — both are mandatory.'
+    const SYSTEM = `${ABSOLUTE_RULES}
+
+You are an expert Instagram content strategist. Output ONLY valid JSON. Follow the ABSOLUTE RULES, POST STYLE, and FORMAT REQUIREMENT — all are mandatory, in that priority order.`
     try {
       const raw = await callClaude(prompt, SYSTEM, 1800)
       const post = safeParseJSON<AgentPost>(raw)
