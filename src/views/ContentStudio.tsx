@@ -231,11 +231,12 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     const testCtx = getTestContext(currentApp)
     const styleConfig = POST_STYLES.find(s => s.id === style) ?? POST_STYLES[1]
     const ctx = (currentApp as any).content_context as ContentContext | null | undefined
+    const sanitize = (s: string) => s?.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, '').trim() ?? ''
     const contentCtxBlock = ctx ? `
 ━━━ CONTENT CONTEXT (mandatory — use in every post) ━━━
-TARGET USER: ${ctx.typical_user}
-REAL RESULT: ${ctx.real_result}${ctx.user_quote?.trim() ? `\nACTUAL USER QUOTE: "${ctx.user_quote.trim()}"` : ''}
-BEFORE STATE: ${ctx.before_state}
+TARGET USER: ${sanitize(ctx.typical_user)}
+REAL RESULT: ${sanitize(ctx.real_result)}${ctx.user_quote?.trim() ? `\nACTUAL USER QUOTE: "${sanitize(ctx.user_quote)}"` : ''}
+BEFORE STATE: ${sanitize(ctx.before_state)}
 This context MUST shape every word. Never fall back to generic language — write for this specific user, their real result, and what they were doing before.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''
 
@@ -323,13 +324,24 @@ Output ONLY valid JSON:
   "engagement_type": "${type==='evening'?'poll_or_question':type==='midday'?'share_trigger':'save_trigger'}"
 }`
 
+    const SYSTEM = 'You are an expert Instagram content strategist. Output ONLY valid JSON. Follow both the POST STYLE and FORMAT REQUIREMENT exactly — both are mandatory.'
     try {
-      const raw = await callClaude(prompt, 'You are an expert Instagram content strategist. Output ONLY valid JSON. Follow both the POST STYLE and FORMAT REQUIREMENT exactly — both are mandatory.', 1800)
+      const raw = await callClaude(prompt, SYSTEM, 1800)
       const post = safeParseJSON<AgentPost>(raw)
       updateSlot(type, { state:'ready', post })
       toast(`${c.label} ready! ✓`)
     } catch(e) {
-      updateSlot(type, { state:'error', error:(e as Error).message })
+      // If context was present it may have caused malformed JSON — retry without it
+      if (contentCtxBlock) {
+        try {
+          const raw = await callClaude(prompt.replace(contentCtxBlock, ''), SYSTEM, 1800)
+          const post = safeParseJSON<AgentPost>(raw)
+          updateSlot(type, { state:'ready', post })
+          toast(`${c.label} ready! ✓`)
+          return
+        } catch { /* fall through */ }
+      }
+      updateSlot(type, { state:'error', error: 'Generation failed — please try again.' })
     }
   }, [currentApp, todaysPillars, postStyle, selectedPillar, pillarSuggestions])
 
