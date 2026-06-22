@@ -64,10 +64,12 @@ function getTodaysPillars(pillars: string[]) {
   }
 }
 
-function ContentContextSetup({ existing, onSave, onCancel }: {
+function ContentContextSetup({ existing, onSave, onCancel, canSkip, onSkip }: {
   existing?: ContentContext | null
   onSave: (ctx: ContentContext) => void
   onCancel?: () => void
+  canSkip?: boolean
+  onSkip?: () => void
 }) {
   const [form, setForm] = useState<ContentContext>({
     typical_user: existing?.typical_user ?? '',
@@ -111,12 +113,18 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
     onSave(form)
   }
 
+  const isImprovement = canSkip && !existing
+
   return (
     <div style={{ maxWidth:540, margin:'0 auto', padding:'8px 0 24px' }}>
       <div style={{ marginBottom:20 }}>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:700, marginBottom:6 }}>Content Context Setup</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:700, marginBottom:6 }}>
+          {existing ? 'Edit Content Context' : isImprovement ? 'Get better posts in 2 minutes' : 'Content Context Setup'}
+        </div>
         <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.7 }}>
-          Answer 4 quick questions so every post is grounded in your real audience and results — not generic language.
+          {isImprovement
+            ? 'Tell us about your real users and results — your posts will immediately feel more specific and credible instead of generic.'
+            : 'Answer 4 quick questions so every post is grounded in your real audience and results — not generic language.'}
         </div>
       </div>
 
@@ -140,6 +148,15 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
             </button>
           )}
         </div>
+
+        {canSkip && onSkip && (
+          <button
+            onClick={onSkip}
+            style={{ background:'none', border:'none', color:'var(--text3)', fontSize:12, cursor:'pointer', textDecoration:'underline', padding:0, fontFamily:'DM Sans, sans-serif', textAlign:'center' }}
+          >
+            Skip for now — generate posts without context
+          </button>
+        )}
       </div>
     </div>
   )
@@ -163,6 +180,20 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
 
   const [selectedPillar, setSelectedPillar] = useState<string | null>(defaultPillar)
   const [editingContext, setEditingContext] = useState(false)
+  const [skippedContext, setSkippedContext] = useState(false)
+
+  // An "existing" app is one that had data before the content_context feature was added.
+  // Proxy: any analysis or pillar data present means it was used before this feature shipped.
+  const isExistingApp = !!(
+    currentApp.pillar_suggestions ||
+    currentApp.url_analysis ||
+    currentApp.analyzed ||
+    currentApp.competitive_analysis ||
+    currentApp.bmc_analysis ||
+    currentApp.swot_analysis ||
+    currentApp.growth_analysis ||
+    currentApp.pricing_analysis
+  )
 
   const [slots, setSlots] = useState<Record<SlotKey, SlotData>>({
     morning: { state:'idle', post:null },
@@ -329,12 +360,33 @@ Output ONLY valid JSON:
 
   const contentContext = (currentApp as any).content_context as ContentContext | null | undefined
 
-  if (!contentContext || editingContext) {
+  // Editing existing context (triggered from "Edit context" button or nudge banner)
+  if (editingContext) {
     return (
       <ContentContextSetup
         existing={contentContext}
         onSave={saveContentContext}
-        onCancel={contentContext ? () => setEditingContext(false) : undefined}
+        onCancel={() => setEditingContext(false)}
+      />
+    )
+  }
+
+  // New app with no context — required, no skip
+  if (!contentContext && !isExistingApp) {
+    return (
+      <ContentContextSetup
+        onSave={saveContentContext}
+      />
+    )
+  }
+
+  // Existing app with no context — optional form (unless already skipped)
+  if (!contentContext && isExistingApp && !skippedContext) {
+    return (
+      <ContentContextSetup
+        onSave={saveContentContext}
+        canSkip
+        onSkip={() => setSkippedContext(true)}
       />
     )
   }
@@ -350,19 +402,31 @@ Output ONLY valid JSON:
         </div>
       )}
 
-      {/* Content context bar */}
-      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12, padding:'8px 12px', borderRadius:'var(--r)', background:'var(--surface2)', border:'1px solid var(--surface3)' }}>
-        <div style={{ flex:1, fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>
-          <strong style={{ color:'var(--text2)' }}>Content context:</strong>{' '}
-          {contentContext.typical_user}{contentContext.real_result ? ` · ${contentContext.real_result}` : ''}
+      {/* Content context bar — filled or nudge */}
+      {contentContext ? (
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12, padding:'8px 12px', borderRadius:'var(--r)', background:'var(--surface2)', border:'1px solid var(--surface3)' }}>
+          <div style={{ flex:1, fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>
+            <strong style={{ color:'var(--text2)' }}>Content context:</strong>{' '}
+            {contentContext.typical_user}{contentContext.real_result ? ` · ${contentContext.real_result}` : ''}
+          </div>
+          <button
+            onClick={() => setEditingContext(true)}
+            style={{ fontSize:11, padding:'4px 11px', borderRadius:20, border:'1px solid var(--surface3)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontFamily:'DM Sans, sans-serif', whiteSpace:'nowrap' }}
+          >
+            Edit context
+          </button>
         </div>
+      ) : (
         <button
           onClick={() => setEditingContext(true)}
-          style={{ fontSize:11, padding:'4px 11px', borderRadius:20, border:'1px solid var(--surface3)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontFamily:'DM Sans, sans-serif', whiteSpace:'nowrap' }}
+          style={{ display:'flex', alignItems:'center', gap:8, width:'100%', marginBottom:12, padding:'8px 12px', borderRadius:'var(--r)', background:'rgba(226,111,175,.06)', border:'1px dashed rgba(226,111,175,.3)', cursor:'pointer', textAlign:'left', fontFamily:'DM Sans, sans-serif' }}
         >
-          Edit context
+          <span style={{ fontSize:14 }}>✨</span>
+          <span style={{ flex:1, fontSize:12, color:'rgba(226,111,175,.9)', lineHeight:1.4 }}>
+            Add context about your users to get better posts →
+          </span>
         </button>
-      </div>
+      )}
 
       {/* Post Style selector */}
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>
