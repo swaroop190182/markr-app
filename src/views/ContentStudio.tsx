@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, safeParseJSON } from '../lib/claude'
@@ -205,6 +205,13 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
   const [postStyle, setPostStyle] = useState<StyleId>(
     (currentApp.post_style as StyleId | null) ?? 'conversational'
   )
+
+  useEffect(() => {
+    setSlots({ morning: { state:'idle', post:null }, midday: { state:'idle', post:null }, evening: { state:'idle', post:null } })
+    setActiveTab({ morning:'caption', midday:'caption', evening:'caption' })
+    setEditingContext(false)
+    setSelectedPillar(defaultPillar)
+  }, [currentApp.id])
 
   function changeStyle(id: StyleId) {
     setPostStyle(id)
