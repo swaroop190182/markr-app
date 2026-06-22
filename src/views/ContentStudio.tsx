@@ -414,19 +414,23 @@ Output ONLY valid JSON:
         </div>
       )}
 
-      {/* Content context bar — filled or nudge */}
+      {/* Content context section */}
       {contentContext ? (
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12, padding:'8px 12px', borderRadius:'var(--r)', background:'var(--surface2)', border:'1px solid var(--surface3)' }}>
-          <div style={{ flex:1, fontSize:11, color:'var(--text3)', lineHeight:1.5 }}>
-            <strong style={{ color:'var(--text2)' }}>Content context:</strong>{' '}
-            {contentContext.typical_user}{contentContext.real_result ? ` · ${contentContext.real_result}` : ''}
+        <div style={{ marginBottom:16, padding:'12px 14px', borderRadius:'var(--r)', background:'var(--surface2)', border:'1px solid var(--surface3)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:8 }}>
+            <span style={{ fontSize:12, fontWeight:700, color:'var(--text)', letterSpacing:'.02em' }}>Content Context</span>
+            <button
+              onClick={() => setEditingContext(true)}
+              style={{ fontSize:12, fontWeight:600, padding:'5px 14px', borderRadius:20, border:'1.5px solid var(--accent)', background:'transparent', color:'var(--accent)', cursor:'pointer', fontFamily:'DM Sans, sans-serif', whiteSpace:'nowrap', transition:'background .15s,color .15s' }}
+            >
+              Edit context
+            </button>
           </div>
-          <button
-            onClick={() => setEditingContext(true)}
-            style={{ fontSize:11, padding:'4px 11px', borderRadius:20, border:'1px solid var(--surface3)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontFamily:'DM Sans, sans-serif', whiteSpace:'nowrap' }}
-          >
-            Edit context
-          </button>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 16px' }}>
+            <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}><span style={{ color:'var(--text2)', fontWeight:500 }}>User:</span> {contentContext.typical_user}</div>
+            <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Result:</span> {contentContext.real_result}</div>
+            {contentContext.before_state && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, gridColumn:'span 2' }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Before:</span> {contentContext.before_state}</div>}
+          </div>
         </div>
       ) : (
         <button
