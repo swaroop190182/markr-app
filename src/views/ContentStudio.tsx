@@ -4,7 +4,7 @@ import { Card, CardHeader, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, safeParseJSON } from '../lib/claude'
 import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
-import type { AgentPost, ContentContext } from '../types'
+import type { AppData, AgentPost, ContentContext } from '../types'
 
 type SlotKey = 'morning' | 'midday' | 'evening'
 type SlotState = 'idle' | 'generating' | 'ready' | 'error'
@@ -64,12 +64,42 @@ function getTodaysPillars(pillars: string[]) {
   }
 }
 
-function ContentContextSetup({ existing, onSave, onCancel, canSkip, onSkip }: {
+function deriveContentContext(
+  app: AppData,
+  pillar: string,
+  pillarSuggestions: Record<string, string[]> | null
+): string {
+  const ua = app.url_analysis
+  const parts: string[] = []
+
+  const category = ua?.category ?? app.category
+  if (category) parts.push(`Category: ${category}`)
+
+  const headline = ua?.headline
+  if (headline || app.desc) {
+    parts.push(`Target outcome: ${[headline, app.desc].filter(Boolean).join(' — ')}`)
+  }
+
+  const weakest = ua?.dimensions?.slice().sort((a, b) => a.score - b.score)[0]
+  if (weakest) {
+    parts.push(`Current weakest area: ${weakest.label} (${weakest.score}/10) — ${weakest.issue}`)
+  }
+
+  const pillarGoal = pillarSuggestions?.[pillar]?.[0] ?? ''
+  parts.push(`Content focus this week: ${pillar}${pillarGoal ? ` — ${pillarGoal}` : ''}`)
+
+  if (ua?.growth_teaser) {
+    parts.push(`Growth opportunity: ${ua.growth_teaser}`)
+  }
+
+  if (parts.length === 0) return ''
+  return `━━━ APP CONTEXT (automatically derived) ━━━\n${parts.join('\n')}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+}
+
+function ContentContextSetup({ existing, onSave, onCancel }: {
   existing?: ContentContext | null
   onSave: (ctx: ContentContext) => void
-  onCancel?: () => void
-  canSkip?: boolean
-  onSkip?: () => void
+  onCancel: () => void
 }) {
   const [form, setForm] = useState<ContentContext>({
     typical_user: existing?.typical_user ?? '',
@@ -105,34 +135,28 @@ function ContentContextSetup({ existing, onSave, onCancel, canSkip, onSkip }: {
   )
 
   async function submit() {
-    if (!form.typical_user.trim() || !form.real_result.trim() || !form.before_state.trim()) {
-      toast('Please fill in the required fields.')
-      return
-    }
     setSaving(true)
     onSave(form)
   }
-
-  const isImprovement = canSkip && !existing
 
   return (
     <div style={{ maxWidth:540, margin:'0 auto', padding:'8px 0 24px' }}>
       <div style={{ marginBottom:20 }}>
         <div style={{ fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:700, marginBottom:6 }}>
-          {existing ? 'Edit Content Context' : isImprovement ? 'Get better posts in 2 minutes' : 'Content Context Setup'}
+          {existing ? 'Edit User Context' : 'Add Real User Context'}
         </div>
         <div style={{ fontSize:12, color:'var(--text3)', lineHeight:1.7 }}>
-          {isImprovement
-            ? 'Tell us about your real users and results — your posts will immediately feel more specific and credible instead of generic.'
-            : 'Answer 4 quick questions so every post is grounded in your real audience and results — not generic language.'}
+          {existing
+            ? 'Update your user context — posts will use these details alongside the auto-derived app data.'
+            : 'Add real quotes and examples to make posts feel even more specific. Posts already work without this — this just makes them better.'}
         </div>
       </div>
 
       <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-        {field('typical_user', '1. Who is your typical user?', 'e.g. "Freelance designers who struggle to track invoices"')}
-        {field('real_result',  '2. What result have users seen from your app?', 'e.g. "Save 3 hours/week on invoicing"')}
-        {field('user_quote',   '3. Paste any real user feedback or review you\'ve received', 'e.g. "This app saved my business — Jane D." (optional)', false, true)}
-        {field('before_state', '4. What were users doing before they found your app?', 'e.g. "Using spreadsheets and chasing clients manually"')}
+        {field('typical_user', '1. Who is your typical user?', 'e.g. "Freelance designers who struggle to track invoices"', false)}
+        {field('real_result',  '2. What result have users seen from your app?', 'e.g. "Save 3 hours/week on invoicing"', false)}
+        {field('user_quote',   '3. Paste any real user feedback or review you\'ve received', 'e.g. "This app saved my business — Jane D."', false, true)}
+        {field('before_state', '4. What were users doing before they found your app?', 'e.g. "Using spreadsheets and chasing clients manually"', false)}
 
         <div style={{ display:'flex', gap:10, marginTop:4 }}>
           <button
@@ -140,23 +164,12 @@ function ContentContextSetup({ existing, onSave, onCancel, canSkip, onSkip }: {
             disabled={saving}
             style={{ flex:1, padding:'11px 0', borderRadius:9, background:'linear-gradient(135deg,#e26faf,#c4559a)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:saving?'default':'pointer', opacity:saving?.6:1, fontFamily:'DM Sans, sans-serif' }}
           >
-            {saving ? 'Saving…' : (existing ? 'Save changes' : 'Save & start generating →')}
+            {saving ? 'Saving…' : (existing ? 'Save changes' : 'Save context')}
           </button>
-          {onCancel && (
-            <button onClick={onCancel} style={{ padding:'11px 18px', borderRadius:9, background:'var(--surface2)', color:'var(--text2)', border:'none', fontSize:13, cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>
-              Cancel
-            </button>
-          )}
+          <button onClick={onCancel} style={{ padding:'11px 18px', borderRadius:9, background:'var(--surface2)', color:'var(--text2)', border:'none', fontSize:13, cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>
+            Cancel
+          </button>
         </div>
-
-        {canSkip && onSkip && (
-          <button
-            onClick={onSkip}
-            style={{ background:'none', border:'none', color:'var(--text3)', fontSize:12, cursor:'pointer', textDecoration:'underline', padding:0, fontFamily:'DM Sans, sans-serif', textAlign:'center' }}
-          >
-            Skip for now — generate posts without context
-          </button>
-        )}
       </div>
     </div>
   )
@@ -180,20 +193,6 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
 
   const [selectedPillar, setSelectedPillar] = useState<string | null>(defaultPillar)
   const [editingContext, setEditingContext] = useState(false)
-  const [skippedContext, setSkippedContext] = useState(false)
-
-  // An "existing" app is one that had data before the content_context feature was added.
-  // Proxy: any analysis or pillar data present means it was used before this feature shipped.
-  const isExistingApp = !!(
-    currentApp.pillar_suggestions ||
-    currentApp.url_analysis ||
-    currentApp.analyzed ||
-    currentApp.competitive_analysis ||
-    currentApp.bmc_analysis ||
-    currentApp.swot_analysis ||
-    currentApp.growth_analysis ||
-    currentApp.pricing_analysis
-  )
 
   const [slots, setSlots] = useState<Record<SlotKey, SlotData>>({
     morning: { state:'idle', post:null },
@@ -230,15 +229,19 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     const brandVoice = currentApp.brand ?? `You are the Instagram content strategist for ${currentApp.name}, a ${currentApp.category} app.`
     const testCtx = getTestContext(currentApp)
     const styleConfig = POST_STYLES.find(s => s.id === style) ?? POST_STYLES[1]
+
+    const derivedCtxBlock = deriveContentContext(currentApp, pillar, pillarSuggestions)
+
     const ctx = (currentApp as any).content_context as ContentContext | null | undefined
     const sanitize = (s: string) => s?.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, '').trim() ?? ''
     const contentCtxBlock = ctx ? `
-━━━ CONTENT CONTEXT (mandatory — use in every post) ━━━
-TARGET USER: ${sanitize(ctx.typical_user)}
-REAL RESULT: ${sanitize(ctx.real_result)}${ctx.user_quote?.trim() ? `\nACTUAL USER QUOTE: "${sanitize(ctx.user_quote)}"` : ''}
-BEFORE STATE: ${sanitize(ctx.before_state)}
-This context MUST shape every word. Never fall back to generic language — write for this specific user, their real result, and what they were doing before.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''
+━━━ USER CONTEXT (real quotes and examples — layer on top of app context) ━━━
+${ctx.typical_user?.trim() ? `TARGET USER: ${sanitize(ctx.typical_user)}` : ''}
+${ctx.real_result?.trim()  ? `REAL RESULT: ${sanitize(ctx.real_result)}`  : ''}
+${ctx.user_quote?.trim()   ? `ACTUAL USER QUOTE: "${sanitize(ctx.user_quote)}"` : ''}
+${ctx.before_state?.trim() ? `BEFORE STATE: ${sanitize(ctx.before_state)}` : ''}
+Use these specifics wherever possible — they make posts feel earned, not invented.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''
 
     // Slot metadata — metric and hook per slot; format instruction driven by chosen style
     const SLOT_META = {
@@ -285,6 +288,7 @@ HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
     const prompt = `${brandVoice}
 ${testCtx}
 ${testCtx ? `CRITICAL: Reference specific features and real UX details from the product test. Caption must feel like it was written by someone who has actually used ${currentApp.name} deeply.` : ''}
+${derivedCtxBlock}
 ${contentCtxBlock}
 
 Generate 3 posts for this content pillar: ${pillar}. The posts should directly support this pillar's goal.
@@ -372,33 +376,12 @@ Output ONLY valid JSON:
 
   const contentContext = (currentApp as any).content_context as ContentContext | null | undefined
 
-  // Editing existing context (triggered from "Edit context" button or nudge banner)
   if (editingContext) {
     return (
       <ContentContextSetup
         existing={contentContext}
         onSave={saveContentContext}
         onCancel={() => setEditingContext(false)}
-      />
-    )
-  }
-
-  // New app with no context — required, no skip
-  if (!contentContext && !isExistingApp) {
-    return (
-      <ContentContextSetup
-        onSave={saveContentContext}
-      />
-    )
-  }
-
-  // Existing app with no context — optional form (unless already skipped)
-  if (!contentContext && isExistingApp && !skippedContext) {
-    return (
-      <ContentContextSetup
-        onSave={saveContentContext}
-        canSkip
-        onSkip={() => setSkippedContext(true)}
       />
     )
   }
@@ -414,22 +397,23 @@ Output ONLY valid JSON:
         </div>
       )}
 
-      {/* Content context section */}
+      {/* User context section */}
       {contentContext ? (
         <div style={{ marginBottom:16, padding:'12px 14px', borderRadius:'var(--r)', background:'var(--surface2)', border:'1px solid var(--surface3)' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:8 }}>
-            <span style={{ fontSize:12, fontWeight:700, color:'var(--text)', letterSpacing:'.02em' }}>Content Context</span>
+            <span style={{ fontSize:12, fontWeight:700, color:'var(--text)', letterSpacing:'.02em' }}>User Context</span>
             <button
               onClick={() => setEditingContext(true)}
-              style={{ fontSize:12, fontWeight:600, padding:'5px 14px', borderRadius:20, border:'1.5px solid var(--accent)', background:'transparent', color:'var(--accent)', cursor:'pointer', fontFamily:'DM Sans, sans-serif', whiteSpace:'nowrap', transition:'background .15s,color .15s' }}
+              style={{ fontSize:12, fontWeight:600, padding:'5px 14px', borderRadius:20, border:'1.5px solid var(--accent)', background:'transparent', color:'var(--accent)', cursor:'pointer', fontFamily:'DM Sans, sans-serif', whiteSpace:'nowrap' }}
             >
               Edit context
             </button>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 16px' }}>
-            <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}><span style={{ color:'var(--text2)', fontWeight:500 }}>User:</span> {contentContext.typical_user}</div>
-            <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Result:</span> {contentContext.real_result}</div>
+            {contentContext.typical_user && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}><span style={{ color:'var(--text2)', fontWeight:500 }}>User:</span> {contentContext.typical_user}</div>}
+            {contentContext.real_result  && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Result:</span> {contentContext.real_result}</div>}
             {contentContext.before_state && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, gridColumn:'span 2' }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Before:</span> {contentContext.before_state}</div>}
+            {contentContext.user_quote   && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, gridColumn:'span 2', fontStyle:'italic' }}>"{contentContext.user_quote}"</div>}
           </div>
         </div>
       ) : (
@@ -439,7 +423,7 @@ Output ONLY valid JSON:
         >
           <span style={{ fontSize:14 }}>✨</span>
           <span style={{ flex:1, fontSize:12, color:'rgba(226,111,175,.9)', lineHeight:1.4 }}>
-            Add context about your users to get better posts →
+            Add real user quotes and examples →
           </span>
         </button>
       )}
