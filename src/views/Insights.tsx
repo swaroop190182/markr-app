@@ -130,34 +130,32 @@ ${rc.trim()}
 
   // ── COMPETITIVE ─────────────────────────────────────────────────────────────
   async function genCompetitive() {
-    // Monthly limit check — skip for admin
-    if (!canRefresh(currentApp.competitive_analyzed_at, userEmail)) {
-      toast(`Analysis was last run ${lastUpdatedLabel(currentApp.competitive_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
+    // 7-day refresh for competitive (shorter window than other tabs)
+    const daysOld = daysSince(currentApp.competitive_analyzed_at)
+    if (!isAdmin(userEmail) && daysOld !== null && daysOld < 7) {
+      toast(`Competitive analysis was last run ${lastUpdatedLabel(currentApp.competitive_analyzed_at).toLowerCase()}. Refreshes after 7 days.`)
       return
     }
     setLoad('competitive', true)
-    const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
     try {
-                  const urlAnalysis = (currentApp as any).url_analysis
+      const urlAnalysis = (currentApp as any).url_analysis
       const appContext = urlAnalysis
-        ? `App headline: "${urlAnalysis.headline}"\nApp description: "${urlAnalysis.scraped?.metaDesc || currentApp.desc}"\nApp URL: ${currentApp.url}`
+        ? `App: "${urlAnalysis.headline}" — ${currentApp.url}`
         : `App: "${currentApp.name}" — ${currentApp.desc || currentApp.category}`
-      const prompt = `Find 5 real direct competitors for this app, prioritising local/regional ones first.
+
+      const prompt = `Find 5 real direct competitors for this app. Prioritise local/regional competitors first.
 
 ${appContext}${rcCtx}
 
-PRIORITY ORDER:
-1. First list 2-3 LOCAL/REGIONAL competitors — apps from the same country or serving the same regional market. Detect region from pricing currency, language, domain (.in, .au, etc.), or app description. For example, if the app targets Indian users, include Indian-market alternatives first.
-2. Then list 2-3 GLOBAL competitors — well-known international products in the same category.
-If fewer than 2 local competitors genuinely exist, fill remaining slots with global ones. Total must be exactly 5.
+PRIORITY: list 2-3 LOCAL competitors first (same country/region — detect from currency, domain, language), then 2-3 GLOBAL ones. Total must be exactly 5.
 
-For each competitor also include review intelligence from your training knowledge of G2, Capterra, ProductHunt, and app stores — choose the most reliable source you know for that competitor.
+For each competitor draw on your training knowledge across ALL sources: Crunchbase, LinkedIn, G2, Capterra, Reddit, ProductHunt, TechCrunch, and app store data. Provide specific numbers where you know them (funding amounts, employee counts, review counts, upvotes).
 
 JSON only, no markdown:
-{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins","reason":"one line why this is a competitor","reviews":{"rating":"4.3/5","ratingSource":"G2","ratingCount":"~450 reviews","praise":"best praised aspect in under 10 words","complaints":"most common complaint in under 10 words","traction":"concrete signal: downloads, upvotes, or user count"}}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
+{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":"4.3/5","ratingSource":"G2","ratingCount":"~450 reviews","praise":"top praise under 10 words","complaints":"top complaint under 10 words","traction":"downloads or user count signal"},"funding":"Seed · $1.2M · 2022","fundingSource":"Crunchbase","employees":"10-50","employeesSource":"LinkedIn","userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"recentMoves":[{"headline":"specific recent event or product launch","date":"Q1 2026","source":"TechCrunch"},{"headline":"another recent move","date":"2025","source":"ProductHunt"}],"redditSentiment":"positive","redditQuote":"representative opinion from a real reddit discussion","phUpvotes":"~450","phYear":"2023","positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"}`
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2500)
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 4000, undefined, 'sonnet', 'competitive')
       const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/}[^}]*$/,'}').trim()
       if (!cleaned) throw new Error('Empty response')
       const parsed = JSON.parse(cleaned)
@@ -165,7 +163,7 @@ JSON only, no markdown:
         throw new Error('No competitors — keys: ' + Object.keys(parsed).join(', '))
       }
 
-      // Enrich each competitor with App Store data from iTunes Search API
+      // Enrich each competitor with live App Store data via iTunes Search API (parallel)
       parsed.comps = await Promise.all(parsed.comps.map(async (comp: any) => {
         try {
           const res = await fetch(
@@ -194,7 +192,7 @@ JSON only, no markdown:
       }))
 
       setTabCache('competitive', JSON.stringify(parsed))
-      toast('Competitive analysis ready!')
+      toast('Competitive intelligence ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('competitive', false)
   }
@@ -607,12 +605,24 @@ Output ONLY valid JSON:
 
 // ── COMPETITIVE TAB ──────────────────────────────────────────────────────────
 function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; loading?:boolean; onGenerate:()=>void; appName:string }) {
-  if (loading) return <LoadingCard text="Researching competitors…" />
-  if (!data) return <EmptyTab emoji="🔍" title="Competitive Analysis" desc="Identify your top 5 competitors, compare features, pricing, and positioning." onGenerate={onGenerate} btnLabel="Run Competitive Analysis" />
+  if (loading) return <LoadingCard text="Researching competitors across all sources…" />
+  if (!data) return <EmptyTab emoji="🔍" title="Competitive Intelligence" desc="Deep analysis of your top 5 competitors — funding, sentiment, recent moves, positioning gaps, and more." onGenerate={onGenerate} btnLabel="Run Competitive Intelligence" />
   try {
     const { comps, mktPos, wspace, winCond } = JSON.parse(data)
     const tC  = { High:'var(--red)', Medium:'var(--amber)', Low:'var(--green)' } as Record<string,string>
     const tBg = { High:'rgba(229,85,85,.12)', Medium:'rgba(245,166,35,.12)', Low:'rgba(52,201,138,.12)' } as Record<string,string>
+
+    const SrcBadge = ({ src, live }: { src: string; live?: boolean }) => (
+      <span style={{ display:'inline-block', fontSize:9, padding:'1px 5px', borderRadius:20, fontWeight:700, letterSpacing:'.04em', marginLeft:4,
+        background: live ? 'rgba(245,166,35,.15)' : 'rgba(124,111,247,.12)',
+        color: live ? 'var(--amber)' : 'var(--accent)',
+      }}>{src}</span>
+    )
+
+    const SecLabel = ({ children, color }: { children: string; color?: string }) => (
+      <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.04em', color: color ?? 'var(--text3)', marginBottom:6 }}>{children}</div>
+    )
+
     return (
       <>
         <Banner icon="🔭">
@@ -620,82 +630,163 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
           <strong style={{ color:'var(--green)' }}>Whitespace:</strong> {wspace}<br/><br/>
           <strong style={{ color:'var(--amber)' }}>Win Condition:</strong> {winCond}
         </Banner>
-        <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:12 }}>
-          <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div style={{ fontFamily:'Syne,sans-serif', fontSize:13, fontWeight:700 }}>Competitor Matrix</div>
-            <button className="vbtn" onClick={onGenerate}>🔄 Refresh</button>
-          </div>
-          <div style={{ overflowX:'auto' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-              <thead>
-                <tr>{['Competitor','Type','Pricing','Intelligence','Threat','Strengths','Weaknesses',`How ${appName} Wins`].map(h => (
-                  <th key={h} style={{ fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', color:'var(--text3)', padding:'8px 10px', textAlign:'left', borderBottom:'1px solid var(--border)', whiteSpace:'nowrap' }}>{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody>
-                {comps.map((c: any, i: number) => (
-                  <tr key={i}>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontWeight:600 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                        {c.name}
-                        {c.type && (
-                          <span style={{ fontSize:9, padding:'2px 7px', borderRadius:20, fontWeight:700, letterSpacing:'.04em', textTransform:'uppercase', background: c.type==='local' ? 'rgba(52,201,138,.15)' : 'rgba(124,111,247,.15)', color: c.type==='local' ? 'var(--green)' : 'var(--accent)' }}>
-                            {c.type==='local' ? 'Local' : 'Global'}
-                          </span>
-                        )}
+
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+          <div style={{ fontFamily:'Syne,sans-serif', fontSize:13, fontWeight:700 }}>Competitor Intelligence Cards</div>
+          <button className="vbtn" onClick={onGenerate}>🔄 Refresh</button>
+        </div>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {comps.map((c: any, i: number) => (
+            <div key={i} className="card" style={{ padding:0, overflow:'hidden' }}>
+
+              {/* ── Card header ── */}
+              <div style={{ padding:'12px 16px', background:'var(--surface2)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                  <span style={{ fontWeight:700, fontSize:14 }}>{c.name}</span>
+                  {c.type && (
+                    <span style={{ fontSize:9, padding:'2px 7px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.04em',
+                      background: c.type==='local' ? 'rgba(52,201,138,.15)' : 'rgba(124,111,247,.15)',
+                      color: c.type==='local' ? 'var(--green)' : 'var(--accent)',
+                    }}>{c.type==='local' ? 'Local' : 'Global'}</span>
+                  )}
+                  {c.cat && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'var(--surface3)', color:'var(--text3)' }}>{c.cat}</span>}
+                  {c.url && <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize:10, color:'var(--text3)', textDecoration:'none' }}>{c.url.replace(/^https?:\/\/(www\.)?/,'').split('/')[0]}</a>}
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                  {c.price && <span style={{ fontSize:11, fontWeight:600, color:'var(--green)' }}>{c.price}</span>}
+                  <span style={{ fontSize:10, padding:'3px 9px', borderRadius:20, fontWeight:700,
+                    background:tBg[c.threat]??tBg.Medium, color:tC[c.threat]??tC.Medium,
+                  }}>{c.threat} threat · {c.score}/10</span>
+                </div>
+              </div>
+
+              {/* ── Row 1: App Store | Funding | Team ── */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', borderBottom:'1px solid var(--border)' }}>
+                {/* App Store (live) */}
+                <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
+                  <SecLabel>App Store</SecLabel>
+                  {c.appStore?.rating != null ? (
+                    <>
+                      <div>
+                        <span style={{ color:'var(--amber)', fontWeight:700 }}>⭐ {c.appStore.rating}/5</span>
+                        {c.appStore.ratingCount != null && <span style={{ fontSize:11, color:'var(--text3)' }}> ({c.appStore.ratingCount.toLocaleString()})</span>}
+                        <SrcBadge src="Live" live />
                       </div>
-                    </td>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, color:'var(--text3)' }}>{c.cat}</td>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', color:'var(--green)', fontWeight:600 }}>{c.price}</td>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, lineHeight:1.7, minWidth:160, verticalAlign:'top' }}>
-                      {(() => {
-                        const as = c.appStore
-                        const rv = c.reviews
-                        const hasAny = as || rv
-                        if (!hasAny) return <span style={{ color:'var(--text3)' }}>—</span>
-                        return (
-                          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                            {/* Live App Store rating — prioritised */}
-                            {as?.rating != null && (
-                              <div>
-                                <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {as.rating}/5</span>
-                                {as.ratingCount != null && <span style={{ color:'var(--text3)' }}> ({as.ratingCount.toLocaleString()})</span>}
-                                <span style={{ marginLeft:4, fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(245,166,35,.15)', color:'var(--amber)', fontWeight:700 }}>App Store</span>
-                              </div>
-                            )}
-                            {as?.price != null && <div style={{ color:'var(--text2)' }}>{as.price}{as.updatedMonths != null && <span style={{ color:'var(--text3)', marginLeft:6 }}>{as.updatedMonths === 0 ? 'updated this month' : `updated ${as.updatedMonths}mo ago`}</span>}</div>}
-                            {/* Review intelligence from training data */}
-                            {rv?.rating && !as?.rating && (
-                              <div>
-                                <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {rv.rating}</span>
-                                {rv.ratingCount && <span style={{ color:'var(--text3)' }}> ({rv.ratingCount})</span>}
-                                {rv.ratingSource && <span style={{ marginLeft:4, fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(124,111,247,.15)', color:'var(--accent)', fontWeight:700 }}>{rv.ratingSource}</span>}
-                              </div>
-                            )}
-                            {rv?.praise && <div style={{ color:'var(--text2)' }}>👍 {rv.praise}</div>}
-                            {rv?.complaints && <div style={{ color:'var(--text3)' }}>👎 {rv.complaints}</div>}
-                            {rv?.traction && <div style={{ color:'var(--green)' }}>📈 {rv.traction}</div>}
+                      {c.appStore.price && <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>{c.appStore.price}{c.appStore.updatedMonths != null ? ` · ${c.appStore.updatedMonths === 0 ? 'updated this month' : `updated ${c.appStore.updatedMonths}mo ago`}` : ''}</div>}
+                    </>
+                  ) : c.reviews?.rating ? (
+                    <div>
+                      <span style={{ color:'var(--amber)', fontWeight:700 }}>⭐ {c.reviews.rating}</span>
+                      {c.reviews.ratingCount && <span style={{ fontSize:11, color:'var(--text3)' }}> ({c.reviews.ratingCount})</span>}
+                      {c.reviews.ratingSource && <SrcBadge src={c.reviews.ratingSource} />}
+                      {c.reviews.traction && <div style={{ fontSize:11, color:'var(--green)', marginTop:2 }}>📈 {c.reviews.traction}</div>}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize:11, color:'var(--text3)' }}>Web only</span>
+                  )}
+                </div>
+                {/* Funding */}
+                <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
+                  <SecLabel>Funding</SecLabel>
+                  {c.funding ? (
+                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
+                      {c.funding}
+                      {c.fundingSource && <SrcBadge src={c.fundingSource} />}
+                    </div>
+                  ) : <span style={{ fontSize:11, color:'var(--text3)' }}>—</span>}
+                  {c.phUpvotes && (
+                    <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>
+                      PH: {c.phUpvotes} upvotes{c.phYear ? ` · ${c.phYear}` : ''}
+                      <SrcBadge src="ProductHunt" />
+                    </div>
+                  )}
+                </div>
+                {/* Team size */}
+                <div style={{ padding:'10px 14px' }}>
+                  <SecLabel>Team Size</SecLabel>
+                  {c.employees ? (
+                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
+                      👥 {c.employees}
+                      {c.employeesSource && <SrcBadge src={c.employeesSource} />}
+                    </div>
+                  ) : <span style={{ fontSize:11, color:'var(--text3)' }}>—</span>}
+                </div>
+              </div>
+
+              {/* ── Row 2: User Loves | User Hates ── */}
+              {(c.userLoves?.length || c.userHates?.length || c.reviews?.praise || c.reviews?.complaints) && (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', borderBottom:'1px solid var(--border)' }}>
+                  <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
+                    <SecLabel color="var(--green)">👍 What users love</SecLabel>
+                    {(c.userLoves?.length ? c.userLoves : c.reviews?.praise ? [c.reviews.praise] : []).map((pt: string, j: number) => (
+                      <div key={j} style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5, marginBottom:3 }}>• {pt}</div>
+                    ))}
+                  </div>
+                  <div style={{ padding:'10px 14px', background:'rgba(229,85,85,.02)' }}>
+                    <SecLabel color="var(--red)">👎 Their gaps = your chances</SecLabel>
+                    {(c.userHates?.length ? c.userHates : c.reviews?.complaints ? [c.reviews.complaints] : []).map((pt: string, j: number) => (
+                      <div key={j} style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5, marginBottom:3 }}>• {pt}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Row 3: Recent Moves | Reddit Sentiment ── */}
+              {(c.recentMoves?.length || c.redditSentiment) && (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', borderBottom:'1px solid var(--border)' }}>
+                  {c.recentMoves?.length > 0 && (
+                    <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
+                      <SecLabel>📰 Recent moves</SecLabel>
+                      {c.recentMoves.map((m: any, j: number) => (
+                        <div key={j} style={{ marginBottom:7 }}>
+                          <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.4 }}>{m.headline}</div>
+                          <div style={{ display:'flex', alignItems:'center', gap:2, marginTop:2 }}>
+                            {m.date && <span style={{ fontSize:10, color:'var(--text3)' }}>{m.date}</span>}
+                            {m.source && <SrcBadge src={m.source} />}
                           </div>
-                        )
-                      })()}
-                    </td>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)' }}>
-                      <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:700, background:tBg[c.threat]??tBg.Medium, color:tC[c.threat]??tC.Medium }}>{c.threat}</span>
-                      <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
-                        <div style={{ flex:1, height:4, background:'var(--surface3)', borderRadius:2, overflow:'hidden' }}>
-                          <div style={{ height:'100%', width:`${c.score*10}%`, background:tC[c.threat]??tC.Medium, borderRadius:2 }} />
                         </div>
-                        <span style={{ fontSize:10, color:'var(--text3)' }}>{c.score}/10</span>
+                      ))}
+                    </div>
+                  )}
+                  {c.redditSentiment && (
+                    <div style={{ padding:'10px 14px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+                        <SecLabel>💬 Reddit sentiment</SecLabel>
+                        <span style={{ fontSize:9, padding:'2px 7px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, marginBottom:6,
+                          background: c.redditSentiment==='positive' ? 'rgba(52,201,138,.15)' : c.redditSentiment==='negative' ? 'rgba(229,85,85,.12)' : 'rgba(245,166,35,.12)',
+                          color: c.redditSentiment==='positive' ? 'var(--green)' : c.redditSentiment==='negative' ? 'var(--red)' : 'var(--amber)',
+                        }}>{c.redditSentiment}</span>
+                        <SrcBadge src="Reddit" />
                       </div>
-                    </td>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)' }}>{c.strengths.map((s:string,j:number) => <div key={j} style={{ fontSize:11, color:'var(--text2)', marginBottom:2 }}>• {s}</div>)}</td>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)' }}>{c.weaknesses.map((s:string,j:number) => <div key={j} style={{ fontSize:11, color:'var(--text3)', marginBottom:2 }}>• {s}</div>)}</td>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, color:'var(--accent2)', lineHeight:1.55 }}>{c.diff}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {c.redditQuote && (
+                        <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5, fontStyle:'italic' as const, borderLeft:'2px solid var(--border)', paddingLeft:8 }}>
+                          "{c.redditQuote}"
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Positioning gap ── */}
+              {c.positioningGap && (
+                <div style={{ padding:'10px 14px', background:'rgba(124,111,247,.04)', borderBottom:'1px solid rgba(124,111,247,.12)' }}>
+                  <span style={{ fontSize:10, color:'var(--accent)', fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>🎯 Positioning gap: </span>
+                  <span style={{ fontSize:12, color:'var(--text)', lineHeight:1.5 }}>{c.positioningGap}</span>
+                </div>
+              )}
+
+              {/* ── How you win ── */}
+              {c.diff && (
+                <div style={{ padding:'10px 14px', background:'rgba(52,201,138,.04)' }}>
+                  <span style={{ fontSize:10, color:'var(--green)', fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.04em' }}>✅ How {appName} wins: </span>
+                  <span style={{ fontSize:12, color:'var(--text2)', lineHeight:1.5 }}>{c.diff}</span>
+                </div>
+              )}
+
+            </div>
+          ))}
         </div>
       </>
     )
