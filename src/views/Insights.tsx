@@ -152,10 +152,12 @@ PRIORITY ORDER:
 2. Then list 2-3 GLOBAL competitors — well-known international products in the same category.
 If fewer than 2 local competitors genuinely exist, fill remaining slots with global ones. Total must be exactly 5.
 
-JSON only, no markdown:
-{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins","reason":"one line why this is a competitor"}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
+For each competitor also include review intelligence from your training knowledge of G2, Capterra, ProductHunt, and app stores — choose the most reliable source you know for that competitor.
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2000)
+JSON only, no markdown:
+{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins","reason":"one line why this is a competitor","reviews":{"rating":"4.3/5","ratingSource":"G2","ratingCount":"~450 reviews","praise":"best praised aspect in under 10 words","complaints":"most common complaint in under 10 words","traction":"concrete signal: downloads, upvotes, or user count"}}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
+
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2500)
       const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/}[^}]*$/,'}').trim()
       if (!cleaned) throw new Error('Empty response')
       const parsed = JSON.parse(cleaned)
@@ -626,7 +628,7 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
               <thead>
-                <tr>{['Competitor','Type','Pricing','App Store','Threat','Strengths','Weaknesses',`How ${appName} Wins`].map(h => (
+                <tr>{['Competitor','Type','Pricing','Intelligence','Threat','Strengths','Weaknesses',`How ${appName} Wins`].map(h => (
                   <th key={h} style={{ fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', color:'var(--text3)', padding:'8px 10px', textAlign:'left', borderBottom:'1px solid var(--border)', whiteSpace:'nowrap' }}>{h}</th>
                 ))}</tr>
               </thead>
@@ -645,25 +647,37 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                     </td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, color:'var(--text3)' }}>{c.cat}</td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', color:'var(--green)', fontWeight:600 }}>{c.price}</td>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, lineHeight:1.6, minWidth:110 }}>
-                      {c.appStore ? (
-                        <div>
-                          {c.appStore.rating != null && (
-                            <div style={{ color:'var(--amber)', fontWeight:600 }}>
-                              ⭐ {c.appStore.rating}/5
-                              {c.appStore.ratingCount != null && (
-                                <span style={{ color:'var(--text3)', fontWeight:400 }}> ({c.appStore.ratingCount.toLocaleString()})</span>
-                              )}
-                            </div>
-                          )}
-                          {c.appStore.price != null && <div style={{ color:'var(--text2)' }}>{c.appStore.price}</div>}
-                          {c.appStore.updatedMonths != null && (
-                            <div style={{ color:'var(--text3)' }}>
-                              {c.appStore.updatedMonths === 0 ? 'Updated this month' : `Updated ${c.appStore.updatedMonths}mo ago`}
-                            </div>
-                          )}
-                        </div>
-                      ) : <span style={{ color:'var(--text3)' }}>—</span>}
+                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, lineHeight:1.7, minWidth:160, verticalAlign:'top' }}>
+                      {(() => {
+                        const as = c.appStore
+                        const rv = c.reviews
+                        const hasAny = as || rv
+                        if (!hasAny) return <span style={{ color:'var(--text3)' }}>—</span>
+                        return (
+                          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                            {/* Live App Store rating — prioritised */}
+                            {as?.rating != null && (
+                              <div>
+                                <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {as.rating}/5</span>
+                                {as.ratingCount != null && <span style={{ color:'var(--text3)' }}> ({as.ratingCount.toLocaleString()})</span>}
+                                <span style={{ marginLeft:4, fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(245,166,35,.15)', color:'var(--amber)', fontWeight:700 }}>App Store</span>
+                              </div>
+                            )}
+                            {as?.price != null && <div style={{ color:'var(--text2)' }}>{as.price}{as.updatedMonths != null && <span style={{ color:'var(--text3)', marginLeft:6 }}>{as.updatedMonths === 0 ? 'updated this month' : `updated ${as.updatedMonths}mo ago`}</span>}</div>}
+                            {/* Review intelligence from training data */}
+                            {rv?.rating && !as?.rating && (
+                              <div>
+                                <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {rv.rating}</span>
+                                {rv.ratingCount && <span style={{ color:'var(--text3)' }}> ({rv.ratingCount})</span>}
+                                {rv.ratingSource && <span style={{ marginLeft:4, fontSize:9, padding:'1px 5px', borderRadius:20, background:'rgba(124,111,247,.15)', color:'var(--accent)', fontWeight:700 }}>{rv.ratingSource}</span>}
+                              </div>
+                            )}
+                            {rv?.praise && <div style={{ color:'var(--text2)' }}>👍 {rv.praise}</div>}
+                            {rv?.complaints && <div style={{ color:'var(--text3)' }}>👎 {rv.complaints}</div>}
+                            {rv?.traction && <div style={{ color:'var(--green)' }}>📈 {rv.traction}</div>}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)' }}>
                       <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:700, background:tBg[c.threat]??tBg.Medium, color:tC[c.threat]??tC.Medium }}>{c.threat}</span>
