@@ -143,12 +143,17 @@ ${rc.trim()}
       const appContext = urlAnalysis
         ? `App headline: "${urlAnalysis.headline}"\nApp description: "${urlAnalysis.scraped?.metaDesc || currentApp.desc}"\nApp URL: ${currentApp.url}`
         : `App: "${currentApp.name}" — ${currentApp.desc || currentApp.category}`
-      const prompt = `Find 5 real direct competitors for this app based on what it actually does.
+      const prompt = `Find 5 real direct competitors for this app, prioritising local/regional ones first.
 
 ${appContext}${rcCtx}
 
+PRIORITY ORDER:
+1. First list 2-3 LOCAL/REGIONAL competitors — apps from the same country or serving the same regional market. Detect region from pricing currency, language, domain (.in, .au, etc.), or app description. For example, if the app targets Indian users, include Indian-market alternatives first.
+2. Then list 2-3 GLOBAL competitors — well-known international products in the same category.
+If fewer than 2 local competitors genuinely exist, fill remaining slots with global ones. Total must be exactly 5.
+
 JSON only, no markdown:
-{"comps":[{"name":"X","url":"https://example.com","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins"}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
+{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins","reason":"one line why this is a competitor"}],"mktPos":"market position 2 sentences","wspace":"whitespace opportunity","winCond":"win condition"}`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2000)
       const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/}[^}]*$/,'}').trim()
@@ -599,7 +604,16 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
               <tbody>
                 {comps.map((c: any, i: number) => (
                   <tr key={i}>
-                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontWeight:600 }}>{c.name}</td>
+                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontWeight:600 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                        {c.name}
+                        {c.type && (
+                          <span style={{ fontSize:9, padding:'2px 7px', borderRadius:20, fontWeight:700, letterSpacing:'.04em', textTransform:'uppercase', background: c.type==='local' ? 'rgba(52,201,138,.15)' : 'rgba(124,111,247,.15)', color: c.type==='local' ? 'var(--green)' : 'var(--accent)' }}>
+                            {c.type==='local' ? 'Local' : 'Global'}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, color:'var(--text3)' }}>{c.cat}</td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', color:'var(--green)', fontWeight:600 }}>{c.price}</td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)' }}>
