@@ -152,8 +152,10 @@ PRIORITY: list 2-3 LOCAL competitors first (same country/region — detect from 
 
 For each competitor draw on your training knowledge across ALL sources: Crunchbase, LinkedIn, G2, Capterra, Reddit, ProductHunt, TechCrunch, and app store data. Provide specific numbers where you know them (funding amounts, employee counts, review counts, upvotes).
 
+RECENT NEWS RULE: For recentMoves, only include news announcements, launches, or updates from the last 6 months (i.e. from approximately January 2026 onwards). Search your knowledge for: [competitor name] news announcement launch update 2025 2026. Each item must include a clear specific date (e.g. "March 2026", "Q1 2026"). If you cannot find any news items from the last 6 months for a competitor, set recentMoves to [{"headline":"No recent news in the last 6 months","date":"","source":""}] — do NOT include older articles to fill the slots.
+
 JSON only, no markdown:
-{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":"4.3/5","ratingSource":"G2","ratingCount":"~450 reviews","praise":"top praise under 10 words","complaints":"top complaint under 10 words","traction":"downloads or user count signal"},"funding":"Seed · $1.2M · 2022","fundingSource":"Crunchbase","employees":"10-50","employeesSource":"LinkedIn","userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"recentMoves":[{"headline":"specific recent event or product launch","date":"Q1 2026","source":"TechCrunch"},{"headline":"another recent move","date":"2025","source":"ProductHunt"}],"redditSentiment":"positive","redditQuote":"representative opinion from a real reddit discussion","phUpvotes":"~450","phYear":"2023","positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"}`
+{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":"4.3/5","ratingSource":"G2","ratingCount":"~450 reviews","praise":"top praise under 10 words","complaints":"top complaint under 10 words","traction":"downloads or user count signal"},"funding":"Seed · $1.2M · 2022","fundingSource":"Crunchbase","employees":"10-50","employeesSource":"LinkedIn","userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"recentMoves":[{"headline":"specific event from last 6 months only","date":"March 2026","source":"TechCrunch"},{"headline":"another recent move — omit if none","date":"Q1 2026","source":"ProductHunt"}],"redditSentiment":"positive","redditQuote":"representative opinion from a real reddit discussion","phUpvotes":"~450","phYear":"2023","positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"}`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 4000, undefined, 'sonnet', 'competitive')
       const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/}[^}]*$/,'}').trim()
@@ -738,15 +740,20 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                   {c.recentMoves?.length > 0 && (
                     <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
                       <SecLabel>📰 Recent moves</SecLabel>
-                      {c.recentMoves.map((m: any, j: number) => (
-                        <div key={j} style={{ marginBottom:7 }}>
-                          <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.4 }}>{m.headline}</div>
-                          <div style={{ display:'flex', alignItems:'center', gap:2, marginTop:2 }}>
-                            {m.date && <span style={{ fontSize:10, color:'var(--text3)' }}>{m.date}</span>}
-                            {m.source && <SrcBadge src={m.source} />}
+                      {c.recentMoves.map((m: any, j: number) => {
+                        const noNews = !m.date && !m.source
+                        return (
+                          <div key={j} style={{ marginBottom:7 }}>
+                            <div style={{ fontSize:11, color: noNews ? 'var(--text3)' : 'var(--text)', lineHeight:1.4, fontStyle: noNews ? 'italic' as const : 'normal' as const }}>{m.headline}</div>
+                            {!noNews && (
+                              <div style={{ display:'flex', alignItems:'center', gap:2, marginTop:2 }}>
+                                {m.date && <span style={{ fontSize:10, color:'var(--text3)' }}>{m.date}</span>}
+                                {m.source && <SrcBadge src={m.source} />}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                   {c.redditSentiment && (
