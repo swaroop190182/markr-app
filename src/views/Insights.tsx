@@ -162,6 +162,35 @@ JSON only, no markdown:
       if (!parsed.comps || !Array.isArray(parsed.comps) || parsed.comps.length === 0) {
         throw new Error('No competitors — keys: ' + Object.keys(parsed).join(', '))
       }
+
+      // Enrich each competitor with App Store data from iTunes Search API
+      parsed.comps = await Promise.all(parsed.comps.map(async (comp: any) => {
+        try {
+          const res = await fetch(
+            `https://itunes.apple.com/search?term=${encodeURIComponent(comp.name)}&entity=software&limit=1`,
+            { signal: AbortSignal.timeout(4000) }
+          )
+          if (!res.ok) return comp
+          const data = await res.json()
+          const hit  = data.results?.[0]
+          if (!hit) return comp
+          const monthsAgo = hit.currentVersionReleaseDate
+            ? Math.max(0, Math.floor((Date.now() - new Date(hit.currentVersionReleaseDate).getTime()) / (1000 * 60 * 60 * 24 * 30.5)))
+            : null
+          return {
+            ...comp,
+            appStore: {
+              rating:       hit.averageUserRating != null ? Math.round(hit.averageUserRating * 10) / 10 : null,
+              ratingCount:  hit.userRatingCount ?? null,
+              price:        hit.price === 0 ? 'Free' : hit.price ? `$${hit.price}` : null,
+              updatedMonths: monthsAgo,
+            },
+          }
+        } catch {
+          return comp
+        }
+      }))
+
       setTabCache('competitive', JSON.stringify(parsed))
       toast('Competitive analysis ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
@@ -597,7 +626,7 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
               <thead>
-                <tr>{['Competitor','Type','Pricing','Threat','Strengths','Weaknesses',`How ${appName} Wins`].map(h => (
+                <tr>{['Competitor','Type','Pricing','App Store','Threat','Strengths','Weaknesses',`How ${appName} Wins`].map(h => (
                   <th key={h} style={{ fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', color:'var(--text3)', padding:'8px 10px', textAlign:'left', borderBottom:'1px solid var(--border)', whiteSpace:'nowrap' }}>{h}</th>
                 ))}</tr>
               </thead>
@@ -616,6 +645,26 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                     </td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, color:'var(--text3)' }}>{c.cat}</td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', color:'var(--green)', fontWeight:600 }}>{c.price}</td>
+                    <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)', fontSize:11, lineHeight:1.6, minWidth:110 }}>
+                      {c.appStore ? (
+                        <div>
+                          {c.appStore.rating != null && (
+                            <div style={{ color:'var(--amber)', fontWeight:600 }}>
+                              ⭐ {c.appStore.rating}/5
+                              {c.appStore.ratingCount != null && (
+                                <span style={{ color:'var(--text3)', fontWeight:400 }}> ({c.appStore.ratingCount.toLocaleString()})</span>
+                              )}
+                            </div>
+                          )}
+                          {c.appStore.price != null && <div style={{ color:'var(--text2)' }}>{c.appStore.price}</div>}
+                          {c.appStore.updatedMonths != null && (
+                            <div style={{ color:'var(--text3)' }}>
+                              {c.appStore.updatedMonths === 0 ? 'Updated this month' : `Updated ${c.appStore.updatedMonths}mo ago`}
+                            </div>
+                          )}
+                        </div>
+                      ) : <span style={{ color:'var(--text3)' }}>—</span>}
+                    </td>
                     <td style={{ padding:'9px 10px', borderBottom:'1px solid var(--border)' }}>
                       <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:700, background:tBg[c.threat]??tBg.Medium, color:tC[c.threat]??tC.Medium }}>{c.threat}</span>
                       <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
