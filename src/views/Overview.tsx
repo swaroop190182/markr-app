@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader } from '../components/ui'
 import { callClaude } from '../lib/claude'
+import { supabase } from '../lib/supabase'
 import DeliverySettings from './DeliverySettings'
 
 
@@ -58,6 +59,8 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const [aiRecLoading,      setAiRecLoading]      = useState(false)
   const [aiRecError,        setAiRecError]        = useState<string | null>(null)
   const [pillarsLoading,       setPillarsLoading]       = useState(false)
+  const [scoreHistory,    setScoreHistory]    = useState<Array<{ overall: number; recorded_at: string }>>([])
+
   const [pillarsIdeaGenerating, setPillarsIdeaGenerating] = useState(false)
   const [collapsedPillars,     setCollapsedPillars]     = useState<Record<string, boolean>>({})
   const pt  = currentApp?.productTest
@@ -75,8 +78,9 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
       body: JSON.stringify({ url: currentApp.url })
     }).then(r => r.ok ? r.json() : null).then(async result => {
       if (result && !result.error) {
+        const capturedId = currentApp.id
         // Save URL analysis
-        updateApp(currentApp.id, {
+        updateApp(capturedId, {
           url_analysis: {
             overall: result.overall,
             headline: result.headline,
@@ -89,6 +93,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             analyzed_at: new Date().toISOString()
           }
         } as any)
+        recordScore(capturedId, { overall: result.overall, dimensions: result.dimensions, category: result.category })
 
         // Auto-generate score-improving pillars if none exist
         if (!currentApp.pillars?.length) {
@@ -130,6 +135,41 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
     setInsight(null)
     setLoading(false)
   }, [currentApp?.id])
+
+  // Load score history for the current app
+  useEffect(() => {
+    if (!currentApp?.id) return
+    setScoreHistory([])
+    const appId = currentApp.id
+    ;(async () => {
+      try {
+        const { data } = await supabase.from('markr_score_history')
+          .select('overall, recorded_at')
+          .eq('app_id', appId)
+          .order('recorded_at', { ascending: true })
+        if (data) setScoreHistory(data)
+      } catch { /* table might not exist yet */ }
+    })()
+  }, [currentApp?.id])
+
+  // Insert a score history record after each fresh url_analysis
+  async function recordScore(appId: number, analysis: { overall: number; dimensions: any[]; category?: string }) {
+    try {
+      const { data: ud } = await supabase.auth.getUser()
+      const userId = ud.user?.id
+      if (!userId) return
+      const entry = { overall: analysis.overall, recorded_at: new Date().toISOString() }
+      const { error } = await supabase.from('markr_score_history').insert({
+        app_id:     appId,
+        user_id:    userId,
+        overall:    analysis.overall,
+        dimensions: analysis.dimensions,
+        category:   analysis.category ?? currentApp.category,
+        recorded_at: entry.recorded_at,
+      })
+      if (!error && appId === currentApp.id) setScoreHistory(prev => [...prev, entry])
+    } catch { /* ignore */ }
+  }
 
   // Weekly pillar suggestions — generate once per 7 days, cache in Supabase
   useEffect(() => {
@@ -566,6 +606,31 @@ Return ONLY this JSON, no markdown:
           } />
           {ua ? (
             <>
+              {/* Score trend — shown once there are 2+ history entries */}
+              {scoreHistory.length > 1 && (() => {
+                const first   = scoreHistory[0]
+                const delta   = ua.overall - first.overall
+                const days    = Math.max(0, Math.round((Date.now() - new Date(first.recorded_at).getTime()) / (1000*60*60*24)))
+                const pos     = delta > 0
+                const noChg   = delta === 0
+                const col     = pos ? 'var(--green)' : noChg ? 'var(--text3)' : 'var(--red)'
+                const bg      = pos ? 'rgba(52,201,138,.05)'  : noChg ? 'var(--surface2)' : 'rgba(220,38,38,.05)'
+                const border  = pos ? 'rgba(52,201,138,.2)'   : noChg ? 'var(--border)'   : 'rgba(220,38,38,.15)'
+                const arrow   = pos ? '↑' : noChg ? '→' : '↓'
+                return (
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, padding:'6px 10px', background:bg, border:`1px solid ${border}`, borderRadius:'var(--r)', fontSize:11 }}>
+                    <span style={{ color:col, fontWeight:700, fontSize:13 }}>
+                      {arrow} {pos ? '+' : ''}{delta.toFixed(1)} pts
+                    </span>
+                    <span style={{ color:'var(--text3)' }}>
+                      since first analysis {days > 0 ? `${days}d ago` : 'today'} · {first.overall} → {ua.overall}
+                    </span>
+                    <span style={{ marginLeft:'auto', fontSize:10, color:'var(--text3)' }}>
+                      {scoreHistory.length} scans
+                    </span>
+                  </div>
+                )
+              })()}
               {/* Score bars with specific fixes */}
               <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
                 {(ua.dimensions ?? []).map((d: any) => {
@@ -875,6 +940,7 @@ Return ONLY this JSON, no markdown:
                   </div>
                   {currentApp?.url && (
                     <button className="vbtn" onClick={() => {
+                      const capturedId = currentApp.id
                       setUaLoading(true)
                       fetch('/api/analyze-url', {
                         method: 'POST',
@@ -882,7 +948,8 @@ Return ONLY this JSON, no markdown:
                         body: JSON.stringify({ url: currentApp.url })
                       }).then(r => r.ok ? r.json() : null).then(result => {
                         if (result && !result.error) {
-                          updateApp(currentApp.id, { url_analysis: { ...result, analyzed_at: new Date().toISOString() } } as any)
+                          updateApp(capturedId, { url_analysis: { ...result, analyzed_at: new Date().toISOString() } } as any)
+                          recordScore(capturedId, { overall: result.overall, dimensions: result.dimensions, category: result.category })
                         }
                       }).catch(() => {}).finally(() => setUaLoading(false))
                     }}>Analyze now →</button>

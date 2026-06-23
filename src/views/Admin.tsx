@@ -18,6 +18,7 @@ export default function Admin() {
   const [editingCalls, setEditingCalls] = useState<{ id: string; value: string } | null>(null)
   const [apiUsage,     setApiUsage]     = useState<any[]>([])
   const [usageLoading, setUsageLoading] = useState(false)
+  const [scoreStats,   setScoreStats]   = useState<{ catStats: Array<{ category: string; count: number; avgImprovement: number }>; avgDaysPerPoint: number | null; totalTracked: number } | null>(null)
 
   const msg = (t: string) => { setToast(t); setTimeout(() => setToast(''), 3000) }
 
@@ -78,6 +79,34 @@ export default function Admin() {
         today: s3.data?.reduce((a:number,l:any)=>a+(l.count??0),0)??0,
         week: s5.data?.reduce((a:number,l:any)=>a+(l.count??0),0)??0,
       })
+      // Score trend stats — non-blocking, table may not exist yet
+      try {
+        const { data: scoreData } = await supabase
+          .from('markr_score_history')
+          .select('app_id, overall, category, recorded_at')
+          .order('recorded_at', { ascending: true })
+        if (scoreData && scoreData.length > 0) {
+          const byApp: Record<string, typeof scoreData> = {}
+          scoreData.forEach(r => { if (!byApp[r.app_id]) byApp[r.app_id] = []; byApp[r.app_id].push(r) })
+          const catImprovement: Record<string, number[]> = {}
+          const daysPerPoint: number[] = []
+          Object.values(byApp).forEach(records => {
+            if (records.length < 2) return
+            const first = records[0]; const last = records[records.length - 1]
+            const delta = (last.overall ?? 0) - (first.overall ?? 0)
+            const days  = (new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / (1000*60*60*24)
+            const cat   = first.category ?? 'Unknown'
+            if (!catImprovement[cat]) catImprovement[cat] = []
+            catImprovement[cat].push(delta)
+            if (delta > 0 && days > 0) daysPerPoint.push(days / delta)
+          })
+          const catStats = Object.entries(catImprovement)
+            .map(([category, deltas]) => ({ category, count: deltas.length, avgImprovement: deltas.reduce((a,b)=>a+b,0)/deltas.length }))
+            .sort((a,b) => b.avgImprovement - a.avgImprovement)
+          const avgDaysPerPoint = daysPerPoint.length > 0 ? daysPerPoint.reduce((a,b)=>a+b,0)/daysPerPoint.length : null
+          setScoreStats({ catStats, avgDaysPerPoint, totalTracked: Object.keys(byApp).length })
+        }
+      } catch { /* markr_score_history not yet created — silently skip */ }
     } catch(e) { msg('Load error') }
     setLoading(false)
   }
@@ -204,6 +233,37 @@ export default function Admin() {
                   </div>
                 </div>
               )}
+              {scoreStats && (
+                <div style={{ ...card, marginBottom:16 }}>
+                  <div style={{ fontWeight:600, marginBottom:4 }}>Score Trend Intelligence</div>
+                  <div style={{ fontSize:12, color:'#888', marginBottom:12 }}>
+                    {scoreStats.totalTracked} apps tracked ·{' '}
+                    {scoreStats.avgDaysPerPoint !== null
+                      ? <>apps improve by <strong>1 pt every {scoreStats.avgDaysPerPoint.toFixed(1)} days</strong> on average</>
+                      : 'not enough history for time-to-improve yet'
+                    }
+                  </div>
+                  <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                    <thead>
+                      <tr>{['Category','Apps','Avg improvement'].map(h=><th key={h} style={{ ...TH, background:'none', padding:'6px 8px' }}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {scoreStats.catStats.map(r => (
+                        <tr key={r.category}>
+                          <td style={{ ...TD, padding:'6px 8px', fontWeight:500 }}>{r.category}</td>
+                          <td style={{ ...TD, padding:'6px 8px', color:'#888' }}>{r.count}</td>
+                          <td style={{ ...TD, padding:'6px 8px' }}>
+                            <span style={{ fontWeight:700, color: r.avgImprovement > 0 ? '#16a870' : r.avgImprovement < 0 ? '#e55' : '#888' }}>
+                              {r.avgImprovement > 0 ? '+' : ''}{r.avgImprovement.toFixed(2)} pts
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               <div style={card}>
                 <div style={{ fontWeight:600, marginBottom:12 }}>Recent users</div>
                 {users.slice(0,6).map((u:any) => (
