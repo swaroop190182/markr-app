@@ -607,6 +607,11 @@ Output ONLY valid JSON:
 
 // ── COMPETITIVE TAB ──────────────────────────────────────────────────────────
 function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; loading?:boolean; onGenerate:()=>void; appName:string }) {
+  const [view, setView] = useState<'cards'|'table'>(() => {
+    try { return (localStorage.getItem('markr_compView') as 'cards'|'table') ?? 'cards' } catch { return 'cards' }
+  })
+  const switchView = (v: 'cards'|'table') => { setView(v); try { localStorage.setItem('markr_compView', v) } catch {} }
+
   if (loading) return <LoadingCard text="Researching competitors across all sources…" />
   if (!data) return <EmptyTab emoji="🔍" title="Competitive Intelligence" desc="Deep analysis of your top 5 competitors — funding, sentiment, recent moves, positioning gaps, and more." onGenerate={onGenerate} btnLabel="Run Competitive Intelligence" />
   try {
@@ -633,12 +638,74 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
           <strong style={{ color:'var(--amber)' }}>Win Condition:</strong> {winCond}
         </Banner>
 
+        {/* View toggle */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-          <div style={{ fontFamily:'Syne,sans-serif', fontSize:13, fontWeight:700 }}>Competitor Intelligence Cards</div>
+          <div style={{ display:'flex', gap:4, background:'var(--surface2)', borderRadius:8, padding:3, border:'1px solid var(--border)' }}>
+            {(['cards','table'] as const).map(v => (
+              <button key={v} onClick={() => switchView(v)} style={{
+                padding:'5px 14px', borderRadius:6, border:'none', cursor:'pointer', fontSize:12, fontWeight:600,
+                background: view === v ? 'var(--accent)' : 'transparent',
+                color:      view === v ? '#fff' : 'var(--text3)',
+                transition: 'all .15s',
+              }}>{v === 'cards' ? '⊞ Cards' : '☰ Table'}</button>
+            ))}
+          </div>
           <button className="vbtn" onClick={onGenerate}>🔄 Refresh</button>
         </div>
 
-        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+        {/* ── Table view ── */}
+        {view === 'table' && (
+          <div className="card" style={{ padding:0, overflow:'hidden' }}>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr>{['Name','Score','App Store','Funding','Team','Top Gap'].map(h => (
+                    <th key={h} style={{ padding:'9px 12px', textAlign:'left' as const, fontSize:10, fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.06em', color:'var(--text3)', borderBottom:'1px solid var(--border)', whiteSpace:'nowrap' as const, background:'var(--surface2)' }}>{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {comps.map((c: any, i: number) => {
+                    const score  = c.score ?? 0
+                    const sColor = score >= 7 ? 'var(--green)' : score >= 5 ? 'var(--amber)' : 'var(--red)'
+                    const sBg    = score >= 7 ? 'rgba(52,201,138,.1)' : score >= 5 ? 'rgba(245,166,35,.1)' : 'rgba(229,85,85,.1)'
+                    const rating = c.appStore?.rating ?? null
+                    const ratingFallback = c.reviews?.rating ?? null
+                    const topGap = c.positioningGap ?? c.userHates?.[0] ?? c.weaknesses?.[0] ?? '—'
+                    return (
+                      <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'10px 12px', fontWeight:600 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            {c.name}
+                            {c.type && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, background: c.type==='local' ? 'rgba(52,201,138,.15)' : 'rgba(124,111,247,.15)', color: c.type==='local' ? 'var(--green)' : 'var(--accent)' }}>{c.type==='local' ? 'Local' : 'Global'}</span>}
+                          </div>
+                          {c.price && <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>{c.price}</div>}
+                        </td>
+                        <td style={{ padding:'10px 12px' }}>
+                          <span style={{ fontSize:12, fontWeight:700, padding:'3px 8px', borderRadius:6, background:sBg, color:sColor }}>{score}/10</span>
+                        </td>
+                        <td style={{ padding:'10px 12px' }}>
+                          {rating != null ? (
+                            <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {rating}/5 <span style={{ fontSize:9, color:'var(--text3)', fontWeight:400 }}>(live)</span></span>
+                          ) : ratingFallback ? (
+                            <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {ratingFallback}</span>
+                          ) : <span style={{ color:'var(--text3)' }}>—</span>}
+                        </td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}>{c.funding ?? '—'}</td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}>{c.employees ?? '—'}</td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)', maxWidth:220 }}>
+                          <div style={{ overflow:'hidden', display:'-webkit-box' as any, WebkitLineClamp:2, WebkitBoxOrient:'vertical' as any }}>{topGap}</div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Cards view ── */}
+        {view === 'cards' && <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {comps.map((c: any, i: number) => (
             <div key={i} className="card" style={{ padding:0, overflow:'hidden' }}>
 
@@ -794,7 +861,7 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
 
             </div>
           ))}
-        </div>
+        </div>}
       </>
     )
   } catch { return <ErrorCard message="Failed to render — try regenerating" onRetry={onGenerate} /> }
