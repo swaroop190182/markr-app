@@ -45,7 +45,7 @@ const TABS: { id: Tab; label: string; emoji: string }[] = [
 ]
 
 export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
-  const { currentApp, updateApp, userEmail, plan } = useStore()
+  const { currentApp, updateApp, userEmail, plan, setView } = useStore()
   const canUseAnalysis = plan === 'analysis' || plan === 'pro' || plan === 'guest_pro'
   const [activeTab, setActiveTab] = useState<Tab>('competitive')
   const [cache, setCache] = useState<Record<string, string>>({})
@@ -754,7 +754,7 @@ Return JSON only, no markdown:
               <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
             )}
             {activeTab === 'gtm' && (
-              <GoToMarketTab data={cache.gtm} loading={loading.gtm} onGenerate={genGTMAll} app={currentApp} canUseAnalysis={canUseAnalysis} />
+              <GoToMarketTab data={cache.gtm} loading={loading.gtm} onGenerate={genGTMAll} onGoToOverview={() => setView('overview')} app={currentApp} canUseAnalysis={canUseAnalysis} />
             )}
             {activeTab === 'product' && (
               <ProductTest />

@@ -162,11 +162,12 @@ function Section({ title, subtitle, action, children }: {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
-  data?:          string
-  loading?:       boolean
-  onGenerate:     () => void
-  app:            AppData
-  canUseAnalysis: boolean
+  data?:           string
+  loading?:        boolean
+  onGenerate:      () => void
+  onGoToOverview:  () => void
+  app:             AppData
+  canUseAnalysis:  boolean
 }
 
 const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
@@ -174,7 +175,7 @@ const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
 const EFFORT_COLOR: Record<string, string> = { Low: 'var(--green)', Medium: 'var(--amber)', High: 'var(--red)' }
 const EFFORT_BG:    Record<string, string> = { Low: 'rgba(52,201,138,.12)', Medium: 'rgba(245,166,35,.12)', High: 'rgba(229,85,85,.12)' }
 
-export default function GoToMarketTab({ data, loading, onGenerate, app, canUseAnalysis }: Props) {
+export default function GoToMarketTab({ data, loading, onGenerate, onGoToOverview, app, canUseAnalysis }: Props) {
   const [budget, setBudget] = useState('0')
 
   if (!canUseAnalysis) return (
@@ -187,7 +188,24 @@ export default function GoToMarketTab({ data, loading, onGenerate, app, canUseAn
     </div>
   )
 
-  const ua           = (app as any).url_analysis
+  const ua = (app as any).url_analysis
+
+  if (!ua) return (
+    <div style={{ textAlign: 'center', padding: '40px 24px', background: 'var(--surface)', borderRadius: 'var(--r)', border: '1px solid rgba(245,166,35,.25)' }}>
+      <div style={{ fontSize: 36, marginBottom: 14 }}>📊</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Landing page analysis needed first</div>
+      <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.75, maxWidth: 400, margin: '0 auto 22px' }}>
+        Your GTM strategy is based on your landing page score. Run your landing page analysis first in <strong style={{ color: 'var(--text)' }}>Overview → Landing Page Analysis</strong>, then come back here for your personalized GTM plan.
+      </div>
+      <button
+        onClick={onGoToOverview}
+        style={{ padding: '10px 22px', borderRadius: 8, background: 'var(--accent)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}
+      >
+        Go to Overview →
+      </button>
+    </div>
+  )
+
   const criteria     = getLaunchCriteria(app)
   const passCount    = criteria.filter(c => c.pass).length
   const readinessPct = Math.round((passCount / criteria.length) * 100)
