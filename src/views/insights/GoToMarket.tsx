@@ -165,9 +165,15 @@ interface Props {
   data?:           string
   loading?:        boolean
   onGenerate:      () => void
+  onRefresh:       () => void
   onGoToOverview:  () => void
   app:             AppData
   canUseAnalysis:  boolean
+}
+
+function daysSinceDate(ts: string | null | undefined): number | null {
+  if (!ts) return null
+  return Math.floor((Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60 * 24))
 }
 
 const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
@@ -175,7 +181,7 @@ const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
 const EFFORT_COLOR: Record<string, string> = { Low: 'var(--green)', Medium: 'var(--amber)', High: 'var(--red)' }
 const EFFORT_BG:    Record<string, string> = { Low: 'rgba(52,201,138,.12)', Medium: 'rgba(245,166,35,.12)', High: 'rgba(229,85,85,.12)' }
 
-export default function GoToMarketTab({ data, loading, onGenerate, onGoToOverview, app, canUseAnalysis }: Props) {
+export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, onGoToOverview, app, canUseAnalysis }: Props) {
   const [budget, setBudget] = useState('0')
 
   if (!canUseAnalysis) return (
@@ -247,6 +253,35 @@ export default function GoToMarketTab({ data, loading, onGenerate, onGoToOvervie
           </button>
         )}
       </div>
+
+      {/* ── Staleness banner ── */}
+      {(() => {
+        const days = daysSinceDate(app.gtm_analyzed_at)
+        if (!data || days == null || days < 30) return null
+        return (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px', background: 'rgba(245,166,35,.06)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r)' }}>
+            <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>⏰</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--amber)', marginBottom: 3 }}>
+                Strategy generated {days} days ago
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.6 }}>
+                Market conditions may have changed. Channel recommendations will only regenerate if your landing page score changed by 0.5+ points — otherwise only the market playbook (competitor moves, category trends) is refreshed.
+              </div>
+            </div>
+            {loading ? (
+              <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>Refreshing…</span>
+            ) : (
+              <button
+                onClick={onRefresh}
+                style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 6, background: 'rgba(245,166,35,.15)', border: '1px solid rgba(245,166,35,.3)', color: 'var(--amber)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}
+              >
+                Refresh strategy
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       {/* ── 1. Channel Recommendations ── */}
       <Section

@@ -528,12 +528,81 @@ Return JSON only, no markdown:
       if (!cleaned) throw new Error('Empty response')
       const parsed  = JSON.parse(cleaned)
       if (!Array.isArray(parsed.channels)) throw new Error('Invalid response — missing channels')
-      setTabCache('gtm', JSON.stringify(parsed))
+      setTabCache('gtm', JSON.stringify({ ...parsed, generatedAtScore: ua?.overall ?? null }))
       toast('GTM strategy ready!')
     } catch (e: any) {
       toast('Error generating GTM strategy: ' + (e?.message ?? 'Unknown'))
     }
     setLoad('gtm', false)
+  }
+
+  // ── GTM PLAYBOOK-ONLY REFRESH ─────────────────────────────────────────────────
+  // Regenerates only the market/news-dependent playbook section.
+  // Preserves channels + templates (score-based, stable until score changes).
+  async function genGTMPlaybookOnly() {
+    setLoad('gtm', true)
+    try {
+      const ua      = currentApp.url_analysis
+      const ctx     = currentApp.content_context
+      const context = buildGTMContext()
+      const targetUser = ctx?.typical_user ?? `${currentApp.category} users`
+
+      const mandatory: string[] = []
+      if (ua?.bottleneck) mandatory.push(`#1 bottleneck: "${ua.bottleneck.label}" — ${ua.bottleneck.issue}. Formula must address this.`)
+      let swot: any = null
+      try { if (currentApp.swot_analysis) swot = JSON.parse(currentApp.swot_analysis) } catch {}
+      const topOpp = swot?.opportunities?.[0]
+      const oppLabel = topOpp?.title ?? (typeof topOpp === 'string' ? topOpp : '')
+      if (oppLabel) mandatory.push(`Top SWOT opportunity: "${oppLabel}" — exploit in formula.`)
+      let competitive: any = null
+      try { if (currentApp.competitive_analysis) competitive = JSON.parse(currentApp.competitive_analysis) } catch {}
+      if (competitive?.winCond) mandatory.push(`Win condition: "${competitive.winCond}" — reference in eternal principles.`)
+
+      const prompt = `You are a marketing expert. Use the CONTEXT below to build an updated category playbook, failure patterns, step-by-step formula, and eternal principles for this app. Be specific — cite real companies, real numbers, real market conditions as of today.
+
+CONTEXT:
+${context}
+${mandatory.length ? '\nMANDATORY:\n' + mandatory.map(m => `- ${m}`).join('\n') : ''}
+
+Target user: ${targetUser}
+
+Return JSON only, no markdown:
+{"categoryPlaybook":[{"company":"real company","what":"specific action","when":"year/period","results":"specific measurable outcome"},{"company":"...","what":"...","when":"...","results":"..."},{"company":"...","what":"...","when":"...","results":"..."}],"whatNotToDo":[{"example":"company or pattern","approach":"what was tried","why":"specific reason it failed"},{"example":"...","approach":"...","why":"..."},{"example":"...","approach":"...","why":"..."}],"marketingFormula":[{"step":1,"action":"specific action","detail":"why first — address bottleneck if relevant"},{"step":2,"action":"...","detail":"..."},{"step":3,"action":"...","detail":"..."},{"step":4,"action":"...","detail":"..."},{"step":5,"action":"...","detail":"..."},{"step":6,"action":"...","detail":"..."}],"eternalPrinciples":[{"principle":"Find where users already gather","action":"specific step for ${currentApp.name} from context"},{"principle":"Make first users successful before scaling","action":"..."},{"principle":"Word of mouth is the best channel","action":"..."},{"principle":"Content before ads","action":"..."},{"principle":"Positioning before promotion","action":"..."}]}`
+
+      const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 3000, undefined, 'sonnet', 'gtm')
+      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
+      if (!cleaned) throw new Error('Empty response')
+      const parsed  = JSON.parse(cleaned)
+      if (!parsed.categoryPlaybook) throw new Error('Invalid response')
+
+      let existing: any = {}
+      try { if (cache.gtm) existing = JSON.parse(cache.gtm) } catch {}
+      setTabCache('gtm', JSON.stringify({ ...existing, playbook: parsed, generatedAtScore: ua?.overall ?? existing.generatedAtScore ?? null }))
+      toast('Playbook refreshed!')
+    } catch (e: any) {
+      toast('Error refreshing playbook: ' + (e?.message ?? 'Unknown'))
+    }
+    setLoad('gtm', false)
+  }
+
+  // ── GTM SMART REFRESH ─────────────────────────────────────────────────────────
+  // Routes to full or playbook-only regeneration based on score delta.
+  async function genGTMSmartRefresh() {
+    const currentScore = currentApp.url_analysis?.overall ?? null
+    let storedScore: number | null = null
+    try { if (cache.gtm) storedScore = JSON.parse(cache.gtm).generatedAtScore ?? null } catch {}
+
+    const scoreDelta = currentScore != null && storedScore != null
+      ? Math.abs(currentScore - storedScore)
+      : null
+
+    if (scoreDelta == null || scoreDelta >= 0.5) {
+      // Score moved ≥ 0.5 or unknown baseline — full regeneration
+      await genGTMAll()
+    } else {
+      // Score stable — only refresh market/news-dependent playbook
+      await genGTMPlaybookOnly()
+    }
   }
 
   // ── RUN ALL ──────────────────────────────────────────────────────────────────
@@ -754,7 +823,7 @@ Return JSON only, no markdown:
               <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
             )}
             {activeTab === 'gtm' && (
-              <GoToMarketTab data={cache.gtm} loading={loading.gtm} onGenerate={genGTMAll} onGoToOverview={() => setView('overview')} app={currentApp} canUseAnalysis={canUseAnalysis} />
+              <GoToMarketTab data={cache.gtm} loading={loading.gtm} onGenerate={genGTMAll} onRefresh={genGTMSmartRefresh} onGoToOverview={() => setView('overview')} app={currentApp} canUseAnalysis={canUseAnalysis} />
             )}
             {activeTab === 'product' && (
               <ProductTest />
