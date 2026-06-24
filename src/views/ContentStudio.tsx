@@ -6,8 +6,49 @@ import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
 import type { AppData, AgentPost, ContentContext } from '../types'
 
+type ChannelId = 'instagram' | 'linkedin' | 'twitter' | 'youtube' | 'facebook' | 'whatsapp' | 'email' | 'reddit'
 type SlotKey = 'morning' | 'midday' | 'evening'
 type SlotState = 'idle' | 'generating' | 'ready' | 'error'
+
+const CHANNELS: { id: ChannelId; emoji: string; label: string; desc: string }[] = [
+  { id: 'instagram',  emoji: '📸', label: 'Instagram',        desc: '3 posts · captions · hashtags' },
+  { id: 'linkedin',   emoji: '💼', label: 'LinkedIn',         desc: '1 thought leadership post' },
+  { id: 'twitter',    emoji: '𝕏',  label: 'Twitter / X',      desc: '1 thread · 5-7 tweets' },
+  { id: 'youtube',    emoji: '🎬', label: 'YouTube Shorts',   desc: '3 script outlines · 60 sec' },
+  { id: 'facebook',   emoji: '👥', label: 'Facebook',         desc: '2 community posts' },
+  { id: 'whatsapp',   emoji: '💬', label: 'WhatsApp',         desc: '3 broadcast messages' },
+  { id: 'email',      emoji: '📧', label: 'Email Newsletter', desc: 'Subject + 200-word body' },
+  { id: 'reddit',     emoji: '🔴', label: 'Reddit',           desc: '1 value-add post' },
+]
+
+function marketingChannelToId(name: string): ChannelId | null {
+  const n = (name ?? '').toLowerCase()
+  if (n.includes('instagram'))                     return 'instagram'
+  if (n.includes('linkedin'))                      return 'linkedin'
+  if (n.includes('twitter') || n === 'x' || n.includes('/x')) return 'twitter'
+  if (n.includes('youtube'))                       return 'youtube'
+  if (n.includes('facebook'))                      return 'facebook'
+  if (n.includes('whatsapp'))                      return 'whatsapp'
+  if (n.includes('email'))                         return 'email'
+  if (n.includes('reddit'))                        return 'reddit'
+  return null
+}
+
+function getDefaultChannel(app: AppData): ChannelId {
+  try {
+    const gtm = app.gtm_analysis ? JSON.parse(app.gtm_analysis) : null
+    const first = gtm?.channels?.[0]?.name
+    return (first ? marketingChannelToId(first) : null) ?? 'instagram'
+  } catch { return 'instagram' }
+}
+
+function getRecommendedChannelIds(app: AppData): Set<ChannelId> {
+  try {
+    const gtm = app.gtm_analysis ? JSON.parse(app.gtm_analysis) : null
+    const ids = (gtm?.channels ?? []).map((c: any) => marketingChannelToId(c.name)).filter(Boolean)
+    return new Set(ids as ChannelId[])
+  } catch { return new Set() }
+}
 
 const POST_STYLES = [
   { id: 'educational', emoji: '🎓', label: 'Educational', desc: 'Tips, facts, how-tos',
@@ -191,6 +232,7 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
       ) ?? Object.keys(pillarSuggestions!)[0])
     : null
 
+  const [activeChannel, setActiveChannel] = useState<ChannelId>(() => getDefaultChannel(currentApp))
   const [selectedPillar, setSelectedPillar] = useState<string | null>(defaultPillar)
   const [editingContext, setEditingContext] = useState(false)
 
@@ -211,6 +253,7 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     setActiveTab({ morning:'caption', midday:'caption', evening:'caption' })
     setEditingContext(false)
     setSelectedPillar(defaultPillar)
+    setActiveChannel(getDefaultChannel(currentApp))
   }, [currentApp.id])
 
   function changeStyle(id: StyleId) {
@@ -411,8 +454,70 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     )
   }
 
+  const recommendedIds = getRecommendedChannelIds(currentApp)
+  const landingScore   = currentApp.url_analysis?.overall ?? null
+
   return (
     <div>
+      {/* ── Channel selector ── */}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Channel</span>
+          {recommendedIds.size > 0 && (
+            <span style={{ fontSize: 10, color: 'var(--text3)' }}>
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', marginRight: 4, verticalAlign: 'middle' }} />
+              Recommended by Marketing module
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {CHANNELS.map(ch => {
+            const isActive = activeChannel === ch.id
+            const isRec    = recommendedIds.has(ch.id)
+            return (
+              <button
+                key={ch.id}
+                onClick={() => setActiveChannel(ch.id)}
+                title={ch.desc}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  border: isActive ? 'none' : '1px solid var(--surface3)',
+                  background: isActive ? 'var(--accent)' : isRec ? 'rgba(124,111,247,.08)' : 'var(--surface2)',
+                  color: isActive ? '#fff' : isRec ? 'var(--accent2)' : 'var(--text2)',
+                  position: 'relative',
+                  transition: 'all .15s',
+                }}
+              >
+                <span style={{ fontSize: 13 }}>{ch.emoji}</span>
+                <span>{ch.label}</span>
+                {isRec && !isActive && (
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
+                )}
+              </button>
+            )
+          })}
+        </div>
+        {/* Active channel description */}
+        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>
+          {CHANNELS.find(c => c.id === activeChannel)?.desc}
+          {recommendedIds.has(activeChannel) && (
+            <span style={{ marginLeft: 8, color: 'var(--accent2)', fontWeight: 600 }}>· Recommended for your app</span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Marketing warning — show when landing score < 7 ── */}
+      {landingScore !== null && landingScore < 7 && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'rgba(245,166,35,.06)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r)', marginBottom: 14 }}>
+          <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
+          <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
+            <strong style={{ color: 'var(--amber)' }}>Landing page score is {landingScore}/10</strong> — focus on organic content before paid promotion. Fix your page first, then scale with ads.
+          </div>
+        </div>
+      )}
+
       {pt && !pt.error && (
         <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
           <span>🧪</span>
