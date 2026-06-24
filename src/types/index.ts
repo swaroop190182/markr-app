@@ -95,9 +95,10 @@ export interface AppData {
   swot_analysis?:        string | null
   growth_analysis?:      string | null
   pricing_analysis?:     string | null
-  gtm_analysis?:         string | null
-  content_studio_cache?: string | null
-  strategy_cache?:       string | null
+  gtm_analysis?:          string | null
+  positioning_analysis?:  string | null
+  content_studio_cache?:  string | null
+  strategy_cache?:        string | null
   // Competitor URL Analysis
   competitor_url_analysis?: {
     name: string
@@ -138,7 +139,8 @@ export interface AppData {
   swot_analyzed_at?:        string | null
   growth_analyzed_at?:      string | null
   pricing_analyzed_at?:     string | null
-  gtm_analyzed_at?:         string | null
+  gtm_analyzed_at?:          string | null
+  positioning_analyzed_at?:  string | null
   // Analysis Pack one-time usage tracking
   analysis_used_at?:        string | null
   // Content Studio preferences

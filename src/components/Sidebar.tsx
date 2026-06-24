@@ -5,7 +5,7 @@ const NAV_ITEMS: { view: ViewType; icon: string; label: string; badge?: number }
   { view: 'overview',  icon: 'ti-layout-dashboard', label: 'Overview' },
   { view: 'marketing', icon: 'ti-speakerphone',      label: 'Marketing' },
   { view: 'studio',    icon: 'ti-sparkles',          label: 'Content Studio' },
-  { view: 'strategy', icon: 'ti-bulb',              label: 'Strategy' },
+  { view: 'strategy', icon: 'ti-target',             label: 'Positioning' },
   { view: 'calendar', icon: 'ti-calendar',          label: 'Calendar', badge: 12 },
   { view: 'insights', icon: 'ti-telescope',         label: 'Insights & Analysis' },
 ]
