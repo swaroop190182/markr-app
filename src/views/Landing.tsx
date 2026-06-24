@@ -220,7 +220,7 @@ export default function Landing() {
           Your landing page is losing users.
         </h1>
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 16px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
-          Markr shows you exactly where — and what to post to fix it.
+          Markr shows you exactly where — and gives you the intelligence, strategy, and daily content to fix it.
         </h1>
 
         {/* New subline */}
