@@ -162,6 +162,92 @@ function buildContentStrategyContext(currentApp: any, ua: any) {
   }
 }
 
+function getPlatformPrompt(channel: string, ctx: any, style: string): string {
+  const base = `
+APP: ${ctx.headline}
+TARGET USER: ${ctx.targetUser}
+REAL RESULT: ${ctx.realResult}
+USER QUOTE: ${ctx.userQuote}
+BEFORE STATE: ${ctx.beforeState}
+BOTTLENECK TO ADDRESS: ${ctx.bottleneck} — ${ctx.bottleneckIssue}
+POSITIONING GAP VS COMPETITORS: ${ctx.positioningGap}
+ACTIVE CONTENT PILLAR: ${ctx.activePillar}
+TOP STRENGTH: ${ctx.topStrengths[0] || ''}
+TOP OPPORTUNITY: ${ctx.topOpportunity}
+STYLE: ${style}
+`
+  const rules = `
+ABSOLUTE RULES:
+- Maximum 1 of 3 outputs may end with a question
+- Never use: "just", "simply", "easily", "What's your", "How do you"
+- Each output must use a DIFFERENT format and ending type
+- Reference the app's specific value, not generic advice
+- Never invent statistics not in the context above
+`
+  switch (channel) {
+    case 'Instagram':
+      return `${base}${rules}
+Generate 3 Instagram posts. Each post must have:
+VISUAL: [one sentence describing what the image/reel should show]
+CAPTION: [the post text — max 150 words]
+HASHTAGS: [5-8 highly specific hashtags — no generic ones]
+Format: POST 1 / POST 2 / POST 3`
+
+    case 'LinkedIn':
+      return `${base}${rules}
+Generate 1 LinkedIn thought leadership post. 150-300 words. No more than 3 hashtags at the end.
+Must open with a bold statement or counterintuitive insight — NOT "I am excited to share".
+Must feel like expert analysis, not a product pitch.
+Structure: Hook (1-2 lines) → Insight (3-4 paragraphs) → Takeaway → Optional soft CTA`
+
+    case 'Twitter / X':
+      return `${base}${rules}
+Generate either: 1 thread of 5-7 tweets OR 3 standalone tweets.
+For thread: Tweet 1 is the hook (max 200 chars). Each tweet stands alone. End with a CTA tweet.
+For standalone: Each tweet max 250 chars. Different angles — one insight, one story, one question.
+Label clearly: THREAD or STANDALONE`
+
+    case 'YouTube Shorts':
+      return `${base}${rules}
+Generate 3 YouTube Shorts scripts (60 seconds each).
+Each script must have:
+HOOK: [first 3 seconds — must stop the scroll]
+CONTENT: [the main value — 40 seconds]
+CTA: [final 5 seconds — specific action]
+Keep language conversational and visual.`
+
+    case 'Facebook':
+      return `${base}${rules}
+Generate 2 Facebook community-style posts. Warm, conversational tone.
+Post 1: A story or relatable moment that opens a conversation
+Post 2: A value-add tip or insight with a community question at the end
+Max 100 words each.`
+
+    case 'WhatsApp':
+      return `${base}${rules}
+Generate 3 WhatsApp broadcast messages. Short, personal, no formatting (no bold/bullet points).
+Write as if from a real person to a trusted contact — not a brand.
+Max 3 sentences each. One insight, one story, one update format.`
+
+    case 'Email Newsletter':
+      return `${base}${rules}
+Generate 1 email newsletter.
+SUBJECT LINE: [compelling, max 8 words, no clickbait]
+PREVIEW TEXT: [max 12 words]
+BODY: [200 words max — one insight, one story, one CTA. No fluff.]`
+
+    case 'Reddit':
+      return `${base}${rules}
+Generate 1 Reddit post for the most relevant subreddit for this app's category.
+SUBREDDIT: [specific subreddit recommendation with reason]
+TITLE: [question or insight title — no promotional language]
+POST: [150-250 words — genuine value-add, no pitching. Mention the app only if it naturally fits as a solution to a problem being discussed.]`
+
+    default:
+      return `${base}${rules}Generate 3 posts for ${channel}.`
+  }
+}
+
 function ContentContextSetup({ existing, onSave, onCancel }: {
   existing?: ContentContext | null
   onSave: (ctx: ContentContext) => void
@@ -258,6 +344,8 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     : null
 
   const [activeChannel, setActiveChannel] = useState<ChannelId>(() => getDefaultChannel(currentApp))
+  const [channelResults, setChannelResults] = useState<Record<string, string>>({})
+  const [channelLoading, setChannelLoading] = useState(false)
   const [selectedPillar, setSelectedPillar] = useState<string | null>(defaultPillar)
   const [editingContext, setEditingContext] = useState(false)
 
@@ -279,6 +367,8 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     setEditingContext(false)
     setSelectedPillar(defaultPillar)
     setActiveChannel(getDefaultChannel(currentApp))
+    setChannelResults({})
+    setChannelLoading(false)
   }, [currentApp.id])
 
   function changeStyle(id: StyleId) {
@@ -461,6 +551,30 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     setTimeout(() => generatePost('evening', postStyle), 3600)
   }
 
+  async function generateForChannel() {
+    const ua       = currentApp.url_analysis
+    const stratCtx = buildContentStrategyContext(currentApp, ua)
+    const ch       = CHANNELS.find(c => c.id === activeChannel)
+    const label    = ch?.label ?? activeChannel
+    const prompt   = getPlatformPrompt(label, stratCtx, postStyle)
+    setChannelLoading(true)
+    try {
+      const raw = await callClaude(
+        prompt,
+        'You are an expert content strategist. Write only the requested content. No explanations or preamble.',
+        2400,
+        undefined,
+        'sonnet',
+        'content',
+      )
+      setChannelResults(prev => ({ ...prev, [activeChannel]: raw }))
+      toast(`${label} content ready!`)
+    } catch (e: any) {
+      toast('Generation failed: ' + (e?.message ?? 'Unknown'))
+    }
+    setChannelLoading(false)
+  }
+
   if (plan !== 'content' && plan !== 'pro' && plan !== 'guest_pro') {
     return (
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'60px 24px', textAlign:'center' }}>
@@ -551,7 +665,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'rgba(245,166,35,.06)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 'var(--r)', marginBottom: 14 }}>
           <span style={{ fontSize: 15, flexShrink: 0 }}>⚠️</span>
           <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6 }}>
-            <strong style={{ color: 'var(--amber)' }}>Landing page score is {landingScore}/10</strong> — focus on organic content before paid promotion. Fix your page first, then scale with ads.
+            <strong style={{ color: 'var(--amber)' }}>Your landing page score is {landingScore}/10</strong> — fix your landing page before promoting. Content is most effective when your page converts.
           </div>
         </div>
       )}
@@ -596,7 +710,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
         </button>
       )}
 
-      {/* Post Style selector */}
+      {/* ── Post Style selector (all channels) ── */}
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>
         <span style={{ fontSize:11, color:'var(--text3)', fontWeight:500, flexShrink:0 }}>Post style →</span>
         {POST_STYLES.map(s => (
@@ -615,76 +729,137 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
         ))}
       </div>
 
-      {/* Pillar selector */}
-      {hasPillars ? (
-        <div style={{ marginBottom:14 }}>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:6 }}>
-            <span style={{ fontSize:11, color:'var(--text3)', fontWeight:500, flexShrink:0 }}>Content pillar →</span>
-            {Object.keys(pillarSuggestions!).map(p => (
+      {/* ── Instagram channel ── */}
+      {activeChannel === 'instagram' ? (
+        <>
+          {/* Pillar selector */}
+          {hasPillars ? (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:6 }}>
+                <span style={{ fontSize:11, color:'var(--text3)', fontWeight:500, flexShrink:0 }}>Content pillar →</span>
+                {Object.keys(pillarSuggestions!).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setSelectedPillar(p)}
+                    style={{
+                      fontSize:11, padding:'4px 12px', borderRadius:20, fontWeight:600, cursor:'pointer', border:'none',
+                      background: selectedPillar === p ? '#7c6ff7' : 'var(--surface2)',
+                      color: selectedPillar === p ? '#fff' : 'var(--text2)',
+                      transition:'background .15s,color .15s',
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+                {weakestDim && selectedPillar === defaultPillar && (
+                  <span style={{ fontSize:10, color:'var(--text3)', marginLeft:2 }}>
+                    ↑ auto-selected (weakest: {weakestDim.label})
+                  </span>
+                )}
+                <button id="generate-all-btn" className="gen-btn" style={{ fontSize:11, padding:'5px 14px', marginLeft:'auto' }} onClick={generateAll}>
+                  ✨ Generate All 3
+                </button>
+              </div>
+              {selectedPillar && pillarSuggestions![selectedPillar] && (
+                <div style={{ fontSize:10, color:'var(--text3)', paddingLeft:4, lineHeight:1.5 }}>
+                  Ideas: {pillarSuggestions![selectedPillar].slice(0, 3).join(' · ')}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
+              <span style={{ fontSize:12, color:'var(--text3)' }}>📋 No content pillars yet.</span>
               <button
-                key={p}
-                onClick={() => setSelectedPillar(p)}
-                style={{
-                  fontSize:11, padding:'4px 12px', borderRadius:20, fontWeight:600, cursor:'pointer', border:'none',
-                  background: selectedPillar === p ? '#7c6ff7' : 'var(--surface2)',
-                  color: selectedPillar === p ? '#fff' : 'var(--text2)',
-                  transition:'background .15s,color .15s',
-                }}
+                onClick={() => setView('overview')}
+                style={{ fontSize:11, padding:'4px 12px', borderRadius:20, fontWeight:600, cursor:'pointer', background:'transparent', border:'1px solid var(--accent)', color:'var(--accent)' }}
               >
-                {p}
+                Generate content pillars first →
               </button>
-            ))}
-            {weakestDim && selectedPillar === defaultPillar && (
-              <span style={{ fontSize:10, color:'var(--text3)', marginLeft:2 }}>
-                ↑ auto-selected (weakest: {weakestDim.label})
-              </span>
-            )}
-            <button id="generate-all-btn" className="gen-btn" style={{ fontSize:11, padding:'5px 14px', marginLeft:'auto' }} onClick={generateAll}>
-              ✨ Generate All 3
-            </button>
-          </div>
-          {selectedPillar && pillarSuggestions![selectedPillar] && (
-            <div style={{ fontSize:10, color:'var(--text3)', paddingLeft:4, lineHeight:1.5 }}>
-              Ideas: {pillarSuggestions![selectedPillar].slice(0, 3).join(' · ')}
+              <button id="generate-all-btn" className="gen-btn" style={{ fontSize:11, padding:'5px 14px', marginLeft:'auto' }} onClick={generateAll}>
+                ✨ Generate All 3
+              </button>
             </div>
           )}
-        </div>
+
+          {/* Metric legend */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:20 }}>
+            {[['📥 Morning → Saves','rgba(59,130,246,.1)','#60a5fa'],['🔁 Midday → Shares','rgba(139,92,246,.1)','#a78bfa'],['💬 Evening → Comments','rgba(16,185,129,.1)','#34d399']].map(([l,bg,c]) => (
+              <div key={l as string} style={{ fontSize:11, padding:'5px 12px', borderRadius:20, fontWeight:600, border:'1px solid var(--surface3)', background:bg as string, color:c as string, display:'flex', alignItems:'center', gap:5 }}>{l}</div>
+            ))}
+          </div>
+
+          {/* Agent cards */}
+          <div className="studio-cards" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:14 }}>
+            {(['morning','midday','evening'] as SlotKey[]).map(type => (
+              <AgentCard
+                key={type}
+                type={type}
+                slot={slots[type]}
+                pillar={selectedPillar ?? todaysPillars[type]}
+                activeTab={activeTab[type]}
+                onTabChange={tab => setActiveTab(prev => ({...prev, [type]:tab}))}
+                onGenerate={() => generatePost(type, postStyle)}
+              />
+            ))}
+          </div>
+        </>
       ) : (
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, alignItems:'center' }}>
-          <span style={{ fontSize:12, color:'var(--text3)' }}>📋 No content pillars yet.</span>
-          <button
-            onClick={() => setView('overview')}
-            style={{ fontSize:11, padding:'4px 12px', borderRadius:20, fontWeight:600, cursor:'pointer', background:'transparent', border:'1px solid var(--accent)', color:'var(--accent)' }}
-          >
-            Generate content pillars first →
-          </button>
-          <button id="generate-all-btn" className="gen-btn" style={{ fontSize:11, padding:'5px 14px', marginLeft:'auto' }} onClick={generateAll}>
-            ✨ Generate All 3
-          </button>
+        /* ── Non-Instagram channels ── */
+        <div style={{ background:'var(--surface)', borderRadius:'var(--r2)', border:'1px solid var(--surface3)', overflow:'hidden' }}>
+          {/* Header */}
+          <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>
+                {CHANNELS.find(c => c.id === activeChannel)?.emoji}{' '}
+                {CHANNELS.find(c => c.id === activeChannel)?.label} Content
+              </div>
+              <div style={{ fontSize:11, color:'var(--text3)', marginTop:2 }}>
+                {CHANNELS.find(c => c.id === activeChannel)?.desc}
+              </div>
+            </div>
+            <button
+              className="gen-btn"
+              style={{ fontSize:12, padding:'8px 18px', flexShrink:0 }}
+              onClick={generateForChannel}
+              disabled={channelLoading}
+            >
+              {channelLoading ? '⏳ Generating…' : channelResults[activeChannel] ? '🔄 Regenerate' : '✨ Generate'}
+            </button>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding:'16px' }}>
+            {!channelResults[activeChannel] && !channelLoading && (
+              <div style={{ textAlign:'center', padding:'40px 20px', color:'var(--text3)', fontSize:13 }}>
+                Click Generate to create {CHANNELS.find(c => c.id === activeChannel)?.label} content grounded in your app data and marketing strategy.
+              </div>
+            )}
+            {channelLoading && (
+              <div style={{ textAlign:'center', padding:'40px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:12 }}>
+                <span className="spinner" style={{ color:'var(--accent)' }} />
+                <div style={{ fontSize:12, color:'var(--text3)' }}>
+                  Generating {CHANNELS.find(c => c.id === activeChannel)?.label} content…
+                </div>
+              </div>
+            )}
+            {channelResults[activeChannel] && !channelLoading && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}>
+                  <CopyButton text={channelResults[activeChannel]} label="Copy all" />
+                </div>
+                <div style={{
+                  fontSize:13, lineHeight:1.9, color:'var(--text)',
+                  background:'var(--surface2)', border:'1px solid var(--border)',
+                  borderRadius:'var(--r)', padding:'14px 16px',
+                  whiteSpace:'pre-wrap', fontFamily:"'DM Sans', sans-serif",
+                }}>
+                  {channelResults[activeChannel]}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
-
-      {/* Metric legend */}
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:20 }}>
-        {[['📥 Morning → Saves','rgba(59,130,246,.1)','#60a5fa'],['🔁 Midday → Shares','rgba(139,92,246,.1)','#a78bfa'],['💬 Evening → Comments','rgba(16,185,129,.1)','#34d399']].map(([l,bg,c]) => (
-          <div key={l as string} style={{ fontSize:11, padding:'5px 12px', borderRadius:20, fontWeight:600, border:'1px solid var(--surface3)', background:bg as string, color:c as string, display:'flex', alignItems:'center', gap:5 }}>{l}</div>
-        ))}
-      </div>
-
-      {/* Agent cards */}
-      <div className="studio-cards" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:14 }}>
-        {(['morning','midday','evening'] as SlotKey[]).map(type => (
-          <AgentCard
-            key={type}
-            type={type}
-            slot={slots[type]}
-            pillar={selectedPillar ?? todaysPillars[type]}
-            activeTab={activeTab[type]}
-            onTabChange={tab => setActiveTab(prev => ({...prev, [type]:tab}))}
-            onGenerate={() => generatePost(type, postStyle)}
-          />
-        ))}
-      </div>
     </div>
   )
 }
