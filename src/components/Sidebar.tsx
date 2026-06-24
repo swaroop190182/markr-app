@@ -2,8 +2,9 @@ import { useStore } from '../lib/store'
 import type { ViewType } from '../types'
 
 const NAV_ITEMS: { view: ViewType; icon: string; label: string; badge?: number }[] = [
-  { view: 'overview', icon: 'ti-layout-dashboard', label: 'Overview' },
-  { view: 'studio',   icon: 'ti-sparkles',          label: 'Content Studio' },
+  { view: 'overview',  icon: 'ti-layout-dashboard', label: 'Overview' },
+  { view: 'marketing', icon: 'ti-speakerphone',      label: 'Marketing' },
+  { view: 'studio',    icon: 'ti-sparkles',          label: 'Content Studio' },
   { view: 'strategy', icon: 'ti-bulb',              label: 'Strategy' },
   { view: 'calendar', icon: 'ti-calendar',          label: 'Calendar', badge: 12 },
   { view: 'insights', icon: 'ti-telescope',         label: 'Insights & Analysis' },

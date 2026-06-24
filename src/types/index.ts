@@ -154,7 +154,7 @@ export interface ContentContext {
   before_state: string
 }
 
-export type ViewType = 'overview' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'
+export type ViewType = 'overview' | 'marketing' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'
 
 export interface AgentPost {
   caption: string

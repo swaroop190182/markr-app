@@ -5,6 +5,7 @@ import { StoreProvider, useStore } from './lib/store'
 import Sidebar from './components/Sidebar'
 import Topbar from './components/Topbar'
 import Overview from './views/Overview'
+import Marketing from './views/Marketing'
 import ContentStudio from './views/ContentStudio'
 import Strategy from './views/Strategy'
 import Calendar from './views/Calendar'
@@ -86,6 +87,7 @@ function AppInner({ session }: { session: Session }) {
         <Topbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} onSignOut={() => supabase.auth.signOut()} userEmail={session.user.email ?? ''} />
         <main className="app-content">
           {view === 'overview'  && <Overview onAddApp={() => setShowAddApp(true)} />}
+          {view === 'marketing' && <Marketing />}
           {view === 'studio'    && <ContentStudio onUpgrade={() => setShowUpgrade(true)} />}
           {view === 'strategy'  && <Strategy />}
           {view === 'calendar'  && <Calendar />}
