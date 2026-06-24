@@ -137,6 +137,31 @@ function deriveContentContext(
   return `━━━ APP CONTEXT (automatically derived) ━━━\n${parts.join('\n')}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
 }
 
+function buildContentStrategyContext(currentApp: any, ua: any) {
+  const swot        = currentApp?.swot_analysis        ? JSON.parse(currentApp.swot_analysis)        : null
+  const competitive = currentApp?.competitive_analysis ? JSON.parse(currentApp.competitive_analysis) : null
+  const growth      = currentApp?.growth_analysis      ? JSON.parse(currentApp.growth_analysis)      : null
+  const gtm         = currentApp?.gtm_analysis         ? JSON.parse(currentApp.gtm_analysis)         : null
+
+  return {
+    targetUser:          currentApp?.content_context?.typical_user || 'target user',
+    realResult:          currentApp?.content_context?.real_result  || '',
+    userQuote:           currentApp?.content_context?.user_quote   || '',
+    beforeState:         currentApp?.content_context?.before_state || '',
+    bottleneck:          ua?.bottleneck?.label                     || '',
+    bottleneckIssue:     ua?.bottleneck?.issue                     || '',
+    topStrengths:        swot?.strengths?.slice(0, 2)              || [],
+    topOpportunity:      swot?.opportunities?.[0]                  || '',
+    positioningGap:      competitive?.positioning_gap              || '',
+    competitorWeakness:  competitive?.gaps?.[0]                    || '',
+    activePillar:        currentApp?.pillar_suggestions?.[0]?.name || '',
+    recommendedChannels: gtm?.channels?.slice(0, 3).map((c: any) => c.name) || [],
+    gtmStage:            gtm?.stage                                || '',
+    headline:            ua?.headline                              || currentApp?.name || '',
+    _growth: growth,  // retained for Step 3 platform-specific prompts
+  }
+}
+
 function ContentContextSetup({ existing, onSave, onCancel }: {
   existing?: ContentContext | null
   onSave: (ctx: ContentContext) => void
@@ -276,6 +301,18 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     const pillarIdeas: string[] = (selectedPillar && pillarSuggestions?.[selectedPillar]) ? pillarSuggestions[selectedPillar] : []
     updateSlot(type, { state:'generating', post:null })
 
+    const ua = currentApp.url_analysis
+    const stratCtx = buildContentStrategyContext(currentApp, ua)
+    const stratCtxBlock = [
+      stratCtx.targetUser !== 'target user' ? `Target user: ${stratCtx.targetUser}` : '',
+      stratCtx.realResult  ? `Proven result: ${stratCtx.realResult}`  : '',
+      stratCtx.beforeState ? `Before state: ${stratCtx.beforeState}`  : '',
+      stratCtx.bottleneck  ? `#1 bottleneck to address: ${stratCtx.bottleneck} — ${stratCtx.bottleneckIssue}` : '',
+      stratCtx.positioningGap      ? `Competitor positioning gap: ${stratCtx.positioningGap}`     : '',
+      stratCtx.competitorWeakness  ? `Competitor weakness to exploit: ${stratCtx.competitorWeakness}` : '',
+      stratCtx.recommendedChannels.length ? `Marketing recommended channels: ${stratCtx.recommendedChannels.join(', ')}` : '',
+    ].filter(Boolean).join('\n')
+
     const brandVoice = currentApp.brand ?? `You are the Instagram content strategist for ${currentApp.name}, a ${currentApp.category} app.`
     const testCtx = getTestContext(currentApp)
     const styleConfig = POST_STYLES.find(s => s.id === style) ?? POST_STYLES[1]
@@ -356,6 +393,7 @@ ${testCtx}
 ${testCtx ? `CRITICAL: Reference specific features and real UX details from the product test. Caption must feel like it was written by someone who has actually used ${currentApp.name} deeply.` : ''}
 ${derivedCtxBlock}
 ${contentCtxBlock}
+${stratCtxBlock ? `━━━ CROSS-MODULE STRATEGY CONTEXT ━━━\n${stratCtxBlock}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''}
 
 Generate 3 posts for this content pillar: ${pillar}. The posts should directly support this pillar's goal.
 App: ${currentApp.name} — ${currentApp.desc ?? currentApp.category}
