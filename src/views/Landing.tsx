@@ -217,10 +217,10 @@ export default function Landing() {
 
         {/* Headline */}
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:700, lineHeight:1.07, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:740 }}>
-          Your landing page is losing users.
+          Stop guessing why your app isn't growing.
         </h1>
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 16px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
-          Markr shows you exactly where — and gives you the intelligence, strategy, and daily content to fix it.
+          Markr diagnoses your landing page, maps your competitive landscape, builds your go-to-market strategy, and generates daily multi-channel content — all in one place.
         </h1>
 
         {/* New subline */}
@@ -580,10 +580,10 @@ export default function Landing() {
           <div style={{ textAlign:'center', marginBottom:48 }}>
             <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Why Markr</div>
             <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:700, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7' }}>
-              Not another content tool
+              Not another generic tool
             </h2>
             <p style={{ fontSize:15, color:'rgba(255,255,255,.45)', maxWidth:480, margin:'0 auto', lineHeight:1.7 }}>
-              Most tools generate generic content. Markr reads your actual app and generates content only your app could post.
+              Most tools give generic advice. Markr reads your actual app, maps your competitive landscape, and builds a complete growth intelligence system specific to you.
             </p>
           </div>
 
@@ -595,12 +595,12 @@ export default function Landing() {
               <div style={{ padding:'12px 20px', fontSize:11, fontWeight:700, color:'#a599ff', letterSpacing:'.06em', borderLeft:'1px solid rgba(255,255,255,.06)', background:'rgba(124,111,247,.06)' }}>Markr</div>
             </div>
             {[
-              ['Understands your specific app',        '✗ Generic prompts',    '✓ Reads your actual URL'],
-              ['Competitive analysis',                  '✗ Not included',       '✓ 5 real named competitors'],
+              ['Diagnoses your landing page across 5 dimensions', '✗ Generic scoring',   '✓ Evidence-based findings per dimension'],
+              ['Competitive intelligence',              '✗ Not included',       '✓ Local + global rivals, App Store ratings, funding data, Reddit sentiment'],
               ['AI Readiness Assessment',                '✗ Not included',       '✓ Scores how well your app communicates its value'],
-              ['Daily automated delivery',              '✗ You have to log in', '✓ In your inbox by 6:30am'],
-              ['SWOT, BMC, growth playbook',            '✗ Extra tools needed', '✓ All in one place'],
-              ['Content optimised by engagement goal',  '✗ Same for everything','✓ Saves / Shares / Comments'],
+              ['Multi-channel content engine',          '✗ Instagram only',     '✓ Instagram, LinkedIn, Twitter, YouTube, WhatsApp, Email, Reddit'],
+              ['Go-to-Market strategy',                 '✗ Not included',       '✓ Channel recommendations, budget planner, launch readiness, outreach templates'],
+              ['Score history & improvement tracking',  '✗ One-time audit',     '✓ Track score changes over time — see your growth'],
             ].map(([feat, other, markr], i) => (
               <div key={feat} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', borderBottom: i < 5 ? '1px solid rgba(255,255,255,.04)':'none' }}>
                 <div style={{ padding:'13px 20px', fontSize:13, color:'rgba(255,255,255,.6)' }}>{feat}</div>
