@@ -188,6 +188,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           swot_analysis:        row.swot_analysis ?? null,
           growth_analysis:      row.growth_analysis ?? null,
           pricing_analysis:     row.pricing_analysis ?? null,
+          gtm_analysis:         row.gtm_analysis ?? null,
           content_studio_cache: row.content_studio_cache ?? null,
           strategy_cache:       row.strategy_cache ?? null,
           post_style:           row.post_style ?? null,
@@ -198,6 +199,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           swot_analyzed_at:        row.swot_analyzed_at ?? null,
           growth_analyzed_at:      row.growth_analyzed_at ?? null,
           pricing_analyzed_at:     row.pricing_analyzed_at ?? null,
+          gtm_analyzed_at:         row.gtm_analyzed_at ?? null,
         }))
         setApps(loaded)
         setCurrentAppId(loaded[0].id)
@@ -281,6 +283,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.swot_analysis        !== undefined && { swot_analysis:        updates.swot_analysis }),
         ...(updates.growth_analysis      !== undefined && { growth_analysis:      updates.growth_analysis }),
         ...(updates.pricing_analysis     !== undefined && { pricing_analysis:     updates.pricing_analysis }),
+        ...(updates.gtm_analysis         !== undefined && { gtm_analysis:         updates.gtm_analysis }),
         ...(updates.content_studio_cache !== undefined && { content_studio_cache: updates.content_studio_cache }),
         ...(updates.strategy_cache       !== undefined && { strategy_cache:       updates.strategy_cache }),
         ...(updates.post_style           !== undefined && { post_style:           updates.post_style }),
@@ -290,6 +293,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.swot_analyzed_at        !== undefined && { swot_analyzed_at:        updates.swot_analyzed_at }),
         ...(updates.growth_analyzed_at      !== undefined && { growth_analyzed_at:      updates.growth_analyzed_at }),
         ...(updates.pricing_analyzed_at     !== undefined && { pricing_analyzed_at:     updates.pricing_analyzed_at }),
+        ...(updates.gtm_analyzed_at         !== undefined && { gtm_analyzed_at:         updates.gtm_analyzed_at }),
       })
       .eq('id', id)
       .eq('user_id', userId)

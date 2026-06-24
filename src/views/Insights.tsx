@@ -30,8 +30,9 @@ function lastUpdatedLabel(ts: string | null | undefined): string {
 }
 import { toast } from '../components/Toast'
 import ProductTest from './insights/ProductTest'
+import GoToMarketTab from './insights/GoToMarket'
 
-type Tab = 'competitive' | 'bmc' | 'swot' | 'growth' | 'pricing' | 'product'
+type Tab = 'competitive' | 'bmc' | 'swot' | 'growth' | 'pricing' | 'product' | 'gtm'
 
 const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id:'competitive', label:'Competitive',           emoji:'🔍' },
@@ -39,6 +40,7 @@ const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id:'swot',        label:'SWOT',                  emoji:'⚡' },
   { id:'growth',      label:'Growth Strategies',     emoji:'🚀' },
   { id:'pricing',     label:'Pricing',               emoji:'💰' },
+  { id:'gtm',         label:'Go-to-Market',          emoji:'📣' },
   { id:'product',     label:'AI Readiness Assessment', emoji:'🧪' },
 ]
 
@@ -59,6 +61,7 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
     if (currentApp.swot_analysis)        saved['swot']        = currentApp.swot_analysis
     if (currentApp.growth_analysis)      saved['growth']      = currentApp.growth_analysis
     if (currentApp.pricing_analysis)     saved['pricing']     = currentApp.pricing_analysis
+    if (currentApp.gtm_analysis)         saved['gtm']         = currentApp.gtm_analysis
     setCache(saved)
   }, [currentApp.id])
 
@@ -72,6 +75,7 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
       swot:        'swot_analysis',
       growth:      'growth_analysis',
       pricing:     'pricing_analysis',
+      gtm:         'gtm_analysis',
     }
     const tsMap: Record<string, string> = {
       competitive: 'competitive_analyzed_at',
@@ -79,6 +83,7 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
       swot:        'swot_analyzed_at',
       growth:      'growth_analyzed_at',
       pricing:     'pricing_analyzed_at',
+      gtm:         'gtm_analyzed_at',
     }
     const field = fieldMap[k]
     const tsField = tsMap[k]
@@ -378,6 +383,51 @@ Output ONLY valid JSON:
     setLoad('pricing', false)
   }
 
+  // ── GTM ──────────────────────────────────────────────────────────────────────
+  async function genGTM() {
+    if (!canRefresh(currentApp.gtm_analyzed_at, userEmail)) {
+      toast(`GTM plan updated ${lastUpdatedLabel(currentApp.gtm_analyzed_at).toLowerCase()}. Refreshes once per month.`)
+      return
+    }
+    setLoad('gtm', true)
+    try {
+      const ua  = currentApp.url_analysis
+      const ctx = currentApp.content_context
+      const lines = [
+        `App: "${currentApp.name}" (${currentApp.category}, ${currentApp.stage})`,
+        ua  ? `Landing page score: ${ua.overall}/10. Headline: "${ua.headline}"` : '',
+        ctx?.typical_user ? `Target user: ${ctx.typical_user}` : '',
+        currentApp.desc ? `What it does: ${currentApp.desc}` : '',
+        currentApp.pillars?.length ? `Content pillars: ${currentApp.pillars.slice(0, 3).join(', ')}` : '',
+      ].filter(Boolean).join('\n')
+
+      const prompt = `You are a go-to-market strategist for indie apps and SaaS products. Recommend the best 3 marketing channels and write 3 outreach templates tailored to this specific app.
+
+${lines}
+
+Rules:
+- firstAction must be ultra-specific: name real subreddits, real hashtags, real influencer profile types — not generic advice
+- Templates use [Name], [Your Name], [App Name] as placeholders
+- Cold DM must be under 150 words — direct, personalized, never salesy
+- Reddit post must lead with value — no blatant self-promotion; feel like a genuine community post
+- ProductHunt tagline must be under 60 characters
+
+Return JSON only, no markdown:
+{"channels":[{"name":"channel name","why":"specific reason this fits this app and its target user","timeline":"e.g. 2-4 weeks to first results","cost":"e.g. ₹0/mo","effort":"Low","firstAction":"ultra-specific first step — real subreddit / hashtag / profile type"},{"name":"channel 2","why":"...","timeline":"...","cost":"...","effort":"Medium","firstAction":"..."},{"name":"channel 3","why":"...","timeline":"...","cost":"...","effort":"High","firstAction":"..."}],"templates":{"coldDM":"Hey [Name],\\n\\n[specific observation about them — 1 sentence].\\n\\n[Pain point relevant to app]. [App Name] helps [target user] [specific outcome in one line].\\n\\nHappy to give you free access to try it.\\n\\n[Your Name]","redditPost":{"subreddit":"r/specific_subreddit","title":"genuine post title — helpful, not an ad","body":"3-4 paragraph post — value-first, conversational, mention [App Name] naturally in context"},"productHunt":{"tagline":"under 60 chars — punchy and specific","description":"under 260 chars — what it does, who it's for, one key differentiator"}}}`
+
+      const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 2000, undefined, 'sonnet', 'gtm')
+      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
+      if (!cleaned) throw new Error('Empty response')
+      const parsed = JSON.parse(cleaned)
+      if (!Array.isArray(parsed.channels)) throw new Error('Invalid response — missing channels')
+      setTabCache('gtm', JSON.stringify(parsed))
+      toast('Go-to-Market plan ready!')
+    } catch (e: any) {
+      toast('Error generating GTM plan: ' + (e?.message ?? 'Unknown'))
+    }
+    setLoad('gtm', false)
+  }
+
   // ── RUN ALL ──────────────────────────────────────────────────────────────────
   async function runFullAnalysis() {
     setRunningFull(true)
@@ -594,6 +644,9 @@ Output ONLY valid JSON:
             )}
             {activeTab === 'pricing' && (
               <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
+            )}
+            {activeTab === 'gtm' && (
+              <GoToMarketTab data={cache.gtm} loading={loading.gtm} onGenerate={genGTM} app={currentApp} canUseAnalysis={canUseAnalysis} />
             )}
             {activeTab === 'product' && (
               <ProductTest />
