@@ -428,6 +428,40 @@ Return JSON only, no markdown:
     setLoad('gtm', false)
   }
 
+  // ── GTM PLAYBOOK ─────────────────────────────────────────────────────────────
+  async function genPlaybook() {
+    setLoad('gtmPlaybook', true)
+    try {
+      const ctx        = currentApp.content_context
+      const targetUser = ctx?.typical_user ?? `${currentApp.category} users`
+
+      const prompt = `You are a marketing expert with deep knowledge of ${currentApp.category} apps and what drives growth in this space.
+
+App: "${currentApp.name}" — ${currentApp.category}${currentApp.stage ? ` (${currentApp.stage})` : ''}
+Target user: ${targetUser}
+
+Be specific with real company names and real outcomes. Avoid generic advice. Tailor the formula and principles to the exact category and user profile above.
+
+Return JSON only, no markdown:
+{"categoryPlaybook":[{"company":"real company name","what":"specific marketing action they took","when":"year or period e.g. 2019-2021","results":"specific measurable outcome — users, revenue, growth rate"},{"company":"...","what":"...","when":"...","results":"..."},{"company":"...","what":"...","when":"...","results":"..."}],"whatNotToDo":[{"example":"company name or common pattern","approach":"what they tried","why":"specific reason it failed or wasted money"},{"example":"...","approach":"...","why":"..."},{"example":"...","approach":"...","why":"..."}],"marketingFormula":[{"step":1,"action":"specific action","detail":"why this first and exactly what to do"},{"step":2,"action":"...","detail":"..."},{"step":3,"action":"...","detail":"..."},{"step":4,"action":"...","detail":"..."},{"step":5,"action":"...","detail":"..."},{"step":6,"action":"...","detail":"..."}],"eternalPrinciples":[{"principle":"Find where users already gather","action":"one specific step for ${currentApp.name} in the ${currentApp.category} space"},{"principle":"Make first users successful before scaling","action":"..."},{"principle":"Word of mouth is the best channel","action":"..."},{"principle":"Content before ads","action":"..."},{"principle":"Positioning before promotion","action":"..."}]}`
+
+      const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 3000, undefined, 'sonnet', 'gtm')
+      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
+      if (!cleaned) throw new Error('Empty response')
+      const parsed  = JSON.parse(cleaned)
+      if (!parsed.categoryPlaybook) throw new Error('Invalid response — missing categoryPlaybook')
+
+      // Merge playbook into existing gtm_analysis (preserve channels + templates)
+      let existing: any = {}
+      try { if (cache.gtm) existing = JSON.parse(cache.gtm) } catch {}
+      setTabCache('gtm', JSON.stringify({ ...existing, playbook: parsed }))
+      toast('Marketing playbook ready!')
+    } catch (e: any) {
+      toast('Error generating playbook: ' + (e?.message ?? 'Unknown'))
+    }
+    setLoad('gtmPlaybook', false)
+  }
+
   // ── RUN ALL ──────────────────────────────────────────────────────────────────
   async function runFullAnalysis() {
     setRunningFull(true)
@@ -646,7 +680,7 @@ Return JSON only, no markdown:
               <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
             )}
             {activeTab === 'gtm' && (
-              <GoToMarketTab data={cache.gtm} loading={loading.gtm} onGenerate={genGTM} app={currentApp} canUseAnalysis={canUseAnalysis} />
+              <GoToMarketTab data={cache.gtm} loading={loading.gtm} loadingPlaybook={loading.gtmPlaybook} onGenerate={genGTM} onGeneratePlaybook={genPlaybook} app={currentApp} canUseAnalysis={canUseAnalysis} />
             )}
             {activeTab === 'product' && (
               <ProductTest />

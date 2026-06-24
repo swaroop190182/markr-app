@@ -94,11 +94,13 @@ function Section({ title, subtitle, action, children }: {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
-  data?:           string
-  loading?:        boolean
-  onGenerate:      () => void
-  app:             AppData
-  canUseAnalysis:  boolean
+  data?:                string
+  loading?:             boolean
+  loadingPlaybook?:     boolean
+  onGenerate:           () => void
+  onGeneratePlaybook:   () => void
+  app:                  AppData
+  canUseAnalysis:       boolean
 }
 
 const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
@@ -106,7 +108,7 @@ const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
 const EFFORT_COLOR: Record<string, string> = { Low: 'var(--green)', Medium: 'var(--amber)', High: 'var(--red)' }
 const EFFORT_BG:    Record<string, string> = { Low: 'rgba(52,201,138,.12)', Medium: 'rgba(245,166,35,.12)', High: 'rgba(229,85,85,.12)' }
 
-export default function GoToMarketTab({ data, loading, onGenerate, app, canUseAnalysis }: Props) {
+export default function GoToMarketTab({ data, loading, loadingPlaybook, onGenerate, onGeneratePlaybook, app, canUseAnalysis }: Props) {
   const [budget, setBudget] = useState('0')
 
   if (!canUseAnalysis) return (
@@ -129,11 +131,13 @@ export default function GoToMarketTab({ data, loading, onGenerate, app, canUseAn
 
   let channels:  any[] = []
   let templates: any   = null
+  let playbook:  any   = null
   if (data) {
     try {
       const parsed = JSON.parse(data)
       channels  = parsed.channels  ?? []
       templates = parsed.templates ?? null
+      playbook  = parsed.playbook  ?? null
     } catch {}
   }
 
@@ -320,6 +324,127 @@ export default function GoToMarketTab({ data, loading, onGenerate, app, canUseAn
                 <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6, background: 'var(--surface2)', padding: '10px 12px', borderRadius: 6 }}>
                   {templates.productHunt.description}
                   <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 5 }}>{(templates.productHunt.description ?? '').length}/260 chars</div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+      </Section>
+
+      {/* ── 5. What Worked for Others ── */}
+      <Section
+        title="🏆 What Worked for Others"
+        subtitle={`Category playbook, failure patterns, and proven formulas for ${app.category} apps`}
+        action={
+          loadingPlaybook
+            ? <span style={{ fontSize: 12, color: 'var(--text3)' }}>Generating…</span>
+            : <button className="gen-btn" style={{ fontSize: 11, padding: '5px 11px' }} onClick={onGeneratePlaybook}>
+                {playbook ? '🔄 Refresh' : '✨ Generate'}
+              </button>
+        }
+      >
+        {!playbook && !loadingPlaybook && (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>
+            See what worked (and failed) for real companies in the {app.category} space, then get a step-by-step formula tailored to your market.
+          </div>
+        )}
+        {loadingPlaybook && (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>Researching playbooks and patterns…</div>
+        )}
+
+        {playbook && !loadingPlaybook && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {/* ── Part 1: Category Playbook ── */}
+            {playbook.categoryPlaybook?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.06em', color: 'var(--green)', marginBottom: 10 }}>
+                  ✅ Category Playbook — What successful players did
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {playbook.categoryPlaybook.map((item: any, i: number) => (
+                    <div key={i} style={{ padding: '10px 12px', background: 'rgba(52,201,138,.04)', border: '1px solid rgba(52,201,138,.15)', borderRadius: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>{item.company}</span>
+                        {item.when && (
+                          <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 20, background: 'rgba(52,201,138,.12)', color: 'var(--green)', fontWeight: 600 }}>{item.when}</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5, marginBottom: 5 }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text)' }}>What: </span>{item.what}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--green)', lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 700 }}>Results: </span>{item.results}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Part 2: What NOT to do ── */}
+            {playbook.whatNotToDo?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.06em', color: 'var(--red)', marginBottom: 10 }}>
+                  ❌ What NOT to Do — Channels and approaches that failed
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {playbook.whatNotToDo.map((item: any, i: number) => (
+                    <div key={i} style={{ padding: '10px 12px', background: 'rgba(229,85,85,.04)', border: '1px solid rgba(229,85,85,.12)', borderRadius: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 5 }}>{item.example}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5, marginBottom: 5 }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text)' }}>Tried: </span>{item.approach}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--red)', lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 700 }}>Failed because: </span>{item.why}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Part 3: Marketing Formula ── */}
+            {playbook.marketingFormula?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.06em', color: 'var(--accent)', marginBottom: 10 }}>
+                  📋 Proven Marketing Formula — Step by step
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {playbook.marketingFormula.map((item: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                        {item.step}
+                      </div>
+                      <div style={{ flex: 1, paddingBottom: i < playbook.marketingFormula.length - 1 ? 7 : 0, borderBottom: i < playbook.marketingFormula.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 3 }}>{item.action}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.5 }}>{item.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Part 4: Eternal Principles ── */}
+            {playbook.eternalPrinciples?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.06em', color: '#f5a623', marginBottom: 10 }}>
+                  💡 Eternal Principles Applied to {app.name}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {playbook.eternalPrinciples.map((item: any, i: number) => (
+                    <div key={i} style={{ padding: '10px 12px', background: 'rgba(245,166,35,.04)', border: '1px solid rgba(245,166,35,.15)', borderRadius: 8 }}>
+                      <div style={{ fontSize: 10, color: '#f5a623', fontWeight: 700, fontStyle: 'italic' as const, marginBottom: 5, opacity: 0.85 }}>
+                        "{item.principle}"
+                      </div>
+                      <div style={{ display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+                        <span style={{ color: '#f5a623', fontWeight: 700, flexShrink: 0, fontSize: 12 }}>→</span>
+                        <span style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{item.action}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
