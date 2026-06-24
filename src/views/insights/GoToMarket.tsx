@@ -52,20 +52,88 @@ function getBudgetPlan(budget: string): BudgetLine[] {
 interface Criterion { label: string; pass: boolean; detail: string }
 
 function getLaunchCriteria(app: AppData): Criterion[] {
-  const ua   = (app as any).url_analysis
-  const dims = ua?.dimensions ?? []
-  const dim  = (label: string) => dims.find((d: any) => d.label === label)?.score ?? 0
+  const ua            = (app as any).url_analysis
+  const dims          = ua?.dimensions ?? []
+  const dim           = (label: string): number => dims.find((d: any) => d.label === label)?.score ?? 0
+  const isBottleneck  = (label: string): boolean => ua?.bottleneck?.label === label
+  const hasPillars    = (app.pillars?.length ?? 0) >= 3 || !!(app as any).pillar_suggestions
+  const hasCompetitive = !!(app as any).competitive_analysis
+  const hasContentCtx  = !!(app as any).content_context?.typical_user
+
+  const trust = dim('Trust')
+  const conv  = dim('Conversion Readiness')
+  const clar  = dim('Clarity')
+  const emo   = dim('Emotional Pull')
+
   return [
-    { label: 'Landing page has been analyzed',  pass: !!ua,                               detail: ua ? `Analyzed — ${ua.overall}/10 overall` : 'Run URL analysis first' },
-    { label: 'Overall page score ≥ 7/10',       pass: (ua?.overall ?? 0) >= 7,            detail: ua ? `${ua.overall}/10` : 'Not yet analyzed' },
-    { label: 'Clarity score ≥ 6',               pass: dim('Clarity') >= 6,                detail: `${dim('Clarity') || '—'}/10 — visitors understand what you do immediately` },
-    { label: 'Trust signals ≥ 6',               pass: dim('Trust') >= 6,                  detail: `${dim('Trust') || '—'}/10 — testimonials, social proof, credibility` },
-    { label: 'Conversion readiness ≥ 5',        pass: dim('Conversion Readiness') >= 5,   detail: `${dim('Conversion Readiness') || '—'}/10 — CTA and sign-up flow` },
-    { label: 'Emotional pull ≥ 5',              pass: dim('Emotional Pull') >= 5,          detail: `${dim('Emotional Pull') || '—'}/10 — resonates with target user` },
-    { label: 'App has a live URL',              pass: !!app.url,                           detail: app.url ? app.url.replace(/^https?:\/\//, '') : 'No URL added in settings' },
-    { label: 'App description filled in',       pass: (app.desc?.length ?? 0) > 20,        detail: app.desc ? `${app.desc.length} characters` : 'Add description in app settings' },
-    { label: 'Content pillars defined (3+)',    pass: (app.pillars?.length ?? 0) >= 3,     detail: `${app.pillars?.length ?? 0} of 3 required pillars set` },
-    { label: 'Brand voice defined',             pass: (app.brand?.length ?? 0) > 10,       detail: app.brand ? 'Brand voice set' : 'Add brand voice in app settings' },
+    {
+      label:  'Landing page score 7+',
+      pass:   (ua?.overall ?? 0) >= 7,
+      detail: ua
+        ? `${ua.overall}/10 — ${ua.overall >= 7 ? 'ad-ready' : 'fix page before running paid ads or budget is wasted'}`
+        : 'Run URL analysis first (Overview tab → Analyze)',
+    },
+    {
+      label:  'Clear value prop (Clarity ≥ 6)',
+      pass:   clar >= 6,
+      detail: ua
+        ? `${clar}/10${isBottleneck('Clarity') ? ' — ⚠️ this is your #1 bottleneck' : clar < 6 ? ' — visitors may not understand what you do' : ' — clear'}`
+        : '—',
+    },
+    {
+      label:  'Has social proof (Trust ≥ 6)',
+      pass:   trust >= 6,
+      detail: ua
+        ? `${trust}/10${isBottleneck('Trust') ? ' — ⚠️ this is your #1 bottleneck' : trust < 6 ? ' — add testimonials, ratings, or press mentions' : ' — credible'}`
+        : '—',
+    },
+    {
+      label:  'Has CTA / conversion flow (Conversion ≥ 5)',
+      pass:   conv >= 5,
+      detail: ua
+        ? `${conv}/10${isBottleneck('Conversion Readiness') ? ' — ⚠️ this is your #1 bottleneck' : conv < 5 ? ' — sign-up friction is high' : ' — conversion ready'}`
+        : '—',
+    },
+    {
+      label:  'Emotional resonance (Emotional Pull ≥ 5)',
+      pass:   emo >= 5,
+      detail: ua
+        ? `${emo}/10${emo < 5 ? ' — messaging not connecting with target user' : ' — resonates'}`
+        : '—',
+    },
+    {
+      label:  'Competitor analysis done',
+      pass:   hasCompetitive,
+      detail: hasCompetitive
+        ? 'Competitive landscape mapped — positioning gaps identified'
+        : 'Run Competitive Intelligence (Insights → Competitive tab)',
+    },
+    {
+      label:  'Content pillars set',
+      pass:   hasPillars,
+      detail: (app as any).pillar_suggestions
+        ? 'AI pillar suggestions generated'
+        : app.pillars?.length
+          ? `${app.pillars.length} pillars defined`
+          : 'Define 3+ pillars in Content Studio or generate AI suggestions',
+    },
+    {
+      label:  'Target user defined',
+      pass:   hasContentCtx,
+      detail: hasContentCtx
+        ? `"${(app as any).content_context.typical_user}"`
+        : 'Add in Content Studio → context setup',
+    },
+    {
+      label:  'App has a live URL',
+      pass:   !!app.url,
+      detail: app.url ? app.url.replace(/^https?:\/\//, '') : 'No URL added in app settings',
+    },
+    {
+      label:  'Brand voice defined',
+      pass:   (app.brand?.length ?? 0) > 10,
+      detail: app.brand ? 'Brand voice set' : 'Add brand voice in app settings',
+    },
   ]
 }
 
