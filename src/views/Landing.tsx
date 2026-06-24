@@ -216,12 +216,12 @@ export default function Landing() {
         </div>
 
         {/* Headline */}
-        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:700, lineHeight:1.07, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:740 }}>
+        <h1 style={{ fontFamily:D, fontSize:'clamp(38px,5.5vw,72px)', fontWeight:800, lineHeight:1.0, margin:'0 0 18px', letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:740 }}>
           Grow the app you already built.
         </h1>
-        <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 16px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
-          Markr diagnoses your landing page, maps your competitive landscape, builds your go-to-market strategy, and generates daily multi-channel content — all in one place.
-        </h1>
+        <p style={{ fontFamily:D, fontSize:'clamp(17px,1.8vw,22px)', fontWeight:400, lineHeight:1.6, margin:'0 0 20px', letterSpacing:'-0.01em', maxWidth:580, color:'rgba(255,255,255,.55)' }}>
+          Landing page audit · competitive intelligence · go-to-market strategy · daily multi-channel content — built for founders who build alone.
+        </p>
 
         {/* New subline */}
         <p style={{ fontFamily:D, fontSize:18, fontWeight:500, color:'rgba(255,255,255,.75)', maxWidth:560, lineHeight:1.5, margin:'0 0 16px', letterSpacing:'-0.01em' }}>
