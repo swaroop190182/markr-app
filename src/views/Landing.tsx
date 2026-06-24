@@ -193,7 +193,7 @@ export default function Landing() {
           <span style={{ fontFamily:D, fontSize:14, fontWeight:600 }}>Markr</span>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:24, fontSize:13, color:'rgba(255,255,255,.5)' }} className="landing-nav-links">
-          {[['How it works','#how'],['Why Markr','#why'],['For Whom','#forwho'],['Founder','#about'],['Pricing','#pricing']].map(([l,h])=>(
+          {[['How it works','#how'],['Features','#features'],['Why Markr','#why'],['For Whom','#forwho'],['Founder','#about'],['Pricing','#pricing']].map(([l,h])=>(
             <a key={l} href={h} style={{ color:'inherit', textDecoration:'none', transition:'color .15s' }}
               onMouseEnter={e=>e.currentTarget.style.color='#fff'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,.5)'}>{l}</a>
           ))}
@@ -570,6 +570,40 @@ export default function Landing() {
               Get this for your app →
             </a>
             <div style={{ marginTop:10, fontSize:12, color:'rgba(255,255,255,.3)', fontFamily:D }}>Free to start · Your first analysis in 2 minutes</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES ── */}
+      <section id="features" style={{ padding:'80px 6%', borderTop:'1px solid rgba(255,255,255,.06)' }}>
+        <div style={{ maxWidth:980, margin:'0 auto' }}>
+          <div style={{ textAlign:'center', marginBottom:48 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Features</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>
+              Everything you need to go from built to bought
+            </h2>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }} className="features-grid">
+            {[
+              { emoji:'🎯', name:'Landing Page Audit',        desc:"Score your page across 5 dimensions with specific evidence. Know exactly what's broken." },
+              { emoji:'⚔️', name:'Competitive Intelligence',  desc:'Local and global rivals analyzed. App Store ratings, funding data, Reddit sentiment — all in one view.' },
+              { emoji:'📊', name:'Growth Strategy Suite',     desc:'SWOT, BMC, Growth playbook, and Pricing strategy — grounded in your actual scores.' },
+              { emoji:'🗺️', name:'Go-to-Market Plan',         desc:'Channel recommendations, budget allocation, launch readiness, and outreach templates — specific to your app.' },
+              { emoji:'✍️', name:'Multi-Channel Content',     desc:'Daily content for Instagram, LinkedIn, Twitter, YouTube, WhatsApp, Email, and Reddit — in your brand voice.' },
+              { emoji:'🔗', name:'Shareable Scorecards',      desc:'Every analysis generates a public link. Share your score, get feedback, drive new users.' },
+              { emoji:'📈', name:'Score History',             desc:"Track improvement over time. See what's working and what to fix next." },
+              { emoji:'🤖', name:'AI Copy Recommendations',   desc:'Rewritten headlines, CTAs, and priority fixes — specific to your app, not generic advice.' },
+            ].map(f => (
+              <div key={f.name}
+                style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:12, padding:'22px 18px', transition:'border-color .2s, background .2s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(124,111,247,.4)'; (e.currentTarget as HTMLElement).style.background = 'rgba(124,111,247,.06)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,.07)'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.03)' }}
+              >
+                <div style={{ fontSize:26, marginBottom:12 }}>{f.emoji}</div>
+                <div style={{ fontFamily:D, fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:7 }}>{f.name}</div>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,.45)', lineHeight:1.65 }}>{f.desc}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
