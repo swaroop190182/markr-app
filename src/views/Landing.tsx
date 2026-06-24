@@ -217,7 +217,7 @@ export default function Landing() {
 
         {/* Headline */}
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:700, lineHeight:1.07, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:740 }}>
-          Stop guessing why your app isn't growing.
+          Grow the app you already built.
         </h1>
         <h1 style={{ fontFamily:D, fontSize:'clamp(32px,4.2vw,58px)', fontWeight:600, lineHeight:1.07, margin:'0 0 16px', letterSpacing:'-0.02em', maxWidth:740, background:'linear-gradient(135deg,#7c6ff7 20%,#e26faf 80%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
           Markr diagnoses your landing page, maps your competitive landscape, builds your go-to-market strategy, and generates daily multi-channel content — all in one place.
