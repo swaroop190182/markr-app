@@ -162,13 +162,11 @@ function Section({ title, subtitle, action, children }: {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
-  data?:                string
-  loading?:             boolean
-  loadingPlaybook?:     boolean
-  onGenerate:           () => void
-  onGeneratePlaybook:   () => void
-  app:                  AppData
-  canUseAnalysis:       boolean
+  data?:          string
+  loading?:       boolean
+  onGenerate:     () => void
+  app:            AppData
+  canUseAnalysis: boolean
 }
 
 const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
@@ -176,7 +174,7 @@ const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
 const EFFORT_COLOR: Record<string, string> = { Low: 'var(--green)', Medium: 'var(--amber)', High: 'var(--red)' }
 const EFFORT_BG:    Record<string, string> = { Low: 'rgba(52,201,138,.12)', Medium: 'rgba(245,166,35,.12)', High: 'rgba(229,85,85,.12)' }
 
-export default function GoToMarketTab({ data, loading, loadingPlaybook, onGenerate, onGeneratePlaybook, app, canUseAnalysis }: Props) {
+export default function GoToMarketTab({ data, loading, onGenerate, app, canUseAnalysis }: Props) {
   const [budget, setBudget] = useState('0')
 
   if (!canUseAnalysis) return (
@@ -209,29 +207,40 @@ export default function GoToMarketTab({ data, loading, loadingPlaybook, onGenera
     } catch {}
   }
 
-  const GenButton = ({ small }: { small?: boolean }) => (
-    loading
-      ? <span style={{ fontSize: 12, color: 'var(--text3)' }}>Generating…</span>
-      : <button className="gen-btn" style={small ? { fontSize: 11, padding: '5px 11px' } : undefined} onClick={onGenerate}>
-          {data ? '🔄 Refresh' : '✨ Generate'}
-        </button>
-  )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+      {/* ── Top generate / refresh bar ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)' }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne,sans-serif' }}>📣 Go-to-Market Strategy</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+            {data ? 'All sections generated from your stored analysis data' : 'Generates channels, outreach templates, and category playbook in one shot'}
+          </div>
+        </div>
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text3)' }}>
+            <span className="spinner" style={{ color: 'var(--accent)' }} />
+            Generating…
+          </div>
+        ) : (
+          <button className="gen-btn" style={{ fontSize: 12, padding: '8px 18px' }} onClick={onGenerate}>
+            {data ? '🔄 Refresh All' : '✨ Generate GTM Strategy'}
+          </button>
+        )}
+      </div>
 
       {/* ── 1. Channel Recommendations ── */}
       <Section
         title="📡 Channel Recommendations"
         subtitle={`Best 3 marketing channels for ${app.name}`}
-        action={<GenButton small />}
       >
         {loading && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>Analyzing best channels…</div>
         )}
         {!loading && !data && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>
-            Click Generate to get channel recommendations tailored to {app.name}.
+            Generate GTM Strategy above to get channel recommendations tailored to {app.name}.
           </div>
         )}
         {!loading && channels.length > 0 && (
@@ -331,14 +340,13 @@ export default function GoToMarketTab({ data, loading, loadingPlaybook, onGenera
       <Section
         title="✉️ Outreach Templates"
         subtitle={`Ready-to-use templates for ${app.name}`}
-        action={!data && !loading ? <GenButton small /> : undefined}
       >
         {loading && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>Writing templates…</div>
         )}
         {!loading && !templates && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>
-            Generate channel recommendations to also get outreach templates.
+            Generate GTM Strategy above to get outreach templates.
           </div>
         )}
         {!loading && templates && (
@@ -404,24 +412,17 @@ export default function GoToMarketTab({ data, loading, loadingPlaybook, onGenera
       <Section
         title="🏆 What Worked for Others"
         subtitle={`Category playbook, failure patterns, and proven formulas for ${app.category} apps`}
-        action={
-          loadingPlaybook
-            ? <span style={{ fontSize: 12, color: 'var(--text3)' }}>Generating…</span>
-            : <button className="gen-btn" style={{ fontSize: 11, padding: '5px 11px' }} onClick={onGeneratePlaybook}>
-                {playbook ? '🔄 Refresh' : '✨ Generate'}
-              </button>
-        }
       >
-        {!playbook && !loadingPlaybook && (
+        {!playbook && !loading && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>
-            See what worked (and failed) for real companies in the {app.category} space, then get a step-by-step formula tailored to your market.
+            Generate GTM Strategy above to see what worked (and failed) for real companies in the {app.category} space.
           </div>
         )}
-        {loadingPlaybook && (
+        {loading && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>Researching playbooks and patterns…</div>
         )}
 
-        {playbook && !loadingPlaybook && (
+        {playbook && !loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             {/* ── Part 1: Category Playbook ── */}

@@ -467,105 +467,73 @@ Output ONLY valid JSON:
     return lines.filter(Boolean).join('\n')
   }
 
-  // ── GTM ──────────────────────────────────────────────────────────────────────
-  async function genGTM() {
+  // ── GTM — single combined call ────────────────────────────────────────────────
+  async function genGTMAll() {
     if (!canRefresh(currentApp.gtm_analyzed_at, userEmail)) {
       toast(`GTM plan updated ${lastUpdatedLabel(currentApp.gtm_analyzed_at).toLowerCase()}. Refreshes once per month.`)
       return
     }
     setLoad('gtm', true)
     try {
-      const ua       = currentApp.url_analysis
-      const context  = buildGTMContext()
+      const ua      = currentApp.url_analysis
+      const ctx     = currentApp.content_context
+      const context = buildGTMContext()
 
-      // Build specific coaching notes from actual data
-      const nudges: string[] = []
+      // Collect specific coaching notes from all stored data
+      const mandatory: string[] = []
       const trustScore = ua?.dimensions?.find((d: any) => d.label === 'Trust')?.score
       const convScore  = ua?.dimensions?.find((d: any) => d.label === 'Conversion Readiness')?.score
-      if (ua && ua.overall < 7)    nudges.push(`Landing page score is ${ua.overall}/10 — recommend fixing the page BEFORE paid ads, and say so explicitly in your channel reasoning.`)
-      if (trustScore != null && trustScore < 7) nudges.push(`Trust score is ${trustScore}/10 — mention that paid traffic to a low-trust page wastes budget, and what to fix first (${ua?.bottleneck?.issue ?? 'add social proof'}).`)
-      if (convScore  != null && convScore  < 5) nudges.push(`Conversion readiness is ${convScore}/10 — flag that sign-up friction will kill paid ROI until fixed.`)
+      if (ua && ua.overall < 7)
+        mandatory.push(`Landing page is ${ua.overall}/10 — BELOW ad-ready threshold. In channels, flag that paid spend should wait until the page is fixed. Say so explicitly.`)
+      if (trustScore != null && trustScore < 7)
+        mandatory.push(`Trust score is ${trustScore}/10 — cite this in channel reasoning: paid ads to a low-trust page waste budget. The fix: ${ua?.bottleneck?.issue ?? 'add social proof'}.`)
+      if (convScore != null && convScore < 5)
+        mandatory.push(`Conversion readiness is ${convScore}/10 — sign-up friction will kill paid ROI. Address in formula step ordering.`)
+      if (ua?.bottleneck)
+        mandatory.push(`#1 bottleneck is "${ua.bottleneck.label}": ${ua.bottleneck.issue} — the formula must address fixing this before any scaling.`)
       let competitive: any = null
       try { if (currentApp.competitive_analysis) competitive = JSON.parse(currentApp.competitive_analysis) } catch {}
       const topGap = competitive?.comps?.[0]?.positioningGap
-      if (topGap) nudges.push(`Top competitor gap: "${topGap}" — at least one channel's firstAction should exploit this positioning.`)
+      if (topGap) mandatory.push(`Top competitor gap: "${topGap}" — at least one channel's firstAction must exploit this positioning.`)
+      if (competitive?.winCond) mandatory.push(`Win condition: "${competitive.winCond}" — eternal principles should reference this.`)
+      let swot: any = null
+      try { if (currentApp.swot_analysis) swot = JSON.parse(currentApp.swot_analysis) } catch {}
+      const topOpp = swot?.opportunities?.[0]
+      const oppLabel = topOpp?.title ?? (typeof topOpp === 'string' ? topOpp : '')
+      if (oppLabel) mandatory.push(`Top SWOT opportunity: "${oppLabel}" — marketing formula should exploit this immediately.`)
 
-      const prompt = `You are a go-to-market strategist. Use the CONTEXT below (from this app's actual stored analyses) to recommend the best 3 marketing channels and write 3 outreach templates. Reference specific scores, competitor names, and gaps — not generic advice.
+      const targetUser = ctx?.typical_user ?? `${currentApp.category} users`
+
+      const prompt = `You are a go-to-market strategist and marketing expert. Using the CONTEXT below (from this app's actual stored analyses), generate a complete GTM strategy. Reference specific scores, competitor names, gaps, and real findings — not generic advice.
 
 CONTEXT:
 ${context}
-${nudges.length ? '\nMANDATORY — address these specific findings in your output:\n' + nudges.map(n => `- ${n}`).join('\n') : ''}
+${mandatory.length ? '\nMANDATORY — weave these specific findings into your output:\n' + mandatory.map(m => `- ${m}`).join('\n') : ''}
+
+Target user: ${targetUser}
 
 Rules:
-- In "why" for each channel, reference a specific finding from the context (score, competitor weakness, SWOT opportunity, etc.)
-- firstAction must be ultra-specific: real subreddit names, hashtags, influencer profile types
-- Templates use [Name], [Your Name], [App Name] as placeholders
-- Cold DM under 150 words, Reddit post value-first, ProductHunt tagline under 60 chars
+- Channel "why" must cite a specific finding from context (score, competitor weakness, SWOT opportunity)
+- firstAction must be ultra-specific: real subreddit names, real hashtags, real influencer types
+- Templates: [Name], [Your Name], [App Name] as placeholders; cold DM under 150 words
+- ProductHunt tagline under 60 chars
+- Category playbook: real companies with real measurable outcomes
+- Marketing formula: steps must be ordered correctly — page fixes before paid scale
 
 Return JSON only, no markdown:
-{"channels":[{"name":"channel name","why":"specific reasoning citing actual scores/competitor data from context","timeline":"e.g. 2-4 weeks","cost":"e.g. ₹0/mo","effort":"Low","firstAction":"ultra-specific step with real names"},{"name":"channel 2","why":"...","timeline":"...","cost":"...","effort":"Medium","firstAction":"..."},{"name":"channel 3","why":"...","timeline":"...","cost":"...","effort":"High","firstAction":"..."}],"templates":{"coldDM":"Hey [Name],\\n\\n[specific observation — 1 sentence].\\n\\n[Pain point]. [App Name] helps [target user] [specific outcome].\\n\\nHappy to give you free access.\\n\\n[Your Name]","redditPost":{"subreddit":"r/real_subreddit","title":"genuine helpful title","body":"3-4 paragraph value-first post"},"productHunt":{"tagline":"under 60 chars","description":"under 260 chars"}}}`
+{"channels":[{"name":"channel name","why":"cite specific score/gap/finding","timeline":"e.g. 2-4 weeks","cost":"e.g. ₹0/mo","effort":"Low","firstAction":"ultra-specific step with real names"},{"name":"...","why":"...","timeline":"...","cost":"...","effort":"Medium","firstAction":"..."},{"name":"...","why":"...","timeline":"...","cost":"...","effort":"High","firstAction":"..."}],"templates":{"coldDM":"Hey [Name],\\n\\n[specific observation].\\n\\n[Pain point]. [App Name] helps [target user] [specific outcome].\\n\\nHappy to give you free access.\\n\\n[Your Name]","redditPost":{"subreddit":"r/real_subreddit","title":"genuine helpful title — not an ad","body":"3-4 paragraph value-first post, [App Name] mentioned naturally"},"productHunt":{"tagline":"under 60 chars — punchy","description":"under 260 chars — what, who, differentiator"}},"playbook":{"categoryPlaybook":[{"company":"real company","what":"specific action they took","when":"year/period","results":"specific measurable outcome"},{"company":"...","what":"...","when":"...","results":"..."},{"company":"...","what":"...","when":"...","results":"..."}],"whatNotToDo":[{"example":"company or pattern","approach":"what was tried","why":"specific reason it failed or wasted money"},{"example":"...","approach":"...","why":"..."},{"example":"...","approach":"...","why":"..."}],"marketingFormula":[{"step":1,"action":"specific action","detail":"why first — reference bottleneck if relevant"},{"step":2,"action":"...","detail":"..."},{"step":3,"action":"...","detail":"..."},{"step":4,"action":"...","detail":"..."},{"step":5,"action":"...","detail":"..."},{"step":6,"action":"...","detail":"..."}],"eternalPrinciples":[{"principle":"Find where users already gather","action":"specific step for ${currentApp.name} from context"},{"principle":"Make first users successful before scaling","action":"..."},{"principle":"Word of mouth is the best channel","action":"..."},{"principle":"Content before ads","action":"..."},{"principle":"Positioning before promotion","action":"..."}]}}`
 
-      const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 2500, undefined, 'sonnet', 'gtm')
+      const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 5000, undefined, 'sonnet', 'gtm')
       const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
       if (!cleaned) throw new Error('Empty response')
       const parsed  = JSON.parse(cleaned)
       if (!Array.isArray(parsed.channels)) throw new Error('Invalid response — missing channels')
       setTabCache('gtm', JSON.stringify(parsed))
-      toast('Go-to-Market plan ready!')
+      toast('GTM strategy ready!')
     } catch (e: any) {
-      toast('Error generating GTM plan: ' + (e?.message ?? 'Unknown'))
+      toast('Error generating GTM strategy: ' + (e?.message ?? 'Unknown'))
     }
     setLoad('gtm', false)
-  }
-
-  // ── GTM PLAYBOOK ─────────────────────────────────────────────────────────────
-  async function genPlaybook() {
-    setLoad('gtmPlaybook', true)
-    try {
-      const context    = buildGTMContext()
-      const ctx        = currentApp.content_context
-      const targetUser = ctx?.typical_user ?? `${currentApp.category} users`
-
-      // Derive specific guidance from stored data
-      const hooks: string[] = []
-      const ua = currentApp.url_analysis
-      if (ua?.bottleneck) hooks.push(`The app's #1 landing page bottleneck is "${ua.bottleneck.label}": ${ua.bottleneck.issue} — the marketing formula must address fixing this before scaling.`)
-      let swot: any = null
-      try { if (currentApp.swot_analysis) swot = JSON.parse(currentApp.swot_analysis) } catch {}
-      const topOpp = swot?.opportunities?.[0]
-      if (topOpp) {
-        const oppLabel = topOpp.title ?? (typeof topOpp === 'string' ? topOpp : '')
-        if (oppLabel) hooks.push(`Top SWOT opportunity: "${oppLabel}" — the formula should exploit this immediately.`)
-      }
-      let competitive: any = null
-      try { if (currentApp.competitive_analysis) competitive = JSON.parse(currentApp.competitive_analysis) } catch {}
-      if (competitive?.winCond) hooks.push(`Win condition from competitive analysis: "${competitive.winCond}" — eternal principles should reference this.`)
-
-      const prompt = `You are a marketing expert. Use the CONTEXT below (from this app's actual stored analyses) to build a category playbook, failure patterns, a step-by-step formula, and eternal principles applied to this specific app. Be specific — cite real companies, real numbers, real findings.
-
-CONTEXT:
-${context}
-${hooks.length ? '\nMANDATORY — weave these specific findings into your output:\n' + hooks.map(h => `- ${h}`).join('\n') : ''}
-
-Target user: ${targetUser}
-
-Return JSON only, no markdown:
-{"categoryPlaybook":[{"company":"real company name","what":"specific action they took","when":"year/period","results":"specific measurable outcome"},{"company":"...","what":"...","when":"...","results":"..."},{"company":"...","what":"...","when":"...","results":"..."}],"whatNotToDo":[{"example":"company or pattern","approach":"what was tried","why":"specific reason it failed"},{"example":"...","approach":"...","why":"..."},{"example":"...","approach":"...","why":"..."}],"marketingFormula":[{"step":1,"action":"specific action","detail":"why first and exactly what to do — reference app's current bottleneck if relevant"},{"step":2,"action":"...","detail":"..."},{"step":3,"action":"...","detail":"..."},{"step":4,"action":"...","detail":"..."},{"step":5,"action":"...","detail":"..."},{"step":6,"action":"...","detail":"..."}],"eternalPrinciples":[{"principle":"Find where users already gather","action":"specific step for ${currentApp.name} citing its category/target user from context"},{"principle":"Make first users successful before scaling","action":"..."},{"principle":"Word of mouth is the best channel","action":"..."},{"principle":"Content before ads","action":"..."},{"principle":"Positioning before promotion","action":"..."}]}`
-
-      const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 3000, undefined, 'sonnet', 'gtm')
-      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
-      if (!cleaned) throw new Error('Empty response')
-      const parsed  = JSON.parse(cleaned)
-      if (!parsed.categoryPlaybook) throw new Error('Invalid response — missing categoryPlaybook')
-
-      let existing: any = {}
-      try { if (cache.gtm) existing = JSON.parse(cache.gtm) } catch {}
-      setTabCache('gtm', JSON.stringify({ ...existing, playbook: parsed }))
-      toast('Marketing playbook ready!')
-    } catch (e: any) {
-      toast('Error generating playbook: ' + (e?.message ?? 'Unknown'))
-    }
-    setLoad('gtmPlaybook', false)
   }
 
   // ── RUN ALL ──────────────────────────────────────────────────────────────────
@@ -786,7 +754,7 @@ Return JSON only, no markdown:
               <PricingTab data={cache.pricing} loading={loading.pricing} onGenerate={genPricing} />
             )}
             {activeTab === 'gtm' && (
-              <GoToMarketTab data={cache.gtm} loading={loading.gtm} loadingPlaybook={loading.gtmPlaybook} onGenerate={genGTM} onGeneratePlaybook={genPlaybook} app={currentApp} canUseAnalysis={canUseAnalysis} />
+              <GoToMarketTab data={cache.gtm} loading={loading.gtm} onGenerate={genGTMAll} app={currentApp} canUseAnalysis={canUseAnalysis} />
             )}
             {activeTab === 'product' && (
               <ProductTest />
