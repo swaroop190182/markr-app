@@ -148,7 +148,69 @@ async function fullScrape(url: string) {
   let mainHtml = await fetchSafe(url)
   if (!mainHtml) throw new Error('Could not reach this URL — make sure it is public and accessible.')
 
+  // ── JS SPA detection ──────────────────────────────────────────────────────
+  const isJsSpa = (
+    mainHtml.includes('__NEXT_DATA__') ||
+    mainHtml.includes('__nuxt') ||
+    (mainHtml.includes('<div id="root">') && mainHtml.length < 8000) ||
+    (mainHtml.includes('<div id="app">') && mainHtml.length < 8000) ||
+    mainHtml.includes('window.__')
+  )
 
+  // ── Firecrawl fallback — only for JS SPAs ────────────────────────────────
+  if (isJsSpa && process.env.FIRECRAWL_API_KEY) {
+    try {
+      const timeout = new Promise<null>(resolve => {
+        const t = setTimeout(() => resolve(null), 8000)
+        ;(t as any).unref?.()
+      })
+
+      const fcPromise = fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.FIRECRAWL_API_KEY}`,
+        },
+        body: JSON.stringify({
+          url,
+          formats: ['markdown'],
+          onlyMainContent: true,
+          waitFor: 2000,
+        }),
+      })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+
+      const fcResult = await Promise.race([fcPromise, timeout])
+
+      if (fcResult?.data?.markdown && fcResult.data.markdown.length > 300) {
+        const meta    = fcResult.data.metadata ?? {}
+        const fcTitle = meta.title ?? meta.ogTitle ?? ''
+        const fcDesc  = meta.description ?? meta.ogDescription ?? ''
+        const fcBody  = fcResult.data.markdown
+          .replace(/^#{1,6}\s+/gm, '')
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .replace(/[*_`]/g, '')
+          .slice(0, 6000)
+
+        mainHtml = [
+          '<html><head>',
+          `<title>${fcTitle}</title>`,
+          `<meta name="description" content="${fcDesc.replace(/"/g, '').slice(0, 300)}">`,
+          `<meta property="og:title" content="${fcTitle.replace(/"/g, '')}">`,
+          `<meta property="og:description" content="${fcDesc.replace(/"/g, '').slice(0, 300)}">`,
+          '</head><body>',
+          `<h1>${fcTitle}</h1>`,
+          fcBody.replace(/\n\n+/g, '</p><p>').replace(/^/, '<p>').replace(/$/, '</p>'),
+          '</body></html>',
+        ].join('\n')
+
+        console.log('[firecrawl] success — content length:', fcBody.length)
+      }
+    } catch (fcErr) {
+      console.error('[firecrawl] error (non-fatal):', (fcErr as Error).message)
+    }
+  }
 
   const main = extract(mainHtml)
 
