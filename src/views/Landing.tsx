@@ -5,31 +5,15 @@ const D = "'Inter', sans-serif"
 const B = "'Inter', sans-serif"
 
 function VideoEmbed() {
-  const [playing, setPlaying] = useState(false)
   return (
-    <div onClick={() => !playing && setPlaying(true)}
-      style={{ position:'relative', width:'100%', paddingBottom:'56.25%', borderRadius:14, overflow:'hidden', cursor:playing?'default':'pointer', background:'#0a0a0e', border:'1px solid rgba(255,255,255,.1)', boxShadow:'0 24px 60px rgba(0,0,0,.6)' }}>
-      {playing ? (
-        <iframe style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', border:'none' }}
-          src="https://www.youtube.com/embed/G8xh5wXhemU?autoplay=1&rel=0"
-          title="Markr Demo" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-      ) : (
-        <>
-          <img src="https://img.youtube.com/vi/G8xh5wXhemU/maxresdefault.jpg" alt="Markr demo"
-            style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', objectFit:'cover' }} />
-          <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,.5)' }} />
-          {/* Play button */}
-          <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', display:'flex', flexDirection:'column', alignItems:'center', gap:12 }}>
-            <div style={{ width:72, height:72, borderRadius:'50%', background:'rgba(124,111,247,.95)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 0 16px rgba(124,111,247,.15)', transition:'transform .2s' }}>
-              <div style={{ width:0, height:0, borderTop:'12px solid transparent', borderBottom:'12px solid transparent', borderLeft:'20px solid #fff', marginLeft:5 }} />
-            </div>
-            <div style={{ fontSize:13, fontWeight:600, color:'rgba(255,255,255,.85)', textShadow:'0 1px 4px rgba(0,0,0,.8)', fontFamily:B }}>
-              Watch Markr analyze a real app
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    <iframe
+      width="100%"
+      style={{ aspectRatio:'16/9', borderRadius:12, border:'none', maxWidth:800, display:'block' }}
+      src="https://www.youtube.com/embed/Or4gWJ2aDTY"
+      title="Markr demo"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowFullScreen
+    />
   )
 }
 
@@ -458,7 +442,7 @@ export default function Landing() {
         {(state === 'idle' || state === 'done' || state === 'error' || state === 'blocked') && (
           <div style={{ maxWidth:820, width:'100%' }}>
             <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,.3)', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:12, fontFamily:D }}>
-              See the outcome in 6 minutes
+              See Markr in action
             </div>
             <VideoEmbed />
           </div>
