@@ -169,82 +169,164 @@ TARGET USER: ${ctx.targetUser}
 REAL RESULT: ${ctx.realResult}
 USER QUOTE: ${ctx.userQuote}
 BEFORE STATE: ${ctx.beforeState}
-BOTTLENECK TO ADDRESS: ${ctx.bottleneck} — ${ctx.bottleneckIssue}
-POSITIONING GAP VS COMPETITORS: ${ctx.positioningGap}
-ACTIVE CONTENT PILLAR: ${ctx.activePillar}
-TOP STRENGTH: ${ctx.topStrengths[0] || ''}
-TOP OPPORTUNITY: ${ctx.topOpportunity}
+BOTTLENECK: ${ctx.bottleneck} — ${ctx.bottleneckIssue}
+POSITIONING GAP: ${ctx.positioningGap}
+ACTIVE PILLAR: ${ctx.activePillar}
+TOP STRENGTH: ${ctx.topStrengths?.[0] || ''}
 STYLE: ${style}
 `
-  const rules = `
-ABSOLUTE RULES:
-- Maximum 1 of 3 outputs may end with a question
-- Never use: "just", "simply", "easily", "What's your", "How do you"
-- Each output must use a DIFFERENT format and ending type
-- Reference the app's specific value, not generic advice
-- Never invent statistics not in the context above
-`
+
   switch (channel) {
-    case 'Instagram':
-      return `${base}${rules}
-Generate 3 Instagram posts. Each post must have:
-VISUAL: [one sentence describing what the image/reel should show]
-CAPTION: [the post text — max 150 words]
-HASHTAGS: [5-8 highly specific hashtags — no generic ones]
-Format: POST 1 / POST 2 / POST 3`
+    case 'Twitter / X':
+      return `${base}
+Write a Twitter/X thread of exactly 7 tweets about ${ctx.headline}.
+
+TWEET FORMAT RULES:
+- Every tweet must be 200-250 characters — never shorter, never longer
+- Tweet 1 (Hook): A bold, counterintuitive statement that stops the scroll. End with 🧵 No question marks.
+- Tweets 2-6 (Body): Each tweet builds on the previous. 2-3 sentences. Specific, not vague. Each must make sense standalone.
+- Tweet 7 (CTA): One clear action. Include the app name naturally.
+- Number each tweet: 1/ 2/ 3/ etc
+- NEVER use "thread" as the first word
+- NEVER write one-liners — each tweet needs substance
+- NO generic phrases like "the key is", "at the end of the day", "game changer"
+
+Output format:
+1/ [tweet text — 200-250 chars]
+2/ [tweet text — 200-250 chars]
+...continue for all 7 tweets`
 
     case 'LinkedIn':
-      return `${base}${rules}
-Generate 1 LinkedIn thought leadership post. 150-300 words. No more than 3 hashtags at the end.
-Must open with a bold statement or counterintuitive insight — NOT "I am excited to share".
-Must feel like expert analysis, not a product pitch.
-Structure: Hook (1-2 lines) → Insight (3-4 paragraphs) → Takeaway → Optional soft CTA`
+      return `${base}
+Write 1 LinkedIn post about ${ctx.headline}.
 
-    case 'Twitter / X':
-      return `${base}${rules}
-Generate either: 1 thread of 5-7 tweets OR 3 standalone tweets.
-For thread: Tweet 1 is the hook (max 200 chars). Each tweet stands alone. End with a CTA tweet.
-For standalone: Each tweet max 250 chars. Different angles — one insight, one story, one question.
-Label clearly: THREAD or STANDALONE`
+LINKEDIN FORMAT RULES:
+- Line 1 (Hook): A single bold statement or counterintuitive fact. Max 12 words. Must make someone stop scrolling. NO "I am excited", NO "thrilled to share"
+- Line 2: Blank line
+- Body: 4-5 short paragraphs. Max 2 sentences each. Lots of white space. Build a specific insight or story.
+- Each paragraph separated by blank line
+- Second-to-last paragraph: The key insight or takeaway
+- Last line: Soft question OR a single-line CTA — never both
+- Total length: 180-250 words
+- Hashtags: Maximum 3, highly specific, at the very end on a new line
+- NEVER use bullet points
+- NEVER mention features — tell a story or share an insight
+
+Output the full post exactly as it should appear on LinkedIn.`
+
+    case 'Instagram':
+      return `${base}
+Write 3 Instagram posts for ${ctx.headline}. Each post must use a DIFFERENT format.
+
+POST FORMAT:
+VISUAL: [One sentence describing exactly what the image or reel should show — be specific about what's in frame]
+CAPTION:
+[Hook line — must be compelling before the "more" cutoff, max 125 chars]
+[2-3 sentences of content]
+[Closing line — NOT a generic question]
+HASHTAGS: [8 hashtags — mix of niche-specific, audience-specific, and 1-2 broad. NO generic ones like #motivation #success]
+
+FORMAT VARIETY RULES:
+- Post 1: Before/after or transformation format
+- Post 2: Specific tip or fact with a real example
+- Post 3: Story or scene — a real moment, not a product pitch
+- Maximum 1 post may end with a question
+- NEVER start two posts with the same word
+- NEVER use "just", "simply", "easily"`
 
     case 'YouTube Shorts':
-      return `${base}${rules}
-Generate 3 YouTube Shorts scripts (60 seconds each).
-Each script must have:
-HOOK: [first 3 seconds — must stop the scroll]
-CONTENT: [the main value — 40 seconds]
-CTA: [final 5 seconds — specific action]
-Keep language conversational and visual.`
+      return `${base}
+Write 3 YouTube Shorts scripts for ${ctx.headline}. Each script = exactly 60 seconds when spoken at normal pace.
+
+SCRIPT FORMAT:
+TITLE: [YouTube title — curiosity gap, max 60 chars, no clickbait]
+HOOK (0-3 sec): [Pattern interrupt — start mid-action or with a shocking statement. NO "Hey guys", NO "Welcome back"]
+CONTENT (4-52 sec): [The main value — conversational, visual, specific. Write exactly what to say. No filler. Each sentence should move the story forward.]
+CTA (53-60 sec): [Single clear action — specific, not generic]
+
+RULES:
+- Write the actual script words — not descriptions of what to say
+- Speak directly to ONE person, not "you all" or "everyone"
+- Each script must cover a different angle
+- Estimated word count per script: 120-150 words`
 
     case 'Facebook':
-      return `${base}${rules}
-Generate 2 Facebook community-style posts. Warm, conversational tone.
-Post 1: A story or relatable moment that opens a conversation
-Post 2: A value-add tip or insight with a community question at the end
-Max 100 words each.`
+      return `${base}
+Write 2 Facebook posts for ${ctx.headline}.
+
+FACEBOOK FORMAT RULES:
+- Post 1: Story-led — a specific relatable moment your target user has experienced. 80-100 words. Warm tone. End with an open question that invites sharing.
+- Post 2: Value-add tip — one practical insight your target user can use today. 70-90 words. Conversational. End with a community invitation.
+- Write like a real person in a community group — not a brand
+- NO hashtags
+- NO links in the post body
+- Use "you" and "I" — never "we" as a brand
+- Short sentences. Easy to read on mobile.`
 
     case 'WhatsApp':
-      return `${base}${rules}
-Generate 3 WhatsApp broadcast messages. Short, personal, no formatting (no bold/bullet points).
-Write as if from a real person to a trusted contact — not a brand.
-Max 3 sentences each. One insight, one story, one update format.`
+      return `${base}
+Write 3 WhatsApp broadcast messages for ${ctx.headline}.
+
+WHATSAPP FORMAT RULES:
+- Each message: Maximum 3 sentences. No more.
+- NO formatting — no bold (*text*), no bullets, no line breaks
+- Write like a message from a trusted friend — personal, warm, direct
+- Message 1: Share a specific insight or fact
+- Message 2: A short personal story or observation
+- Message 3: A practical tip or recommendation
+- Never sound like a brand or newsletter
+- Never use "we" — always "I" or "you"
+- Never end with "check out" or "click here"`
 
     case 'Email Newsletter':
-      return `${base}${rules}
-Generate 1 email newsletter.
-SUBJECT LINE: [compelling, max 8 words, no clickbait]
-PREVIEW TEXT: [max 12 words]
-BODY: [200 words max — one insight, one story, one CTA. No fluff.]`
+      return `${base}
+Write 1 email newsletter for ${ctx.headline}.
+
+EMAIL FORMAT:
+SUBJECT LINE: [Max 7 words. Curiosity gap or specific promise. No clickbait. No emojis.]
+PREVIEW TEXT: [Completes or extends the subject line. Max 12 words.]
+
+BODY:
+[Opening line: Bold statement or question. Max 15 words.]
+
+[Paragraph 1: The core insight or story — 3-4 sentences. Specific, not vague.]
+
+[Paragraph 2: Why this matters to the reader — 2-3 sentences. Make it personal.]
+
+[Paragraph 3: One actionable takeaway — 2 sentences.]
+
+[CTA line: One clear action. Not "click here." Specific.]
+
+RULES:
+- Total body: 150-200 words
+- ONE topic only — not a roundup
+- ONE CTA only
+- Short paragraphs — each separated by blank line
+- Write in second person ("you") throughout`
 
     case 'Reddit':
-      return `${base}${rules}
-Generate 1 Reddit post for the most relevant subreddit for this app's category.
-SUBREDDIT: [specific subreddit recommendation with reason]
-TITLE: [question or insight title — no promotional language]
-POST: [150-250 words — genuine value-add, no pitching. Mention the app only if it naturally fits as a solution to a problem being discussed.]`
+      return `${base}
+Write 1 Reddit post for ${ctx.headline}.
+
+SUBREDDIT: [Recommend the single most relevant subreddit with a one-line reason why. Be specific — not r/entrepreneur but r/SaaS or r/indiegaming etc]
+
+TITLE: [Question or observation — zero promotional language. Should spark genuine curiosity or discussion. Max 15 words.]
+
+POST BODY:
+[Opening: A genuine problem or observation — 2-3 sentences. Sounds like a real community member, not a founder.]
+[Middle: Specific context or story — 3-4 sentences. Add real value. Teach something.]
+[Closing: Either a genuine question to the community OR a natural mention of how you solved this problem — only if it fits organically. NEVER pitch directly.]
+
+RULES:
+- Total length: 150-200 words
+- NEVER mention the app name in the title
+- NEVER say "I built" in the first sentence
+- Sound like someone seeking community input, not someone promoting a product
+- If mentioning the app, do it as one sentence at the end: "I actually built [app] to solve exactly this — happy to share more if useful"`
 
     default:
-      return `${base}${rules}Generate 3 posts for ${channel}.`
+      return `${base}
+Write 3 posts for ${channel} about ${ctx.headline}. Make each post platform-appropriate, specific to the target user, and varied in format. Never generic.`
   }
 }
 
