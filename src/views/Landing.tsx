@@ -200,11 +200,11 @@ export default function Landing() {
         </div>
 
         {/* Headline */}
-        <h1 style={{ fontFamily:D, fontSize:'clamp(38px,5.5vw,72px)', fontWeight:800, lineHeight:1.0, margin:'0 0 18px', letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:740 }}>
+        <h1 style={{ fontFamily:D, fontSize:'clamp(24px,4vw,56px)', fontWeight:800, lineHeight:1.0, margin:'0 0 20px', letterSpacing:'-0.02em', color:'#f5f5f7', whiteSpace:'nowrap' }}>
           Grow the app you already built.
         </h1>
         <p style={{ fontFamily:D, fontSize:'clamp(17px,1.8vw,22px)', fontWeight:400, lineHeight:1.6, margin:'0 0 20px', letterSpacing:'-0.01em', maxWidth:580, color:'rgba(255,255,255,.55)' }}>
-          Landing page audit · competitive intelligence · go-to-market strategy · daily multi-channel content — built for founders who build alone.
+          Landing page audit · competitive intelligence · go-to-market strategy<br/>Daily multi-channel content — built for founders who build alone.
         </p>
 
         {/* New subline */}
