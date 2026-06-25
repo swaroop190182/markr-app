@@ -14,7 +14,8 @@ export async function callClaude(
   maxTokens = 1400,
   onChunk?: (chunk: string) => void,
   useModel: 'haiku' | 'sonnet' = 'haiku',
-  feature = 'general'
+  feature = 'general',
+  images?: string[]  // base64 data-URLs, up to 3 — sent to Anthropic vision API
 ): Promise<string> {
   const token = await getToken()
 
@@ -31,6 +32,7 @@ export async function callClaude(
       model:   useModel,
       stream:  !!onChunk,
       feature,
+      ...(images && images.length > 0 ? { images } : {}),
     }),
   })
 

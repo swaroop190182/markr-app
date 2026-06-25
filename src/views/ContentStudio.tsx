@@ -330,6 +330,25 @@ Write 3 posts for ${channel} about ${ctx.headline}. Make each post platform-appr
   }
 }
 
+async function compressImage(file: File): Promise<string> {
+  return new Promise(resolve => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const MAX = 800
+      const ratio = Math.min(MAX / img.width, MAX / img.height, 1)
+      const canvas = document.createElement('canvas')
+      canvas.width  = Math.round(img.width  * ratio)
+      canvas.height = Math.round(img.height * ratio)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', 0.75))
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve('') }
+    img.src = url
+  })
+}
+
 function ContentContextSetup({ existing, onSave, onCancel }: {
   existing?: ContentContext | null
   onSave: (ctx: ContentContext) => void
@@ -341,7 +360,9 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
     user_quote:   existing?.user_quote   ?? '',
     before_state: existing?.before_state ?? '',
   })
-  const [saving, setSaving] = useState(false)
+  const [screenshots, setScreenshots] = useState<string[]>(existing?.screenshots ?? [])
+  const [uploading,   setUploading]   = useState(false)
+  const [saving,      setSaving]      = useState(false)
 
   const field = (key: keyof ContentContext, label: string, placeholder: string, required = true, multiline = false) => (
     <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -352,7 +373,7 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
         <textarea
           rows={3}
           placeholder={placeholder}
-          value={form[key]}
+          value={form[key] as string}
           onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
           style={{ resize:'vertical', fontSize:13, padding:'9px 11px', borderRadius:'var(--r)', border:'1px solid var(--surface3)', background:'var(--surface2)', color:'var(--text)', fontFamily:'DM Sans, sans-serif', lineHeight:1.55, outline:'none' }}
         />
@@ -360,7 +381,7 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
         <input
           type="text"
           placeholder={placeholder}
-          value={form[key]}
+          value={form[key] as string}
           onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
           style={{ fontSize:13, padding:'9px 11px', borderRadius:'var(--r)', border:'1px solid var(--surface3)', background:'var(--surface2)', color:'var(--text)', fontFamily:'DM Sans, sans-serif', outline:'none' }}
         />
@@ -368,9 +389,19 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
     </div>
   )
 
+  async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).slice(0, 3 - screenshots.length)
+    if (!files.length) return
+    setUploading(true)
+    const compressed = (await Promise.all(files.map(compressImage))).filter(Boolean)
+    setScreenshots(prev => [...prev, ...compressed].slice(0, 3))
+    setUploading(false)
+    e.target.value = ''
+  }
+
   async function submit() {
     setSaving(true)
-    onSave(form)
+    onSave({ ...form, ...(screenshots.length > 0 ? { screenshots } : {}) })
   }
 
   return (
@@ -392,11 +423,45 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
         {field('user_quote',   '3. Paste any real user feedback or review you\'ve received', 'e.g. "This app saved my business — Jane D."', false, true)}
         {field('before_state', '4. What were users doing before they found your app?', 'e.g. "Using spreadsheets and chasing clients manually"', false)}
 
+        {/* Screenshots */}
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          <label style={{ fontSize:12, fontWeight:600, color:'var(--text2)' }}>
+            5. App screenshots <span style={{ color:'var(--text3)', fontWeight:400 }}>(optional · up to 3)</span>
+          </label>
+          <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.55 }}>
+            Claude references specific UI elements visible in screenshots — makes posts feel authentic and specific.
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-start' }}>
+            {screenshots.map((src, i) => (
+              <div key={i} style={{ position:'relative', flexShrink:0 }}>
+                <img src={src} alt={`Screenshot ${i+1}`}
+                  style={{ width:80, height:60, objectFit:'cover', borderRadius:6, border:'1px solid var(--surface3)', display:'block' }} />
+                <button
+                  onClick={() => setScreenshots(s => s.filter((_, j) => j !== i))}
+                  style={{ position:'absolute', top:-7, right:-7, width:18, height:18, borderRadius:'50%', background:'var(--red,#e55)', color:'#fff', border:'2px solid var(--surface)', fontSize:11, lineHeight:1, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, padding:0 }}
+                >×</button>
+              </div>
+            ))}
+            {screenshots.length < 3 && (
+              <label style={{ width:80, height:60, borderRadius:6, border:'1px dashed var(--surface3)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:uploading?'wait':'pointer', gap:3, background:'var(--surface2)', flexShrink:0 }}>
+                <input type="file" accept="image/*" multiple style={{ display:'none' }} disabled={uploading} onChange={handleFiles} />
+                {uploading
+                  ? <span style={{ fontSize:11, color:'var(--text3)' }}>…</span>
+                  : <>
+                      <span style={{ fontSize:18 }}>📷</span>
+                      <span style={{ fontSize:9, color:'var(--text3)', fontWeight:600 }}>Add photo</span>
+                    </>
+                }
+              </label>
+            )}
+          </div>
+        </div>
+
         <div style={{ display:'flex', gap:10, marginTop:4 }}>
           <button
             onClick={submit}
-            disabled={saving}
-            style={{ flex:1, padding:'11px 0', borderRadius:9, background:'linear-gradient(135deg,#e26faf,#c4559a)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:saving?'default':'pointer', opacity:saving?.6:1, fontFamily:'DM Sans, sans-serif' }}
+            disabled={saving || uploading}
+            style={{ flex:1, padding:'11px 0', borderRadius:9, background:'linear-gradient(135deg,#e26faf,#c4559a)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:(saving||uploading)?'default':'pointer', opacity:(saving||uploading)?.6:1, fontFamily:'DM Sans, sans-serif' }}
           >
             {saving ? 'Saving…' : (existing ? 'Save changes' : 'Save context')}
           </button>
@@ -506,6 +571,7 @@ ${ENDING_RULE}
 VIOLATION CHECK: Before returning JSON, check whether your caption ends with "?". If it does and this is not the evening slot, rewrite the ending as a statement or tip.`
 
     const ctx = (currentApp as any).content_context as ContentContext | null | undefined
+    const screenshots = ctx?.screenshots ?? []
     const sanitize = (s: string) => s?.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, '').trim() ?? ''
     const contentCtxBlock = ctx ? `
 ━━━ USER CONTEXT (real quotes and examples — layer on top of app context) ━━━
@@ -558,6 +624,10 @@ HARD RULES — violating any of these makes the output invalid:
 5. Your CTA/closing line MUST be meaningfully different from every other post's closing line.` : `
 HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
 
+    const screenshotInstruction = screenshots.length > 0
+      ? '\nIMPORTANT: The user has provided app screenshots. Reference specific UI moments, screens, or features visible in these screenshots — this makes captions feel authentic and specific rather than generic.\n'
+      : ''
+
     const prompt = `${ABSOLUTE_RULES}
 
 ${brandVoice}
@@ -565,7 +635,7 @@ ${testCtx}
 ${testCtx ? `CRITICAL: Reference specific features and real UX details from the product test. Caption must feel like it was written by someone who has actually used ${currentApp.name} deeply.` : ''}
 ${derivedCtxBlock}
 ${contentCtxBlock}
-${stratCtxBlock ? `━━━ CROSS-MODULE STRATEGY CONTEXT ━━━\n${stratCtxBlock}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''}
+${screenshotInstruction}${stratCtxBlock ? `━━━ CROSS-MODULE STRATEGY CONTEXT ━━━\n${stratCtxBlock}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''}
 
 Generate 3 posts for this content pillar: ${pillar}. The posts should directly support this pillar's goal.
 App: ${currentApp.name} — ${currentApp.desc ?? currentApp.category}
@@ -607,8 +677,9 @@ Output ONLY valid JSON:
     const SYSTEM = `${ABSOLUTE_RULES}
 
 You are an expert Instagram content strategist. Output ONLY valid JSON. Follow the ABSOLUTE RULES, POST STYLE, and FORMAT REQUIREMENT — all are mandatory, in that priority order.`
+    const imgs = screenshots.length > 0 ? screenshots : undefined
     try {
-      const raw = await callClaude(prompt, SYSTEM, 1800)
+      const raw = await callClaude(prompt, SYSTEM, 1800, undefined, 'haiku', 'content', imgs)
       const post = safeParseJSON<AgentPost>(raw)
       updateSlot(type, { state:'ready', post })
       toast(`${c.label} ready! ✓`)
@@ -616,7 +687,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       // If context was present it may have caused malformed JSON — retry without it
       if (contentCtxBlock) {
         try {
-          const raw = await callClaude(prompt.replace(contentCtxBlock, ''), SYSTEM, 1800)
+          const raw = await callClaude(prompt.replace(contentCtxBlock, ''), SYSTEM, 1800, undefined, 'haiku', 'content', imgs)
           const post = safeParseJSON<AgentPost>(raw)
           updateSlot(type, { state:'ready', post })
           toast(`${c.label} ready! ✓`)
@@ -634,11 +705,15 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
   }
 
   async function generateForChannel() {
-    const ua       = currentApp.url_analysis
-    const stratCtx = buildContentStrategyContext(currentApp, ua)
-    const ch       = CHANNELS.find(c => c.id === activeChannel)
-    const label    = ch?.label ?? activeChannel
-    const prompt   = getPlatformPrompt(label, stratCtx, postStyle)
+    const ua          = currentApp.url_analysis
+    const stratCtx    = buildContentStrategyContext(currentApp, ua)
+    const ch          = CHANNELS.find(c => c.id === activeChannel)
+    const label       = ch?.label ?? activeChannel
+    const screenshots = ((currentApp as any).content_context as ContentContext | null)?.screenshots ?? []
+    const screenshotNote = screenshots.length > 0
+      ? '\n\nThe user has provided app screenshots. Reference specific UI moments, screens, or features visible in these screenshots when generating content — this makes posts feel authentic and specific rather than generic.'
+      : ''
+    const prompt      = getPlatformPrompt(label, stratCtx, postStyle) + screenshotNote
     setChannelLoading(true)
     try {
       const raw = await callClaude(
@@ -648,6 +723,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
         undefined,
         'sonnet',
         'content',
+        screenshots.length > 0 ? screenshots : undefined,
       )
       setChannelResults(prev => ({ ...prev, [activeChannel]: raw }))
       toast(`${label} content ready!`)
@@ -778,6 +854,16 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
             {contentContext.real_result  && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Result:</span> {contentContext.real_result}</div>}
             {contentContext.before_state && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, gridColumn:'span 2' }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Before:</span> {contentContext.before_state}</div>}
             {contentContext.user_quote   && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, gridColumn:'span 2', fontStyle:'italic' }}>"{contentContext.user_quote}"</div>}
+            {contentContext.screenshots && contentContext.screenshots.length > 0 && (
+              <div style={{ gridColumn:'span 2', display:'flex', gap:6, flexWrap:'wrap', marginTop:2, alignItems:'center' }}>
+                <span style={{ fontSize:10, color:'var(--text3)', fontWeight:600 }}>📷</span>
+                {contentContext.screenshots.map((src, i) => (
+                  <img key={i} src={src} alt={`Screenshot ${i+1}`}
+                    style={{ width:44, height:32, objectFit:'cover', borderRadius:4, border:'1px solid var(--surface3)' }} />
+                ))}
+                <span style={{ fontSize:10, color:'var(--accent2)', fontWeight:600 }}>Screenshots active</span>
+              </div>
+            )}
           </div>
         </div>
       ) : (

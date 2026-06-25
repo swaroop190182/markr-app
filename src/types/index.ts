@@ -154,6 +154,7 @@ export interface ContentContext {
   real_result:  string
   user_quote:   string
   before_state: string
+  screenshots?: string[]  // base64-encoded, up to 3
 }
 
 export type ViewType = 'overview' | 'marketing' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'

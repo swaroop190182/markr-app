@@ -64,12 +64,23 @@ async function logUsage(supabase: any, userId: string, feature: string, u: Usage
 }
 
 // ── Call Anthropic ─────────────────────────────────────────────────────────────
-async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse): Promise<UsageInfo | null> {
+async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse, images?: string[]): Promise<UsageInfo | null> {
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) return null
   const MODEL = 'claude-haiku-4-5-20251001'
   try {
-    const body = JSON.stringify({ model: MODEL, max_tokens: maxTokens, stream: doStream, system, messages: [{role:'user', content: prompt}] })
+    // Build message content — multi-part when images are provided
+    const messageContent: any = images && images.length > 0
+      ? [
+          ...images.map(img => {
+            const mediaType = img.startsWith('data:image/png') ? 'image/png' : 'image/jpeg'
+            const data = img.replace(/^data:[^;]+;base64,/, '')
+            return { type: 'image', source: { type: 'base64', media_type: mediaType, data } }
+          }),
+          { type: 'text', text: prompt },
+        ]
+      : prompt
+    const body = JSON.stringify({ model: MODEL, max_tokens: maxTokens, stream: doStream, system, messages: [{role:'user', content: messageContent}] })
     const headers = { 'Content-Type':'application/json', 'x-api-key': key, 'anthropic-version':'2023-06-01' }
     if (doStream) {
       const upstream = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers, body })
@@ -194,7 +205,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     userId = user.id; userEmail = user.email ?? ''
   }
 
-  const { prompt, system, maxTokens, stream: doStream, feature = 'general' } = req.body
+  const { prompt, system, maxTokens, stream: doStream, feature = 'general', images } = req.body
 
   // Rate limiting — stored in Supabase, survives cold starts
   if (!isCronJob) {
@@ -220,10 +231,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Connection', 'keep-alive')
   }
 
-  const anthropicUsage = await callAnthropic(prompt, sys, tok, doStream, res)
+  const anthropicUsage = await callAnthropic(prompt, sys, tok, doStream, res, images)
   if (anthropicUsage) {
     logUsage(supabase, userId, feature, anthropicUsage)
     return
+  }
+
+  // Vision calls are Anthropic-only — don't fall back to text-only providers
+  if (images && images.length > 0) {
+    return res.status(503).json({ error: 'AI vision service temporarily unavailable. Please try again.' })
   }
 
   console.log('Anthropic unavailable — falling back to Gemini')
