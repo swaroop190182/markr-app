@@ -4,7 +4,7 @@ import { Card, CardHeader, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, safeParseJSON } from '../lib/claude'
 import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
-import type { AppData, AgentPost, ContentContext } from '../types'
+import type { AppData, AgentPost, ContentContext, PostHistoryEntry } from '../types'
 
 type ChannelId = 'instagram' | 'linkedin' | 'twitter' | 'youtube' | 'facebook' | 'whatsapp' | 'email' | 'reddit'
 type SlotKey = 'morning' | 'midday' | 'evening'
@@ -48,6 +48,17 @@ function getRecommendedChannelIds(app: AppData): Set<ChannelId> {
     const ids = (gtm?.channels ?? []).map((c: any) => marketingChannelToId(c.name)).filter(Boolean)
     return new Set(ids as ChannelId[])
   } catch { return new Set() }
+}
+
+const CHANNEL_TIMING: Record<ChannelId, { best: string; days: string; tip: string }> = {
+  instagram: { best: '7–9 AM, 12–2 PM, 7–9 PM', days: 'Tue, Wed, Thu',   tip: 'Post stories at 8 AM for max reach on feed posts.' },
+  linkedin:  { best: '8–10 AM',                  days: 'Tue, Wed, Thu',   tip: 'Morning posts get 2× more engagement than afternoon.' },
+  twitter:   { best: '9 AM, 12 PM, 5–6 PM',      days: 'Mon–Fri',         tip: 'Threads perform best at lunch and after-work hours.' },
+  youtube:   { best: '2–4 PM',                   days: 'Fri, Sat, Sun',   tip: 'Upload 2–3 hrs before peak view time for indexing.' },
+  facebook:  { best: '9 AM–12 PM',               days: 'Wed, Thu, Fri',   tip: 'Video posts get 3× more organic reach than text.' },
+  whatsapp:  { best: '8–9 AM, 7–8 PM',           days: 'Mon–Fri',         tip: 'Keep broadcast messages under 3 sentences.' },
+  email:     { best: '10 AM',                    days: 'Tue, Thu',         tip: 'Subject line determines 47% of open rates — A/B test it.' },
+  reddit:    { best: '8–9 AM ET',                days: 'Mon, Tue',         tip: 'Post early weekday morning for maximum upvotes.' },
 }
 
 const POST_STYLES = [
@@ -495,6 +506,9 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
   const [channelLoading, setChannelLoading] = useState(false)
   const [selectedPillar, setSelectedPillar] = useState<string | null>(defaultPillar)
   const [editingContext, setEditingContext] = useState(false)
+  const [trendingTopics, setTrendingTopics] = useState<string[]>([])
+  const [feedbackModal, setFeedbackModal] = useState(false)
+  const [feedbackPosts, setFeedbackPosts] = useState<PostHistoryEntry[]>([])
 
   const [slots, setSlots] = useState<Record<SlotKey, SlotData>>({
     morning: { state:'idle', post:null },
@@ -518,6 +532,39 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     setChannelLoading(false)
   }, [currentApp.id])
 
+  // Fetch trending topics for the app's category
+  useEffect(() => {
+    async function fetchTrending() {
+      try {
+        const resp = await fetch('/api/trending', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ category: currentApp.category }),
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          setTrendingTopics(data.topics ?? [])
+        }
+      } catch { /* silently fail — trending is optional */ }
+    }
+    fetchTrending()
+  }, [currentApp.id, currentApp.category])
+
+  // Engagement feedback loop — check if it's been 7 days since last feedback
+  useEffect(() => {
+    const history = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
+    if (history.length < 5) return
+    const feedbackKey = `markr_feedback_${currentApp.id}`
+    const lastShown   = localStorage.getItem(feedbackKey)
+    const daysSince   = lastShown
+      ? (Date.now() - new Date(lastShown).getTime()) / (1000 * 60 * 60 * 24)
+      : Infinity
+    if (daysSince >= 7) {
+      setFeedbackPosts(history.slice(-5).reverse())
+      setFeedbackModal(true)
+    }
+  }, [currentApp.id])
+
   function changeStyle(id: StyleId) {
     setPostStyle(id)
     updateApp(currentApp.id, { post_style: id } as any)
@@ -527,6 +574,20 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     await updateApp(currentApp.id, { content_context: ctx } as any)
     setEditingContext(false)
     toast('Content context saved ✓')
+  }
+
+  async function handleFeedbackSubmit(winner: PostHistoryEntry | null) {
+    const feedbackKey = `markr_feedback_${currentApp.id}`
+    localStorage.setItem(feedbackKey, new Date().toISOString())
+    setFeedbackModal(false)
+    if (!winner) return
+    const ctx = (currentApp as any).content_context as ContentContext | null | undefined
+    const existing = ctx?.top_performing_formats ?? []
+    const key = `${winner.channel}/${winner.format}`
+    const updated = [...new Set([...existing, key])].slice(-10)
+    const newCtx = { typical_user:'', real_result:'', user_quote:'', before_state:'', ...ctx, top_performing_formats: updated }
+    await updateApp(currentApp.id, { content_context: newCtx } as any)
+    toast('Top format saved — future posts will prioritise this style ✓')
   }
 
   const updateSlot = (key: SlotKey, update: Partial<SlotData>) =>
@@ -628,6 +689,24 @@ HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
       ? '\nIMPORTANT: The user has provided app screenshots. Reference specific UI moments, screens, or features visible in these screenshots — this makes captions feel authentic and specific rather than generic.\n'
       : ''
 
+    // Post history — inject last 5 to prevent repetition
+    const postHistory = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
+    const historyBlock = postHistory.length > 0 ? `
+RECENT POSTS — create meaningfully different content (different angles, hooks, and opening lines):
+${postHistory.slice(-5).map(h => `  • [${h.channel}/${h.format}] "${h.excerpt.slice(0, 80)}"`).join('\n')}
+(Do NOT reuse the same opening word, hook structure, or closing CTA from any of the above)` : ''
+
+    // Top-performing formats from engagement feedback
+    const topFormats = ctx?.top_performing_formats ?? []
+    const topFormatsBlock = topFormats.length > 0
+      ? `\nTOP-PERFORMING FORMATS for this account: ${topFormats.join(', ')} — prioritise these when the pillar allows.\n`
+      : ''
+
+    // Trending topics from Reddit (fetched async on mount)
+    const trendingBlock = trendingTopics.length > 0
+      ? `\nTRENDING NOW in ${currentApp.category}:\n${trendingTopics.map(t => `  • ${t}`).join('\n')}\n(Reference these themes if relevant to the content pillar — don't force it)\n`
+      : ''
+
     const prompt = `${ABSOLUTE_RULES}
 
 ${brandVoice}
@@ -635,7 +714,7 @@ ${testCtx}
 ${testCtx ? `CRITICAL: Reference specific features and real UX details from the product test. Caption must feel like it was written by someone who has actually used ${currentApp.name} deeply.` : ''}
 ${derivedCtxBlock}
 ${contentCtxBlock}
-${screenshotInstruction}${stratCtxBlock ? `━━━ CROSS-MODULE STRATEGY CONTEXT ━━━\n${stratCtxBlock}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''}
+${screenshotInstruction}${historyBlock}${topFormatsBlock}${trendingBlock}${stratCtxBlock ? `━━━ CROSS-MODULE STRATEGY CONTEXT ━━━\n${stratCtxBlock}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''}
 
 Generate 3 posts for this content pillar: ${pillar}. The posts should directly support this pillar's goal.
 App: ${currentApp.name} — ${currentApp.desc ?? currentApp.category}
@@ -678,11 +757,19 @@ Output ONLY valid JSON:
 
 You are an expert Instagram content strategist. Output ONLY valid JSON. Follow the ABSOLUTE RULES, POST STYLE, and FORMAT REQUIREMENT — all are mandatory, in that priority order.`
     const imgs = screenshots.length > 0 ? screenshots : undefined
+
+    function recordHistory(caption: string) {
+      const entry: PostHistoryEntry = { ts: new Date().toISOString(), channel: 'instagram', format: `${style}:${type}`, excerpt: caption.slice(0, 120) }
+      const prev = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
+      updateApp(currentApp.id, { post_history: [...prev, entry].slice(-30) } as any)
+    }
+
     try {
       const raw = await callClaude(prompt, SYSTEM, 1800, undefined, 'haiku', 'content', imgs)
       const post = safeParseJSON<AgentPost>(raw)
       updateSlot(type, { state:'ready', post })
       toast(`${c.label} ready! ✓`)
+      recordHistory(post.caption ?? '')
     } catch(e) {
       // If context was present it may have caused malformed JSON — retry without it
       if (contentCtxBlock) {
@@ -691,12 +778,13 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
           const post = safeParseJSON<AgentPost>(raw)
           updateSlot(type, { state:'ready', post })
           toast(`${c.label} ready! ✓`)
+          recordHistory(post.caption ?? '')
           return
         } catch { /* fall through */ }
       }
       updateSlot(type, { state:'error', error: 'Generation failed — please try again.' })
     }
-  }, [currentApp, todaysPillars, postStyle, selectedPillar, pillarSuggestions])
+  }, [currentApp, todaysPillars, postStyle, selectedPillar, pillarSuggestions, updateApp, trendingTopics])
 
   const generateAll = () => {
     generatePost('morning', postStyle)
@@ -709,11 +797,30 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     const stratCtx    = buildContentStrategyContext(currentApp, ua)
     const ch          = CHANNELS.find(c => c.id === activeChannel)
     const label       = ch?.label ?? activeChannel
-    const screenshots = ((currentApp as any).content_context as ContentContext | null)?.screenshots ?? []
+    const ctx          = (currentApp as any).content_context as ContentContext | null | undefined
+    const screenshots  = ctx?.screenshots ?? []
     const screenshotNote = screenshots.length > 0
       ? '\n\nThe user has provided app screenshots. Reference specific UI moments, screens, or features visible in these screenshots when generating content — this makes posts feel authentic and specific rather than generic.'
       : ''
-    const prompt      = getPlatformPrompt(label, stratCtx, postStyle) + screenshotNote
+
+    // Post history injection
+    const postHistory   = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
+    const historyBlock  = postHistory.length > 0
+      ? `\n\nRECENT POSTS — create meaningfully different content:\n${postHistory.slice(-5).map(h => `  • [${h.channel}] "${h.excerpt.slice(0, 80)}"`).join('\n')}\n(Do NOT reuse the same opening, hook structure, or CTA from any of the above)`
+      : ''
+
+    // Top-performing formats
+    const topFormats      = ctx?.top_performing_formats ?? []
+    const topFormatsNote  = topFormats.length > 0
+      ? `\n\nTOP-PERFORMING FORMATS for this account: ${topFormats.join(', ')} — prioritise these when possible.`
+      : ''
+
+    // Trending topics
+    const trendingNote = trendingTopics.length > 0
+      ? `\n\nTRENDING NOW in ${currentApp.category}: ${trendingTopics.join(' | ')}\n(Reference if relevant — don't force it)`
+      : ''
+
+    const prompt = getPlatformPrompt(label, stratCtx, postStyle) + screenshotNote + historyBlock + topFormatsNote + trendingNote
     setChannelLoading(true)
     try {
       const raw = await callClaude(
@@ -727,6 +834,10 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       )
       setChannelResults(prev => ({ ...prev, [activeChannel]: raw }))
       toast(`${label} content ready!`)
+      // Append to post history
+      const entry: PostHistoryEntry = { ts: new Date().toISOString(), channel: activeChannel, format: label, excerpt: raw.slice(0, 120).trim() }
+      const prev = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
+      updateApp(currentApp.id, { post_history: [...prev, entry].slice(-30) } as any)
     } catch (e: any) {
       toast('Generation failed: ' + (e?.message ?? 'Unknown'))
     }
@@ -1023,8 +1134,47 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
                 }}>
                   {channelResults[activeChannel]}
                 </div>
+                {/* Platform timing advice */}
+                {CHANNEL_TIMING[activeChannel] && (() => {
+                  const t = CHANNEL_TIMING[activeChannel]
+                  return (
+                    <div style={{ marginTop:10, padding:'9px 13px', borderRadius:8, background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.18)', fontSize:11 }}>
+                      <div style={{ fontWeight:700, color:'var(--accent)', marginBottom:3 }}>📅 Best time to post</div>
+                      <div style={{ color:'var(--text2)' }}>{t.best} &nbsp;·&nbsp; <span style={{ color:'var(--text3)' }}>Best days: {t.days}</span></div>
+                      <div style={{ color:'var(--text3)', marginTop:3 }}>💡 {t.tip}</div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Engagement feedback modal ── */}
+      {feedbackModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.55)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div style={{ background:'var(--surface)', borderRadius:14, padding:24, maxWidth:480, width:'100%', boxShadow:'0 20px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ fontSize:15, fontWeight:700, marginBottom:6 }}>Which post got the best engagement?</div>
+            <div style={{ fontSize:12, color:'var(--text3)', marginBottom:16, lineHeight:1.5 }}>Select the post that performed best — Markr will prioritise similar formats in future generations.</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
+              {feedbackPosts.map((entry, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleFeedbackSubmit(entry)}
+                  style={{ textAlign:'left', padding:'10px 14px', borderRadius:9, border:'1px solid var(--surface3)', background:'var(--surface2)', cursor:'pointer', fontSize:12, lineHeight:1.5, color:'var(--text)', fontFamily:'DM Sans, sans-serif' }}
+                >
+                  <span style={{ color:'var(--text3)', fontSize:10, display:'block', marginBottom:2 }}>{entry.channel} · {entry.format} · {new Date(entry.ts).toLocaleDateString()}</span>
+                  "{entry.excerpt.slice(0, 100)}{entry.excerpt.length > 100 ? '…' : ''}"
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => handleFeedbackSubmit(null)}
+              style={{ width:'100%', padding:'9px 0', borderRadius:9, border:'1px solid var(--surface3)', background:'transparent', color:'var(--text3)', fontSize:12, cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}
+            >
+              Skip for now
+            </button>
           </div>
         </div>
       )}

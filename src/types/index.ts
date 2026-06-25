@@ -147,6 +147,8 @@ export interface AppData {
   post_style?:              string | null
   // Content Studio context
   content_context?: ContentContext | null
+  // Post history — last 30 generated posts for context injection
+  post_history?: PostHistoryEntry[] | null
 }
 
 export interface ContentContext {
@@ -155,6 +157,14 @@ export interface ContentContext {
   user_quote:   string
   before_state: string
   screenshots?: string[]  // base64-encoded, up to 3
+  top_performing_formats?: string[]  // formats the user marked as high-engagement
+}
+
+export interface PostHistoryEntry {
+  ts:      string  // ISO timestamp
+  channel: string  // channel id
+  format:  string  // style:slot for instagram, channel label for others
+  excerpt: string  // first 120 chars of generated content
 }
 
 export type ViewType = 'overview' | 'marketing' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'
