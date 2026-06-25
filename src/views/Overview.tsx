@@ -44,6 +44,25 @@ function getDimFix(label: string, score: number): string {
   return low ? f[0] : mid ? f[1] : f[2]
 }
 
+function isPillarRelevant(pillar: string, app: { name?: string | null; category?: string | null; desc?: string | null }): boolean {
+  const appKeywords = [
+    app.name?.toLowerCase(),
+    app.category?.toLowerCase(),
+    app.desc?.toLowerCase().split(' ').slice(0, 10).join(' ')
+  ].filter(Boolean).join(' ')
+
+  const pillarLower = pillar.toLowerCase()
+
+  const unrelatedTopics = ['mental wellness', 'journaling', 'mood tracking',
+    'meal planning', 'nutrition', 'recipes', 'meditation', 'fitness tracker']
+    .filter(topic => pillarLower.includes(topic))
+
+  if (unrelatedTopics.length > 0 && !appKeywords.includes(unrelatedTopics[0])) {
+    return false
+  }
+  return true
+}
+
 export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const { apps, currentApp, setView, plan, updateApp } = useStore()
   const [insight,    setInsight]    = useState<string | null>(null)
@@ -62,6 +81,8 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   const [scoreHistory,    setScoreHistory]    = useState<Array<{ overall: number; recorded_at: string }>>([])
 
   const [pillarsIdeaGenerating, setPillarsIdeaGenerating] = useState(false)
+  const [pillarsRefreshing,    setPillarsRefreshing]    = useState(false)
+  const [pillarsRefreshMsg,    setPillarsRefreshMsg]    = useState<string | null>(null)
   const [collapsedPillars,     setCollapsedPillars]     = useState<Record<string, boolean>>({})
   const pt  = currentApp?.productTest
   const ua  = (currentApp as any)?.url_analysis
@@ -171,15 +192,33 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
     } catch { /* ignore */ }
   }
 
-  // Weekly pillar suggestions — generate once per 7 days, cache in Supabase
+  // Pillar suggestions — validate relevance/staleness, then generate when needed
   useEffect(() => {
     if (!currentApp?.pillars?.length) return
+
     const saved   = currentApp.pillar_suggestions
     const savedAt = currentApp.pillar_suggestions_at
-    const isFresh = !!saved && !!savedAt
-      && (Date.now() - new Date(savedAt).getTime()) < 7 * 24 * 60 * 60 * 1000
-    if (isFresh) return
 
+    // ── Validate existing suggestions ────────────────────────────────────────
+    if (saved && savedAt) {
+      const isTooOld = (Date.now() - new Date(savedAt).getTime()) > 30 * 24 * 60 * 60 * 1000
+      const anyIrrelevant = Object.keys(saved as Record<string, unknown>).some(
+        pillar => !isPillarRelevant(pillar, currentApp)
+      )
+
+      if (!isTooOld && !anyIrrelevant) {
+        // Fresh and relevant — respect 7-day regeneration cadence
+        const isFresh = (Date.now() - new Date(savedAt).getTime()) < 7 * 24 * 60 * 60 * 1000
+        if (isFresh) return
+      } else {
+        // Stale or context mismatch — clear and fall through to regenerate
+        setPillarsRefreshMsg(`We detected outdated content pillars — generating fresh ones for ${currentApp.name}...`)
+        setPillarsRefreshing(true)
+        updateApp(currentApp.id, { pillar_suggestions: null, pillar_suggestions_at: null })
+      }
+    }
+
+    // ── Generate ideas ────────────────────────────────────────────────────────
     const headline    = (currentApp as any)?.url_analysis?.headline ?? currentApp.url
     const pillarNames = (currentApp.pillars ?? []).map((p: string) => p.replace(/\*/g, '').trim())
 
@@ -199,7 +238,11 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
           })
         }
       } catch { /* malformed JSON — silently skip */ }
-    }).catch(() => {}).finally(() => setPillarsIdeaGenerating(false))
+    }).catch(() => {}).finally(() => {
+      setPillarsIdeaGenerating(false)
+      setPillarsRefreshing(false)
+      setPillarsRefreshMsg(null)
+    })
   }, [currentApp?.id, currentApp?.pillars?.length])
 
   async function runCompetitorAnalysis() {
@@ -965,6 +1008,13 @@ Return ONLY this JSON, no markdown:
           <CardHeader title={`Content Pillars · ${currentApp.name}`} />
           {(currentApp.pillars ?? []).length > 0 ? (
             <>
+              {/* Refresh banner — shown while stale suggestions are being regenerated */}
+              {pillarsRefreshMsg && (
+                <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', marginBottom:10, background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.2)', borderRadius:'var(--r)', fontSize:11, color:'var(--text2)', lineHeight:1.5 }}>
+                  <span className="spinner" style={{ fontSize:10, color:'var(--accent)', flexShrink:0 }} />
+                  {pillarsRefreshMsg}
+                </div>
+              )}
               {(currentApp.pillars ?? []).map((p, i) => {
                 const pillarName  = p.replace(/\*/g, '').trim()
                 const isCollapsed = !!collapsedPillars[pillarName]
