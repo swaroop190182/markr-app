@@ -214,6 +214,21 @@ async function fullScrape(url: string) {
 
   const main = extract(mainHtml)
 
+  // For JS SPAs, OG/Twitter tags are the intended headline and description —
+  // h1s are empty before JS renders, and <title> is often the app name, not copy.
+  if (isJsSpa) {
+    const ogTitle = main.ogT || main.twT || main.title
+    const ogDesc  = main.ogD || main.twD || main.metaD
+    if (ogTitle) { main.bestTitle = ogTitle; main.bestH1 = ogTitle }
+    if (ogDesc)  { main.bestDesc  = ogDesc }
+    // Rebuild allText so scoring functions see the updated values
+    main.allText = [
+      main.bestTitle, main.bestDesc, main.bestH1,
+      main.h2s.join(' '), main.h3s.join(' '), main.paras.join(' '),
+      main.lis.join(' '), main.jldText, main.noscript, main.body.slice(0, 2000),
+    ].join(' ').slice(0, 5000)
+  }
+
   const pages: Record<string, ReturnType<typeof extract>> = { home: main }
 
   // Get all URLs from sitemap
@@ -648,6 +663,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const result = score(pages, url)
     ;(result as any).totalWords = totalWords
+    if (result.confidence === 'js-app') {
+      ;(result as any).jsAppMessage = 'JavaScript app detected — scored from your meta tags. Update og:title and og:description to match your current page for the most accurate score.'
+    }
 
     // Save lead
     try {
