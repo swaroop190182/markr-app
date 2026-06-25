@@ -353,7 +353,7 @@ async function compressImage(file: File): Promise<string> {
       canvas.height = Math.round(img.height * ratio)
       canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
       URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/jpeg', 0.75))
+      resolve(canvas.toDataURL('image/jpeg', 0.60))
     }
     img.onerror = () => { URL.revokeObjectURL(url); resolve('') }
     img.src = url
@@ -532,20 +532,24 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     setChannelLoading(false)
   }, [currentApp.id])
 
-  // Fetch trending topics for the app's category
+  // Fetch trending topics for the app's category — must complete within 3 s or skip
   useEffect(() => {
     async function fetchTrending() {
       try {
-        const resp = await fetch('/api/trending', {
+        const fetchPromise = fetch('/api/trending', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ category: currentApp.category }),
         })
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 3000)
+        )
+        const resp = await Promise.race([fetchPromise, timeout])
         if (resp.ok) {
           const data = await resp.json()
           setTrendingTopics(data.topics ?? [])
         }
-      } catch { /* silently fail — trending is optional */ }
+      } catch { /* silently skip — trending is optional context */ }
     }
     fetchTrending()
   }, [currentApp.id, currentApp.category])
@@ -756,7 +760,10 @@ Output ONLY valid JSON:
     const SYSTEM = `${ABSOLUTE_RULES}
 
 You are an expert Instagram content strategist. Output ONLY valid JSON. Follow the ABSOLUTE RULES, POST STYLE, and FORMAT REQUIREMENT — all are mandatory, in that priority order.`
-    const imgs = screenshots.length > 0 ? screenshots : undefined
+    const screenshotPayloadSize = screenshots.reduce((sum, s) => sum + s.length, 0)
+    const screenshotsTooLarge   = screenshotPayloadSize > 1_000_000
+    if (screenshotsTooLarge) toast('Screenshots too large — skipping image analysis. Try smaller images.')
+    const imgs = !screenshotsTooLarge && screenshots.length > 0 ? screenshots : undefined
 
     function recordHistory(caption: string) {
       const entry: PostHistoryEntry = { ts: new Date().toISOString(), channel: 'instagram', format: `${style}:${type}`, excerpt: caption.slice(0, 120) }
@@ -820,6 +827,10 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       ? `\n\nTRENDING NOW in ${currentApp.category}: ${trendingTopics.join(' | ')}\n(Reference if relevant — don't force it)`
       : ''
 
+    const screenshotPayloadSize = screenshots.reduce((sum, s) => sum + s.length, 0)
+    const screenshotsTooLarge   = screenshotPayloadSize > 1_000_000
+    if (screenshotsTooLarge) toast('Screenshots too large — skipping image analysis. Try smaller images.')
+    const channelImgs = !screenshotsTooLarge && screenshots.length > 0 ? screenshots : undefined
     const prompt = getPlatformPrompt(label, stratCtx, postStyle) + screenshotNote + historyBlock + topFormatsNote + trendingNote
     setChannelLoading(true)
     try {
@@ -830,7 +841,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
         undefined,
         'sonnet',
         'content',
-        screenshots.length > 0 ? screenshots : undefined,
+        channelImgs,
       )
       setChannelResults(prev => ({ ...prev, [activeChannel]: raw }))
       toast(`${label} content ready!`)

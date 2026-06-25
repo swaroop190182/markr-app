@@ -25,7 +25,7 @@ export default function DeliverySettings() {
       .from('markr_delivery_prefs')
       .select('*')
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
     if (data) setPref({ enabled: data.enabled, frequency: data.frequency, app_id: data.app_id })
     setLoading(false)
   }
