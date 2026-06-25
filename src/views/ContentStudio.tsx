@@ -346,18 +346,33 @@ async function compressImage(file: File): Promise<string> {
     const img = new Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {
-      const MAX = 800
-      const ratio = Math.min(MAX / img.width, MAX / img.height, 1)
+      const MAX = 512
+      const scale = Math.min(1, MAX / img.width)
       const canvas = document.createElement('canvas')
-      canvas.width  = Math.round(img.width  * ratio)
-      canvas.height = Math.round(img.height * ratio)
+      canvas.width  = Math.round(img.width  * scale)
+      canvas.height = Math.round(img.height * scale)
       canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
       URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/jpeg', 0.60))
+      resolve(canvas.toDataURL('image/jpeg', 0.50))
     }
     img.onerror = () => { URL.revokeObjectURL(url); resolve('') }
     img.src = url
   })
+}
+
+async function describeScreenshots(screenshots: string[]): Promise<string> {
+  if (!screenshots.length) return ''
+  try {
+    return await callClaude(
+      'Describe each app screenshot in 2-3 sentences focusing on: what feature is shown, what UI elements are visible, what copy or text appears, and what user action is being demonstrated. Be specific and concise.',
+      'You are a precise UI analyst. Describe what you see in the screenshots clearly and concisely.',
+      400,
+      undefined,
+      'haiku',
+      'content',
+      screenshots,
+    )
+  } catch { return '' }
 }
 
 function ContentContextSetup({ existing, onSave, onCancel }: {
@@ -689,8 +704,10 @@ HARD RULES — violating any of these makes the output invalid:
 5. Your CTA/closing line MUST be meaningfully different from every other post's closing line.` : `
 HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
 
-    const screenshotInstruction = screenshots.length > 0
-      ? '\nIMPORTANT: The user has provided app screenshots. Reference specific UI moments, screens, or features visible in these screenshots — this makes captions feel authentic and specific rather than generic.\n'
+    // Describe screenshots via a separate vision call, then use text — keeps main payload small
+    const screenshotDesc = screenshots.length > 0 ? await describeScreenshots(screenshots) : ''
+    const screenshotInstruction = screenshotDesc
+      ? `\nAPP SCREENSHOTS — visual analysis of the product:\n${screenshotDesc}\nReference these specific UI details to make captions feel authentic and grounded in the real product.\n`
       : ''
 
     // Post history — inject last 5 to prevent repetition
@@ -760,11 +777,6 @@ Output ONLY valid JSON:
     const SYSTEM = `${ABSOLUTE_RULES}
 
 You are an expert Instagram content strategist. Output ONLY valid JSON. Follow the ABSOLUTE RULES, POST STYLE, and FORMAT REQUIREMENT — all are mandatory, in that priority order.`
-    const screenshotPayloadSize = screenshots.reduce((sum, s) => sum + s.length, 0)
-    const screenshotsTooLarge   = screenshotPayloadSize > 1_000_000
-    if (screenshotsTooLarge) toast('Screenshots too large — skipping image analysis. Try smaller images.')
-    const imgs = !screenshotsTooLarge && screenshots.length > 0 ? screenshots : undefined
-
     function recordHistory(caption: string) {
       const entry: PostHistoryEntry = { ts: new Date().toISOString(), channel: 'instagram', format: `${style}:${type}`, excerpt: caption.slice(0, 120) }
       const prev = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
@@ -772,7 +784,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     }
 
     try {
-      const raw = await callClaude(prompt, SYSTEM, 1800, undefined, 'haiku', 'content', imgs)
+      const raw = await callClaude(prompt, SYSTEM, 1800, undefined, 'haiku', 'content')
       const post = safeParseJSON<AgentPost>(raw)
       updateSlot(type, { state:'ready', post })
       toast(`${c.label} ready! ✓`)
@@ -781,7 +793,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       // If context was present it may have caused malformed JSON — retry without it
       if (contentCtxBlock) {
         try {
-          const raw = await callClaude(prompt.replace(contentCtxBlock, ''), SYSTEM, 1800, undefined, 'haiku', 'content', imgs)
+          const raw = await callClaude(prompt.replace(contentCtxBlock, ''), SYSTEM, 1800, undefined, 'haiku', 'content')
           const post = safeParseJSON<AgentPost>(raw)
           updateSlot(type, { state:'ready', post })
           toast(`${c.label} ready! ✓`)
@@ -806,8 +818,11 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     const label       = ch?.label ?? activeChannel
     const ctx          = (currentApp as any).content_context as ContentContext | null | undefined
     const screenshots  = ctx?.screenshots ?? []
-    const screenshotNote = screenshots.length > 0
-      ? '\n\nThe user has provided app screenshots. Reference specific UI moments, screens, or features visible in these screenshots when generating content — this makes posts feel authentic and specific rather than generic.'
+
+    // Describe screenshots via a separate vision call — keeps main payload small
+    const screenshotDesc = screenshots.length > 0 ? await describeScreenshots(screenshots) : ''
+    const screenshotNote = screenshotDesc
+      ? `\n\nAPP SCREENSHOTS — visual analysis of the product:\n${screenshotDesc}\nReference these specific UI details to make content feel authentic and grounded in the real product.`
       : ''
 
     // Post history injection
@@ -827,10 +842,6 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       ? `\n\nTRENDING NOW in ${currentApp.category}: ${trendingTopics.join(' | ')}\n(Reference if relevant — don't force it)`
       : ''
 
-    const screenshotPayloadSize = screenshots.reduce((sum, s) => sum + s.length, 0)
-    const screenshotsTooLarge   = screenshotPayloadSize > 1_000_000
-    if (screenshotsTooLarge) toast('Screenshots too large — skipping image analysis. Try smaller images.')
-    const channelImgs = !screenshotsTooLarge && screenshots.length > 0 ? screenshots : undefined
     const prompt = getPlatformPrompt(label, stratCtx, postStyle) + screenshotNote + historyBlock + topFormatsNote + trendingNote
     setChannelLoading(true)
     try {
@@ -841,7 +852,6 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
         undefined,
         'sonnet',
         'content',
-        channelImgs,
       )
       setChannelResults(prev => ({ ...prev, [activeChannel]: raw }))
       toast(`${label} content ready!`)
