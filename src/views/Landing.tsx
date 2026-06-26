@@ -203,15 +203,11 @@ export default function Landing() {
         <h1 style={{ fontFamily:D, fontSize:'clamp(24px,4vw,56px)', fontWeight:800, lineHeight:1.0, margin:'0 0 20px', letterSpacing:'-0.02em', color:'#f5f5f7', whiteSpace:'nowrap' }}>
           Grow the app you already built.
         </h1>
-        <p style={{ fontFamily:D, fontSize:'clamp(16px,1.6vw,20px)', fontWeight:400, lineHeight:1.7, margin:'0 0 20px', letterSpacing:'-0.01em', maxWidth:600, color:'rgba(255,255,255,.55)', textAlign:'left' }}>
-          Landing page audit · competitive intelligence · go-to-market strategy<br/>
-          Daily multi-channel content — built for founders who build alone.
+        <p style={{ fontFamily:D, fontSize:'clamp(15px,1.4vw,18px)', fontWeight:400, lineHeight:1.6, margin:'0 0 20px', letterSpacing:'-0.01em', maxWidth:520, color:'rgba(255,255,255,.5)', textAlign:'left' }}>
+          Audit · Compete · Strategize · Create content<br/>Built for founders who build alone.
         </p>
 
-        {/* New subline */}
-        <p style={{ fontFamily:D, fontSize:18, fontWeight:500, color:'rgba(255,255,255,.75)', maxWidth:560, lineHeight:1.5, margin:'0 0 16px', letterSpacing:'-0.01em' }}>
-          See exactly why your app isn't growing — and what to post to fix it.
-        </p>
+        
 
         <p style={{ fontFamily:D, fontSize:15, fontWeight:400, color:'rgba(255,255,255,.4)', maxWidth:460, lineHeight:1.65, margin:'0 0 20px' }}>
           Paste your URL. Get a free audit in 60 seconds — no signup needed.
