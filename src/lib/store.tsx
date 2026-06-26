@@ -130,7 +130,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
     supabase.from('markr_subscriptions')
       .select('plan, status, current_period_end')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
       .then(({ data }) => {
         const validPlans: PlanType[] = ['pro', 'analysis', 'content', 'free']
         if (data?.status === 'active' && validPlans.includes(data?.plan)) {
