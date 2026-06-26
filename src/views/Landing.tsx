@@ -204,7 +204,7 @@ export default function Landing() {
           Grow the app you already built.
         </h1>
         <p style={{ fontFamily:D, fontSize:'clamp(15px,1.4vw,18px)', fontWeight:400, lineHeight:1.6, margin:'0 0 20px', letterSpacing:'-0.01em', maxWidth:520, color:'rgba(255,255,255,.5)', textAlign:'left' }}>
-          Audit · Compete · Strategize · Create content<br/>Built for founders who build alone.
+          Landing page audit · competitive intelligence · multi-channel marketing<br/>Everything a solo founder needs to go from built to bought.
         </p>
 
         
