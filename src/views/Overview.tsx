@@ -122,18 +122,21 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             const dims = (result.dimensions ?? []).slice().sort((a: any, b: any) => a.score - b.score)
             const dimContext = dims.map((d: any) => `${d.label}: ${d.score}/10 — ${d.issue}`).join('\n')
             const raw = await callClaude(
-              `Generate 6 Instagram content pillars for this app. Each pillar targets improving a weak area.
+              `Generate 6 content pillars for this specific app. Each pillar must be specific to THIS app only.
 
-App: "${result.headline}"
+App name: "${currentApp.name}"
+App description: "${currentApp.desc || result.headline}"
 URL: ${currentApp.url}
 
 Landing page scores:
 ${dimContext}
 
-Rules:
-- Each pillar addresses a weak dimension specifically
-- Names must be specific to what this app does, not generic
+CRITICAL RULES:
+- Every pillar name MUST reference what THIS app specifically does — use the app name or category
+- NEVER generate generic wellness, journaling, or mental health pillars unless this app is specifically about those topics
+- Each pillar addresses a weak dimension specifically for THIS app's audience
 - 2-5 words each
+- If unsure about the app, use the app name and URL as your primary context
 
 Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
               'Output ONLY 6 pillar names, one per line.', 300
@@ -224,7 +227,7 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
 
     setPillarsIdeaGenerating(true)
     callClaude(
-      `For this app: "${headline}", generate 2 Instagram post ideas for each of these content pillars:\n${pillarNames.map((n: string) => `- ${n}`).join('\n')}\n\nReturn ONLY valid JSON where each key is the exact pillar name and the value is an array of 2 post idea strings. Example format:\n{"pillar name": ["post idea 1", "post idea 2"]}`,
+      `For the app "${currentApp.name}" (${currentApp.desc || headline}), generate 2 post ideas for each of these content pillars. Every post idea must be specific to ${currentApp.name} — never generic wellness or journaling content unless that is what this app does:\n${pillarNames.map((n: string) => `- ${n}`).join('\n')}\n\nReturn ONLY valid JSON where each key is the exact pillar name and the value is an array of 2 post idea strings. Example format:\n{"pillar name": ["post idea 1", "post idea 2"]}`,
       'Return ONLY valid JSON. Keys must be the exact pillar names provided. No markdown, no explanation.',
       1200
     ).then(raw => {
@@ -1092,16 +1095,19 @@ Return ONLY this JSON, no markdown:
                         const dims = (ua.dimensions ?? []).slice().sort((a:any,b:any) => a.score - b.score)
                         const dimContext = dims.map((d:any) => `${d.label}: ${d.score}/10 — ${d.issue}`).join('\n')
                         const raw = await callClaude(
-                          `Generate 6 Instagram content pillars for this app. Each pillar should target improving a weak area identified in the landing page analysis.
+                          `Generate 6 content pillars for this specific app. Each pillar must be specific to THIS app only.
 
-App: "${ua.headline}"
+App name: "${currentApp.name}"
+App description: "${currentApp.desc || ua.headline}"
 App URL: ${currentApp.url}
 
 Landing page scores (lower = needs more content focus):
 ${dimContext}
 
-Rules:
-- Name each pillar to address the weak dimension (e.g. Trust 2/10 → "Real User Results")
+CRITICAL RULES:
+- Every pillar MUST be specific to what THIS app does — reference the app name or its specific category
+- NEVER generate generic wellness, journaling, or mental health pillars unless this app is specifically about those topics
+- Name each pillar to address the weak dimension for THIS app's specific audience
 - Make pillar names specific to what this app does, not generic
 - Each pillar should produce content that improves the landing page score
 
