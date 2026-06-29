@@ -139,12 +139,17 @@ ${rc.trim()}
     setLoad('competitive', true)
     const rcCtx = getRecentContext()
     try {
-      const urlAnalysis = (currentApp as any).url_analysis
-      const appContext = urlAnalysis
-        ? `App: "${urlAnalysis.headline}" — ${currentApp.url}`
-        : `App: "${currentApp.name}" — ${currentApp.desc || currentApp.category}`
+      const ua = (currentApp as any).url_analysis
+      const appContext = `PRODUCT DETAILS:
+Name: ${currentApp.name}
+Description: ${currentApp.desc || ''}
+URL: ${currentApp.url}
+Landing page headline: ${ua?.headline || ''}
+Category: ${ua?.category || currentApp.category || ''}
 
-      const prompt = `Find 5 real direct competitors for this app. Prioritise local/regional competitors first.
+CRITICAL: Base your competitor selection on what this product ACTUALLY DOES based on the description, headline and URL above — NOT just the product name. Only return products that directly compete with the core function described above. If unsure, visit the URL before deciding.`
+
+      const prompt = `Find 5 real direct competitors for this specific product. Prioritise local/regional competitors first.
 
 ${appContext}${rcCtx}
 
