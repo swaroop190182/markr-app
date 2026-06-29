@@ -19,6 +19,8 @@ export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: (
   const { apps, addApp, setCurrentApp, canUseProductTest } = useStore()
 
   const [name,     setName]     = useState('')
+  const [appDesc,  setAppDesc]  = useState('')
+  const [descErr,  setDescErr]  = useState(false)
   const [url,      setUrl]      = useState(prefilledUrl)  // pre-fill from landing page
   const [platform, setPlatform] = useState<string>('Web')
   const [stage,    setStage]    = useState<string>('Launch')
@@ -40,6 +42,8 @@ export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: (
 
   async function handleSubmit() {
     if (!name.trim()) { toast('Please enter an app name'); return }
+    if (!appDesc.trim()) { setDescErr(true); return }
+    setDescErr(false)
     setRunning(true)
 
     try {
@@ -82,9 +86,10 @@ SCORE: ${urlData.overall || ''}/10`
       const analysisRaw = await callClaude(
         `Analyze this app for Instagram content strategy.
 App: "${name}" | Platform: ${platform} | Category: ${detectedCategory} | Stage: ${stage}
-${url       ? 'URL: ' + url       : ''}
-${urlContext ? urlContext          : ''}
-${extra     ? 'Context: ' + extra : ''}
+${appDesc   ? 'Description: ' + appDesc : ''}
+${url       ? 'URL: ' + url             : ''}
+${urlContext ? urlContext               : ''}
+${extra     ? 'Context: ' + extra       : ''}
 Output exactly:
 DESCRIPTION: [2 sentences — what it does and who it's for]
 AUDIENCE: [primary audience in 10 words]
@@ -97,7 +102,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         'You are a product analyst. Be specific and infer intelligently.'
       )
       const gf = (k: string) => (analysisRaw.match(new RegExp(k + ':\\s*([^\\n]+)')) ?? [])[1]?.trim() ?? ''
-      const desc       = gf('DESCRIPTION')    || `${name} is a ${detectedCategory} app.`
+      const desc       = gf('DESCRIPTION')    || appDesc || `${name} is a ${detectedCategory} app.`
       const audience   = gf('AUDIENCE')       || ''
       const tone       = gf('TONE')           || ''
       const problem    = gf('PROBLEM')        || ''
@@ -176,6 +181,20 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
       <Field label="App Name">
         <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. InvoiceZap, MealBuddy…" />
       </Field>
+
+      <Field label="Description *">
+        <input
+          value={appDesc}
+          onChange={e => { setAppDesc(e.target.value); if (e.target.value.trim()) setDescErr(false) }}
+          placeholder="e.g. A growth intelligence platform for solo app founders"
+          style={descErr ? { borderColor: 'var(--red, #f24646)' } : undefined}
+        />
+      </Field>
+      {descErr && (
+        <div style={{ fontSize: 11, color: 'var(--red, #f24646)', marginTop: -8, marginBottom: 4 }}>
+          Description is required
+        </div>
+      )}
 
       <Field label="App URL ✦ AI reads this" hint="Landing page, App Store link, or any URL describing your app.">
         <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://yourapp.com" />
