@@ -386,7 +386,9 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
 
   const hasOutcomeVerb = /\b(get|save|build|fix|track|grow|send|launch|ship)\b/i.test(headline)
   const clarityIssue = !headline || headline.length <= 8
-    ? 'No clear headline found — add an H1 that states what users gain'
+    ? isJSOnlyApp
+      ? 'Headline not detected in HTML crawl (JavaScript page — may be incomplete) — ensure og:title meta tag is set'
+      : 'No clear headline found — add an H1 that states what users gain'
     : detectedBuzzwords.length > 0
       ? `Headline: "${truncH(headline)}" — buzzwords detected (${detectedBuzzwords.join(', ')}) — replace with specific outcomes`
       : !hasOutcomeVerb
@@ -396,12 +398,12 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
           : `Headline: "${truncH(headline)}" — clear with outcome verb`
 
   // ── 2. User Journey (0–10) ──────────────────────────────────────────────────
-  let journey = 3
-  const primaryCta = allBtns.find(b => /start|try|get|sign|join|analyze|free|demo|launch|begin|access/i.test(b))
+  const primaryCta = allBtns.find(b => /start|try|get|sign|join|analyze|free|demo|launch|begin|access|explore|download/i.test(b))
   const hasWeakCtaOnly = !primaryCta
     && allBtns.length > 0
-    && allBtns.some(b => /\b(learn more|explore|contact(?: us)?|submit)\b/i.test(b))
-  if (primaryCta)                                                journey += 2
+    && allBtns.some(b => /\b(learn more|contact(?: us)?|submit)\b/i.test(b))
+  let journey = 3
+  journey += primaryCta ? 2 : isJSOnlyApp ? 1 : 0  // half penalty — buttons may not load in static HTML
   if (primaryCta && !/^sign up$|^register$|^submit$|^click$/i.test(primaryCta)) journey += 2
   if (hasHow)                                                    journey += 2  // has how-it-works
   if (home.hasViewport)                                          journey += 1
@@ -412,9 +414,13 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
 
   const ctaButtonList = allBtns.slice(0, 3).map(b => `"${b.slice(0,20)}"`).join(', ')
   const journeyIssue = !primaryCta && allBtns.length === 0
-    ? `No action CTA or buttons found in pages analyzed: ${crawledPages}`
+    ? isJSOnlyApp
+      ? `No CTA buttons detected in HTML crawl (JavaScript page — buttons may not be reflected) — pages: ${crawledPages}`
+      : `No action CTA or buttons found in pages analyzed: ${crawledPages}`
     : !primaryCta
-      ? `No action CTA found — buttons detected: ${ctaButtonList || 'none'}`
+      ? isJSOnlyApp
+        ? `Action CTA not detected in HTML crawl (JavaScript page — may be incomplete) — buttons found: ${ctaButtonList || 'none'}`
+        : `No action CTA found — buttons detected: ${ctaButtonList || 'none'}`
       : !hasHow
         ? `CTA "${primaryCta.slice(0,40)}" found but no how-it-works page in pages analyzed: ${crawledPages}`
         : `CTA "${primaryCta.slice(0,40)}" found with how-it-works path`
@@ -435,18 +441,21 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     || /(?:six|6|seven|7).?figure|(?:double|triple|10x)\s*(?:my|their|revenue|income|salary)/i.test(allPagesText)
   )
 
+  const isJSOnlyApp = home.wordCount < 100
+  const hasYouFocus = youCount > weCount * 1.2 || youCount >= 5
+
   let emotion = 2
-  if (youCount > weCount * 1.2 || youCount >= 5)                emotion += 3
-  if (hasNums)                                                   emotion += 3
-  if (hasUrg)                                                    emotion += 2
+  if (hasYouFocus)  emotion += 3
+  emotion += hasNums ? 3 : isJSOnlyApp ? 1 : 0  // outcome numbers often in JS-rendered content — half penalty
+  if (hasUrg)       emotion += 2
   emotion = Math.min(10, emotion)
   // Rule: 10/10 requires all three positive signals (you-focused, numbers, urgency)
   if (emotion === 10 && !(youCount >= 5 && hasNums && hasUrg)) emotion = 9
 
-  const isJSOnlyApp = home.wordCount < 100
-  const hasYouFocus = youCount > weCount * 1.2 || youCount >= 5
   const emotionIssue = !hasNums && !hasYouFocus
-    ? `No specific numbers or user-focused language in pages analyzed: ${crawledPages}`
+    ? isJSOnlyApp
+      ? `Outcome numbers and you-focused language not detected in HTML crawl (JavaScript page — may be incomplete) — pages: ${crawledPages}`
+      : `No specific numbers or user-focused language in pages analyzed: ${crawledPages}`
     : hasYouFocus && !hasNums
       ? `${youCount} "you/your" phrases found but no outcome numbers in pages analyzed: ${crawledPages}`
       : !hasYouFocus && hasNums
@@ -454,9 +463,14 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
         : `${youCount} "you/your" phrases and outcome numbers found in pages analyzed: ${crawledPages}`
 
   // ── 4. Trust (0–10) ─────────────────────────────────────────────────────────
+  const hasStatPattern       = /\d+[KkMm]?\+?\s*(users|learners|creators|customers|members)/gi.test(allPagesText)
+  const hasStarRating        = /\d\.\d\s*★|\d\.\d\/5/.test(allPagesText)
+  const hasNamedTestimonials = /["'][^"']{10,200}["']\s*[—–-]\s*[A-Z]/.test(allPagesText)
   const hasSP      = social
     || /testimonial|review|rating|stars|trusted|said|quote|blockquote|discord|community|feedback|users say|founders say|used by|loved by|teams at|powering|backed by/i.test(allPagesText)
-    || /["'][^"']{10,200}["']\s*[—–-]\s*[A-Z]/.test(allPagesText)
+    || hasNamedTestimonials
+    || hasStatPattern
+    || hasStarRating
   // Check every crawled page whose key contains about/team/founder/story —
   // nav-discovered pages land under keys like "team", "about_us", "founders"
   const aboutTeamPages = Object.entries(pages)
@@ -472,44 +486,65 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const hasFounderStory = /built by|founded by|i built|we built|our story|started when|founder|my story|why i built/i.test(allPagesText)
   const hasQuotes = /blockquote|testimonial|said|quote|review|discord|community member|early user|beta/i.test(allPagesText)
 
-  let trust = 2
-  if (hasSP || hasQuotes)  trust += 3
-  if (hasTeam)             trust += 2
-  if (hasLogos)            trust += 2
-  if (hasNumbers)          trust += 1
-  if (hasFounderStory)     trust += 1
-  // For JS apps with low content — don't penalise for what we can't detect
-  // Give benefit of doubt if meta description is rich (suggests real content exists)
-  if (isJSOnlyApp && home.bestDesc.length > 100) trust = Math.max(trust, 4)
-  trust = Math.min(10, trust)
-  // Rule: 10/10 requires both social proof and a team/about page
-  if (trust === 10 && !(hasSP && hasTeam)) trust = 9
+  // Weighted trust: social proof (up to 3), team/about (up to 2), logo wall (up to 2), traction (up to 1)
+  // Unverifiable js-app signals get half penalty instead of 0
+  const tSP      = (hasSP || hasQuotes)              ? 3
+                 : (hasStatPattern || hasStarRating)  ? 2  // partial signal — stat or rating found
+                 : isJSOnlyApp                        ? 1  // could not verify — half penalty
+                 : 0
+  const tTeam    = hasTeam                            ? 2
+                 : hasFounderStory                    ? 1
+                 : isJSOnlyApp                        ? 1  // could not verify — half penalty
+                 : 0
+  const tLogo    = hasLogos                           ? 2
+                 : isJSOnlyApp                        ? 1  // could not verify — half penalty
+                 : 0
+  const tTraction = hasNumbers                        ? 1 : 0
 
+  let trust = Math.min(10, 2 + tSP + tTeam + tLogo + tTraction)
+  // Rule: 10/10 requires both social proof and a team/about page
+  if (trust >= 10 && !(hasSP && hasTeam)) trust = 9
+
+  const jsUnverifiable = (label: string) =>
+    isJSOnlyApp ? `${label} — could not verify (JavaScript page)` : `no ${label}`
   const trustParts = [
-    (hasSP || hasQuotes) ? 'social proof found' : 'no social proof',
-    hasTeam ? 'team page found' : 'no team page',
-    hasLogos ? 'logo wall found' : 'no logo wall',
+    (hasSP || hasQuotes)              ? 'social proof found'
+    : (hasStatPattern || hasStarRating) ? 'stat/rating signal found'
+    : jsUnverifiable('social proof'),
+    hasTeam                           ? 'team page found'
+    : hasFounderStory                 ? 'founder story found'
+    : jsUnverifiable('team page'),
+    hasLogos                          ? 'logo wall found' : jsUnverifiable('logo wall'),
   ]
   const trustIssue = `${trustParts.join(', ')} in pages analyzed: ${crawledPages}`
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
-  const hasPricing  = !!pricing
-  const hasFreeOpt  = /free|trial|demo|freemium|no credit|cancel/i.test(allPagesText)
-  const hasMultiCTA = allBtns.filter(b => /start|try|get|sign|join|free|demo/i.test(b)).length >= 2
+  const hasPricingPage = !!pricing
+  const hasPriceInText = (allPagesText.match(/\$\d+\.?\d*|₹\d+|\bfree\b/gi) ?? []).length >= 2
+  const hasPricing  = hasPricingPage || hasPriceInText
+  const hasFreeOpt  = (hasPricing && /\bfree\b/i.test(allPagesText))
+    || /\bfree\s+(?:trial|plan|tier|forever|version)\b|\bfreemium\b|\bno\s+credit\s+card\b|\bcancel\s+anytime\b/i.test(allPagesText)
+    || /\btrial\b|\bdemo\b/i.test(allPagesText)
+  const hasMultiCTA = allBtns.filter(b => /start|try|get|sign|join|free|demo|explore|download/i.test(b)).length >= 2
 
   let conversion = 2
-  if (primaryCta)   conversion += 2
-  if (hasPricing)   conversion += 2
-  if (hasFreeOpt)   conversion += 2
-  if (hasMultiCTA)  conversion += 2
+  conversion += primaryCta  ? 2 : isJSOnlyApp ? 1 : 0
+  conversion += hasPricing  ? 2 : isJSOnlyApp ? 1 : 0
+  conversion += hasFreeOpt  ? 2 : isJSOnlyApp ? 1 : 0
+  conversion += hasMultiCTA ? 2 : isJSOnlyApp ? 1 : 0
   conversion = Math.min(10, conversion)
   // Rule: 10/10 requires pricing, free option, and multiple CTAs all present
-  if (conversion === 10 && !(hasPricing && hasFreeOpt && hasMultiCTA)) conversion = 9
+  if (conversion >= 10 && !(hasPricing && hasFreeOpt && hasMultiCTA)) conversion = 9
 
-  const strongCtaCount = allBtns.filter(b => /start|try|get|sign|join|free|demo/i.test(b)).length
+  const strongCtaCount = allBtns.filter(b => /start|try|get|sign|join|free|demo|explore|download/i.test(b)).length
   const conversionIssue = [
-    hasPricing ? 'pricing page found' : 'no pricing page',
-    hasFreeOpt ? 'free option found' : 'no free option',
+    hasPricingPage    ? 'pricing page found'
+    : hasPriceInText  ? 'pricing found in page content'
+    : isJSOnlyApp     ? 'pricing — could not verify (JavaScript page)'
+    : 'no pricing page',
+    hasFreeOpt        ? 'free option found'
+    : isJSOnlyApp     ? 'free option — could not verify (JavaScript page)'
+    : 'no free option',
     `${strongCtaCount} strong CTA${strongCtaCount === 1 ? '' : 's'} detected`,
   ].join(', ') + ` in pages analyzed: ${crawledPages}`
 
@@ -522,12 +557,15 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   if (trust < 4)      { finalOverall = Math.min(finalOverall, 6); cappedBy = cappedBy ?? 'Trust' }
   if (conversion < 4) { finalOverall = Math.min(finalOverall, 6); cappedBy = cappedBy ?? 'Conversion Readiness' }
 
+  const vs = (found: boolean): 'verified_present' | 'verified_absent' | 'unverifiable_js' =>
+    found ? 'verified_present' : isJSOnlyApp ? 'unverifiable_js' : 'verified_absent'
+
   const dimensions = [
-    { label:'Clarity',              score:clarity,    issue:clarityIssue    },
-    { label:'User Journey',         score:journey,    issue:journeyIssue    },
-    { label:'Emotional Pull',       score:emotion,    issue:emotionIssue    },
-    { label:'Trust',                score:trust,      issue:trustIssue      },
-    { label:'Conversion Readiness', score:conversion, issue:conversionIssue },
+    { label:'Clarity',              score:clarity,    issue:clarityIssue,    verificationStatus: vs(!!headline && headline.length > 8) },
+    { label:'User Journey',         score:journey,    issue:journeyIssue,    verificationStatus: vs(!!primaryCta) },
+    { label:'Emotional Pull',       score:emotion,    issue:emotionIssue,    verificationStatus: vs(hasNums || hasYouFocus) },
+    { label:'Trust',                score:trust,      issue:trustIssue,      verificationStatus: vs(!!(hasSP || hasTeam)) },
+    { label:'Conversion Readiness', score:conversion, issue:conversionIssue, verificationStatus: vs(!!(hasPricing || primaryCta)) },
   ]
 
   // Rule: bottleneck must be a dimension whose issue describes something negative/missing.
@@ -664,7 +702,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const result = score(pages, url)
     ;(result as any).totalWords = totalWords
     if (result.confidence === 'js-app') {
-      ;(result as any).jsAppMessage = 'JavaScript app detected — scored from your meta tags. Update og:title and og:description to match your current page for the most accurate score.'
+      ;(result as any).jsAppMessage = 'This score may be incomplete. We could only read static HTML — buttons, pricing, and stats that load via JavaScript may not be reflected.'
     }
 
     // Save lead
