@@ -64,7 +64,7 @@ async function logUsage(supabase: any, userId: string, feature: string, u: Usage
 }
 
 // ── Call Anthropic ─────────────────────────────────────────────────────────────
-async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse, images?: string[]): Promise<UsageInfo | null> {
+async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse, images?: string[]): Promise<UsageInfo | { failStatus: number } | null> {
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) return null
   const MODEL = 'claude-haiku-4-5-20251001'
@@ -85,9 +85,7 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
     if (doStream) {
       const upstream = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers, body })
       if (!upstream.ok) {
-        const err = await upstream.json().catch(()=>({}))
-        if (upstream.status===429||upstream.status===402||(err as any)?.error?.type==='insufficient_balance_error') return null
-        return null
+        return { failStatus: upstream.status }
       }
       const reader = upstream.body!.getReader(); const dec = new TextDecoder(); let buf = ''
       let inputTokens = 0, outputTokens = 0
@@ -112,7 +110,7 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
       return { inputTokens, outputTokens, model: MODEL }
     } else {
       const resp = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers, body })
-      if (!resp.ok) return null
+      if (!resp.ok) return { failStatus: resp.status }
       const data = await resp.json()
       if (data.error) return null
       res.status(200).json({ content: data.content, provider: 'anthropic' })
@@ -231,9 +229,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Connection', 'keep-alive')
   }
 
-  const anthropicUsage = await callAnthropic(prompt, sys, tok, doStream, res, images)
-  if (anthropicUsage) {
-    logUsage(supabase, userId, feature, anthropicUsage)
+  const anthropicResult = await callAnthropic(prompt, sys, tok, doStream, res, images)
+  if (anthropicResult && !('failStatus' in anthropicResult)) {
+    console.log('[callClaude] provider: anthropic')
+    logUsage(supabase, userId, feature, anthropicResult)
     return
   }
 
@@ -242,19 +241,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: 'AI vision service temporarily unavailable. Please try again.' })
   }
 
-  console.log('Anthropic unavailable — falling back to Gemini')
+  const anthropicStatus = anthropicResult && 'failStatus' in anthropicResult ? anthropicResult.failStatus : null
+
+  // 401/429/503 from Anthropic → skip Gemini and go straight to Groq
+  if (anthropicStatus !== null && [401, 429, 503].includes(anthropicStatus)) {
+    console.warn(`[callClaude] Anthropic failed with ${anthropicStatus} — falling back to Groq`)
+    const groqOk = await callGroq(prompt, sys, tok, doStream, res)
+    if (groqOk) {
+      console.log('[callClaude] provider: groq (Anthropic direct fallback)')
+      logUsage(supabase, userId, feature, { inputTokens: 0, outputTokens: 0, model: 'llama-3.3-70b' })
+      return
+    }
+    return res.status(503).json({ error: 'AI service temporarily unavailable. Please try again in a moment.' })
+  }
+
+  console.log('[callClaude] Anthropic unavailable — falling back to Gemini')
   const geminiOk = await callGemini(prompt, sys, tok, doStream, res)
   if (geminiOk) {
+    console.log('[callClaude] provider: gemini')
     logUsage(supabase, userId, feature, { inputTokens: 0, outputTokens: 0, model: 'gemini-2.0-flash' })
     return
   }
 
-  console.log('Gemini unavailable — falling back to Groq')
+  console.log('[callClaude] Gemini unavailable — falling back to Groq')
   const groqOk = await callGroq(prompt, sys, tok, doStream, res)
   if (groqOk) {
+    console.log('[callClaude] provider: groq (Gemini fallback)')
     logUsage(supabase, userId, feature, { inputTokens: 0, outputTokens: 0, model: 'llama-3.3-70b' })
     return
   }
 
-  res.status(503).json({ error:'AI service temporarily unavailable. Please try again in a moment.' })
+  res.status(503).json({ error: 'AI service temporarily unavailable. Please try again in a moment.' })
 }
