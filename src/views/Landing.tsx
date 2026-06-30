@@ -20,9 +20,11 @@ function VideoEmbed() {
 type AnalysisState = 'idle' | 'loading' | 'done' | 'error' | 'blocked'
 interface AnalysisResult {
   overall: number
+  verifiedScore?: number | null
+  coverage?: number
   headline: string
   category: string
-  dimensions: { label: string; score: number; issue: string; verificationStatus?: string }[]
+  dimensions: { label: string; score: number; displayScore?: number | 'pending' | 'na'; issue: string; verificationStatus?: string }[]
   bottleneck: { label: string; issue: string; isUnverifiable?: boolean }
   growth_teaser: string
   scraped: { title: string; h1: string; metaDesc: string }
@@ -31,6 +33,7 @@ interface AnalysisResult {
   confidence?: 'high' | 'medium' | 'low' | 'js-app'
   confidencePercent?: number
   confidenceReason?: string
+  checkedSignals?: { label: string; found: boolean; js: boolean }[]
   totalWords?: number
 }
 
@@ -69,6 +72,7 @@ export default function Landing() {
   const [scorecardId, setScorecardId] = useState<string | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
   const [rates,       setRates]       = useState<Record<string, number>>({})
+  const [showChecked, setShowChecked] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const resultRef = useRef<HTMLDivElement>(null)
 
@@ -310,20 +314,30 @@ export default function Landing() {
                 <div>
                   <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', marginBottom:3, fontFamily:D }}>Analysis for</div>
                   <div style={{ fontSize:14, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>{url.replace(/^https?:\/\//,'').split('/')[0]}</div>
-                  {result.confidence && (
-                    <div style={{ marginTop:4, display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:600,
-                      background: result.confidence==='high' ? 'rgba(52,201,138,.12)' : result.confidence==='medium' ? 'rgba(245,166,35,.12)' : result.confidence==='js-app' ? 'rgba(245,166,35,.08)' : 'rgba(144,144,176,.12)',
-                      color: result.confidence==='high' ? '#34c98a' : result.confidence==='medium' ? '#f5a623' : '#9090b0'
-                    }}>
-                      ● Confidence:{' '}
-                      {result.confidence==='high' ? 'High' : result.confidence==='medium' ? 'Medium' : result.confidence==='js-app' ? `Partial (${result.confidencePercent ?? 65}%)` : 'Low'}
-                      {result.confidenceReason && <span style={{ fontWeight:400, opacity:.75 }}> — {result.confidenceReason}</span>}
-                    </div>
-                  )}
+                  {(() => {
+                    const pct = result.coverage ?? result.confidencePercent ?? 100
+                    const tier = pct >= 90
+                      ? { icon:'🟢', label:'High',   color:'#34c98a', bg:'rgba(52,201,138,.12)' }
+                      : pct >= 60
+                      ? { icon:'🟡', label:'Medium', color:'#f5a623', bg:'rgba(245,166,35,.12)' }
+                      : { icon:'🔴', label:'Low',    color:'#e55',    bg:'rgba(220,38,38,.12)'  }
+                    return (
+                      <div style={{ marginTop:4, display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:600, background:tier.bg, color:tier.color, fontFamily:D }}>
+                        {tier.icon} Coverage: {pct}% — {tier.label}
+                        {result.confidenceReason && <span style={{ fontWeight:400, opacity:.75 }}> · {result.confidenceReason}</span>}
+                      </div>
+                    )
+                  })()}
                 </div>
-                <div style={{ textAlign:'center' }}>
-                  <div style={{ fontFamily:D, fontSize:36, fontWeight:700, color: result.overall >= 7 ? '#34c98a' : result.overall >= 5 ? '#f5a623' : '#e55', lineHeight:1 }}>{result.overall}</div>
-                  <div style={{ fontSize:10, color:'rgba(255,255,255,.3)', fontFamily:D }}>/10</div>
+                <div style={{ textAlign:'center', minWidth:72 }}>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,.35)', fontFamily:D, marginBottom:2 }}>Verified Score</div>
+                  {result.verifiedScore != null
+                    ? <>
+                        <div style={{ fontFamily:D, fontSize:34, fontWeight:700, lineHeight:1, color: result.verifiedScore >= 7 ? '#34c98a' : result.verifiedScore >= 5 ? '#f5a623' : '#e55' }}>{result.verifiedScore}</div>
+                        <div style={{ fontSize:10, color:'rgba(255,255,255,.3)', fontFamily:D }}>/10</div>
+                      </>
+                    : <div style={{ fontSize:11, color:'rgba(144,144,176,.7)', fontFamily:D, lineHeight:1.3, textAlign:'center' }}>Insufficient<br/>data</div>
+                  }
                 </div>
               </div>
 
@@ -339,19 +353,62 @@ export default function Landing() {
               )}
               <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(255,255,255,.07)' }}>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                  {result.dimensions.map(d => (
-                    <div key={d.label}>
-                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                        <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontFamily:D }}>{d.label}</span>
-                        <span style={{ fontSize:11, fontWeight:700, color: d.score >= 7 ? '#34c98a' : d.score >= 5 ? '#f5a623' : '#e55', fontFamily:D }}>{d.score}/10</span>
+                  {result.dimensions.map(d => {
+                    const ds = d.displayScore ?? d.score
+                    const isPending = ds === 'pending'
+                    const isNA      = ds === 'na'
+                    const num       = typeof ds === 'number' ? ds : null
+                    const dc        = num !== null ? (num >= 7 ? '#34c98a' : num >= 5 ? '#f5a623' : '#e55') : '#9090b0'
+                    return (
+                      <div key={d.label}>
+                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                          <span style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontFamily:D }}>{d.label}</span>
+                          {isPending
+                            ? <span style={{ fontSize:10, fontWeight:600, color:'#f5a623', fontFamily:D }}>⏳ Pending</span>
+                            : isNA
+                            ? <span style={{ fontSize:10, fontWeight:600, color:'rgba(144,144,176,.8)', fontFamily:D }}>N/A</span>
+                            : <span style={{ fontSize:11, fontWeight:700, color:dc, fontFamily:D }}>{num}/10</span>
+                          }
+                        </div>
+                        {num !== null && (
+                          <div style={{ height:4, background:'rgba(255,255,255,.08)', borderRadius:2, overflow:'hidden', marginBottom:4 }}>
+                            <div style={{ height:'100%', width:`${num*10}%`, background:dc, borderRadius:2, transition:'width .6s' }} />
+                          </div>
+                        )}
+                        <div style={{ fontSize:10, lineHeight:1.4, fontFamily:D, color: isPending ? 'rgba(245,166,35,.8)' : isNA ? 'rgba(144,144,176,.65)' : 'rgba(255,255,255,.4)' }}>
+                          {isPending ? 'Pending — needs manual review' : isNA ? 'N/A — JavaScript-rendered' : (d.issue || '')}
+                        </div>
                       </div>
-                      <div style={{ height:4, background:'rgba(255,255,255,.08)', borderRadius:2, overflow:'hidden', marginBottom:4 }}>
-                        <div style={{ height:'100%', width:`${d.score*10}%`, background: d.score >= 7 ? '#34c98a' : d.score >= 5 ? '#f5a623' : '#e55', borderRadius:2, transition:'width .6s' }} />
-                      </div>
-                      {d.issue && <div style={{ fontSize:10, color:'rgba(255,255,255,.4)', lineHeight:1.4, fontFamily:D }}>{d.issue}</div>}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
+
+                {/* What we checked — collapsible */}
+                {result.checkedSignals && result.checkedSignals.length > 0 && (
+                  <div style={{ marginTop:12, paddingTop:10, borderTop:'1px solid rgba(255,255,255,.06)' }}>
+                    <button
+                      onClick={() => setShowChecked(v => !v)}
+                      style={{ background:'none', border:'none', color:'rgba(255,255,255,.35)', fontSize:11, cursor:'pointer', fontFamily:D, display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', padding:0 }}
+                    >
+                      <span>What we checked</span>
+                      <span style={{ fontSize:10, opacity:.7 }}>{showChecked ? '▲ collapse' : '▼ expand'}</span>
+                    </button>
+                    {showChecked && (
+                      <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px 12px' }}>
+                        {result.checkedSignals.map(sig => (
+                          <div key={sig.label} style={{ display:'flex', alignItems:'center', gap:5, fontSize:10 }}>
+                            <span style={{ color: sig.found ? '#34c98a' : sig.js ? '#f5a623' : 'rgba(144,144,176,.8)', flexShrink:0, fontWeight:700 }}>
+                              {sig.found ? '✓' : '✗'}
+                            </span>
+                            <span style={{ color: sig.found ? 'rgba(255,255,255,.55)' : sig.js ? 'rgba(245,166,35,.75)' : 'rgba(144,144,176,.6)', fontFamily:D }}>
+                              {sig.label}{!sig.found && sig.js ? ' (JS)' : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Bottleneck / manual review */}
