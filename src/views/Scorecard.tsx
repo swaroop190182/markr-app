@@ -9,8 +9,8 @@ interface ScorecardRow {
   overall: number
   headline: string
   category: string
-  dimensions: { label: string; score: number; issue: string }[]
-  bottleneck: { label: string; issue: string }
+  dimensions: { label: string; score: number; issue: string; verificationStatus?: string }[]
+  bottleneck: { label: string; issue: string; isUnverifiable?: boolean }
   growth_teaser: string
   scraped: { title: string; h1: string; metaDesc: string }
   pages_read: string[]
@@ -62,6 +62,18 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
   const domain = sc.url.replace(/^https?:\/\//, '').split('/')[0]
   const scoreColor = sc.overall >= 7 ? '#34c98a' : sc.overall >= 5 ? '#f5a623' : '#e55'
 
+  // Derive confidence display from stored confidence field (confidencePercent not stored in DB)
+  const unverifiableStored = (sc.dimensions ?? []).filter(d => d.verificationStatus === 'unverifiable_js').length
+  const verifiedStored = (sc.dimensions ?? []).length - unverifiableStored
+  const confidencePercent = (sc.dimensions ?? []).length > 0
+    ? Math.round((verifiedStored + 0.5 * unverifiableStored) / sc.dimensions.length * 100)
+    : sc.confidence === 'high' ? 95 : sc.confidence === 'medium' ? 78 : sc.confidence === 'js-app' ? 65 : 50
+  const confidenceReason = sc.confidence === 'js-app'
+    ? `JavaScript-rendered website — ${confidencePercent}% verified`
+    : sc.confidence === 'high'   ? 'Full static HTML analysis'
+    : sc.confidence === 'medium' ? 'Partial HTML analysis'
+    : 'Limited signals detected'
+
   return (
     <div style={{ background: '#08080a', color: '#f0f0f5', fontFamily: D, minHeight: '100vh', lineHeight: 1.6 }}>
       {/* Nav */}
@@ -94,7 +106,9 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
                   background: sc.confidence === 'high' ? 'rgba(52,201,138,.12)' : sc.confidence === 'medium' ? 'rgba(245,166,35,.12)' : 'rgba(144,144,176,.12)',
                   color: sc.confidence === 'high' ? '#34c98a' : sc.confidence === 'medium' ? '#f5a623' : '#9090b0'
                 }}>
-                  {sc.confidence === 'high' ? '● High confidence' : sc.confidence === 'medium' ? '● Medium confidence' : sc.confidence === 'js-app' ? '● JavaScript app — partial read' : '● Limited read'}
+                  ● Confidence:{' '}
+                  {sc.confidence === 'high' ? 'High' : sc.confidence === 'medium' ? 'Medium' : sc.confidence === 'js-app' ? `Partial (${confidencePercent}%)` : 'Low'}
+                  <span style={{ fontWeight: 400, opacity: .75 }}> — {confidenceReason}</span>
                 </div>
               )}
             </div>
@@ -137,11 +151,13 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
             </div>
           </div>
 
-          {/* Biggest bottleneck */}
+          {/* Bottleneck / manual review */}
           {sc.bottleneck && (
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,.07)', background: 'rgba(220,38,38,.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#fca5a5', letterSpacing: '.06em', textTransform: 'uppercase' as const, marginBottom: 6 }}>
-                🚨 Biggest Bottleneck — {sc.bottleneck.label}
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,.07)', background: sc.bottleneck.isUnverifiable ? 'rgba(245,166,35,.04)' : 'rgba(220,38,38,.04)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: sc.bottleneck.isUnverifiable ? '#f5a623' : '#fca5a5', letterSpacing: '.06em', textTransform: 'uppercase' as const, marginBottom: 6 }}>
+                {sc.bottleneck.isUnverifiable
+                  ? `⚠️ Needs Manual Review — Unable to fully evaluate ${sc.bottleneck.label} — JavaScript-rendered page`
+                  : `🚨 Biggest Bottleneck — ${sc.bottleneck.label}`}
               </div>
               <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)', lineHeight: 1.6 }}>{sc.bottleneck.issue}</div>
             </div>

@@ -549,15 +549,6 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     `${strongCtaCount} strong CTA${strongCtaCount === 1 ? '' : 's'} detected`,
   ].join(', ') + ` in pages analyzed: ${crawledPages}`
 
-  // ── Overall — pure average of 5 dimensions, no inflation ────────────────────
-  const overall = Math.round((clarity + journey + emotion + trust + conversion) / 5 * 10) / 10
-  // Dimension-triggered overall caps
-  let finalOverall = overall
-  let cappedBy: string | null = null
-  if (clarity < 4)    { finalOverall = Math.min(finalOverall, 5); cappedBy = cappedBy ?? 'Clarity' }
-  if (trust < 4)      { finalOverall = Math.min(finalOverall, 6); cappedBy = cappedBy ?? 'Trust' }
-  if (conversion < 4) { finalOverall = Math.min(finalOverall, 6); cappedBy = cappedBy ?? 'Conversion Readiness' }
-
   const vs = (found: boolean): 'verified_present' | 'verified_absent' | 'unverifiable_js' =>
     found ? 'verified_present' : isJSOnlyApp ? 'unverifiable_js' : 'verified_absent'
 
@@ -569,15 +560,40 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     { label:'Conversion Readiness', score:conversion, issue:conversionIssue, verificationStatus: vs(!!(hasPricing || primaryCta)) },
   ]
 
-  // Rule: bottleneck must be a dimension whose issue describes something negative/missing.
-  // Never pick one whose issue starts with a positive phrase.
+  // ── Confidence-weighted overall ──────────────────────────────────────────────
+  // unverifiable_js dims count at 70% weight, score blended 70% toward actual + 30% toward neutral 5.5.
+  // This avoids punishing JS apps as hard as apps that verifiably lack signals.
+  const NEUTRAL = 5.5
+  let totalW = 0, totalS = 0
+  for (const dim of dimensions) {
+    if (dim.verificationStatus === 'unverifiable_js') {
+      const w = 0.7
+      totalS += w * (0.7 * dim.score + 0.3 * NEUTRAL)
+      totalW += w
+    } else {
+      totalS += dim.score
+      totalW += 1.0
+    }
+  }
+  const overall = Math.round(totalS / totalW * 10) / 10
+
+  // Caps only apply when a low score is verified_absent — never for unverifiable JS signals
+  let finalOverall = overall
+  let cappedBy: string | null = null
+  if (clarity < 4 && dimensions[0].verificationStatus !== 'unverifiable_js')    { finalOverall = Math.min(finalOverall, 5); cappedBy = 'Clarity' }
+  if (trust < 4 && dimensions[3].verificationStatus !== 'unverifiable_js')      { finalOverall = Math.min(finalOverall, 6); cappedBy = cappedBy ?? 'Trust' }
+  if (conversion < 4 && dimensions[4].verificationStatus !== 'unverifiable_js') { finalOverall = Math.min(finalOverall, 6); cappedBy = cappedBy ?? 'Conversion Readiness' }
+
+  // confidencePercent: verified dims count 1.0, unverifiable count 0.5 (we could assess them partially)
+  const unverifiableCount = dimensions.filter(d => d.verificationStatus === 'unverifiable_js').length
+  const verifiedCount = dimensions.length - unverifiableCount
+  const confidencePercent = Math.round((verifiedCount + 0.5 * unverifiableCount) / dimensions.length * 100)
+
+  // ── Bottleneck ───────────────────────────────────────────────────────────────
   const sortedDims = [...dimensions].sort((a, b) => a.score - b.score)
 
   const isNegativeIssue = (issue: string) =>
     /\bno\b\s|buzzwords? detected|outnumbers/i.test(issue)
-
-  const isPositiveIssue = (issue: string) =>
-    !isNegativeIssue(issue)
 
   const couldBeStronger: Record<string, string> = {
     'Clarity':              'Could be stronger — add a dedicated features page with clearly labelled sections',
@@ -587,17 +603,20 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     'Conversion Readiness': 'Could be stronger — add a pricing page or a free trial entry point',
   }
 
-  // Pick the lowest-scored dimension that has a genuinely negative issue
-  const negBottleneck = sortedDims.find(d => isNegativeIssue(d.issue) && !isPositiveIssue(d.issue))
-  // If all dimensions have positive issue text, rewrite the lowest-scored one
-  const bottleneck = negBottleneck
-    ?? { ...sortedDims[0], issue: couldBeStronger[sortedDims[0].label] ?? `Could be stronger — review your ${sortedDims[0].label.toLowerCase()}` }
+  const negBottleneck = sortedDims.find(d => isNegativeIssue(d.issue))
+  const bottleneckSource = negBottleneck ?? sortedDims[0]
+  const bottleneckIssue  = negBottleneck
+    ? negBottleneck.issue
+    : couldBeStronger[sortedDims[0].label] ?? `Could be stronger — review your ${sortedDims[0].label.toLowerCase()}`
+  const bottleneck = {
+    label:          bottleneckSource.label,
+    issue:          bottleneckIssue,
+    isUnverifiable: bottleneckSource.verificationStatus === 'unverifiable_js',
+  }
 
   // ── Category ─────────────────────────────────────────────────────────────────
   const allForCat = (url + home.bestTitle + home.bestH1 + home.bestDesc + allH2s.join(' ') + allParas.join(' ')).toLowerCase()
   let category = 'App'
-  // Rule: Health & Wellness requires 2+ distinct health-related terms to avoid
-  // misclassifying SaaS/productivity apps that mention "mental models" or "team health"
   const healthTerms = (allForCat.match(/\b(health|wellness|fitness|nutrition|mental health|medical|diet|baby|parenting|toddler|infant|pregnant|pregnancy|tummy|tummies|mother)\b/gi) ?? []).length
   const foodTerms   = (allForCat.match(/\b(food|recipe|cook|meal|restaurant|calorie|nutrition|eat)\b/gi) ?? []).length
   if (healthTerms >= 2 || foodTerms >= 2)                                                              category = 'Health & Wellness'
@@ -611,8 +630,6 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   else if (/travel|trip|hotel|flight|booking|itinerary|destination/.test(allForCat))                  category = 'Travel'
   else if (/real.?estate|property|rent|mortgage|home|apartment|housing/.test(allForCat))              category = 'Real Estate'
 
-  // App name for teasers — use full H1 if short, otherwise trim to last complete word before 50 chars,
-  // then fall back to the first segment of the page title, then a generic label.
   const appName = (() => {
     const h1 = home.bestH1.trim()
     if (h1.length > 0 && h1.length <= 50) return h1
@@ -621,19 +638,51 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     return fromTitle || 'your app'
   })()
 
-  const teasers: Record<string,string> = {
-    'Health & Wellness': `"Before & after" content showing real user transformations gets 3× more saves than product demos in health. For ${home.bestH1 ? `an app like "${appName}"` : 'your niche'}, a weekly win series builds trust fast. Sign up — Markr will generate this content for your app specifically.`,
-    'Legal':             `Weekly "myth vs fact" posts demystifying ${home.bestH1 ? `"${appName}"` : 'legal topics'} build authority faster than ads — professionals share them. Sign up — Markr generates posts like these for your app daily.`,
-    'Finance':           `"Money mistake" reels showing the problems your app solves consistently outperform product demos. Sign up — Markr generates content tailored to ${home.bestH1 ? `"${appName}"` : 'your app'} every morning.`,
-    'Education':         `"Before/after learning" posts with specific skill outcomes convert cold audiences 5× faster than feature demos. Sign up — Markr generates posts like these for ${home.bestH1 ? `"${appName}"` : 'your app'} automatically.`,
-    'SaaS':              `Founder-led "how I solved X" content drives more inbound than product demos for B2B. For ${home.bestH1 ? `"${appName}"` : 'your app'}, a weekly problem-solving series builds pipeline. Sign up — Markr generates this for your app.`,
-    'Marketing':         `Weekly teardowns showing how ${home.bestH1 ? `"${appName}"` : 'your app'} outperforms competitors build authority fast. Sign up — Markr generates content like this for your specific app every day.`,
-    'Productivity':      `"My exact workflow using ${appName}" posts are the highest-saved format in productivity. Sign up — Markr generates posts like these built around your app's actual features.`,
-    'E-commerce':        `Customer story reels with specific numbers ("saved ₹2,000 this month") convert 8× better than product showcases. Sign up — Markr generates content tailored to ${home.bestH1 ? `"${appName}"` : 'your store'} automatically.`,
-    'Travel':            `"Hidden gem" and "mistake I made" travel content consistently outperforms destination guides. Sign up — Markr generates posts like these for your specific app every morning.`,
-    'Real Estate':       `"What ₹X buys in [city]" content drives massive engagement in real estate. Sign up — Markr generates posts like these built around your specific market and app.`,
-    'App':               `"Problem → solution" posts showing the exact moment ${appName} saves the day is the highest-converting format. Sign up — Markr generates content like this for your app every single day.`,
-  }
+  // ── Growth teaser — grounded in actual detected signals ───────────────────────
+  const growth_teaser = (() => {
+    const H = truncH(headline, 60)
+    const picks: { priority: number; text: string }[] = []
+
+    // Priority 3 — references specific text or pattern found on this page
+    if (detectedBuzzwords.length > 0)
+      picks.push({ priority: 3, text: `Your headline "${H}" uses "${detectedBuzzwords[0]}" — a buzzword visitors skim past. Swap it for a specific outcome ("Save 3 hours/week", "Ship features 2× faster") to sharpen your value prop immediately.` })
+    if (hasStatPattern && !primaryCta && !isJSOnlyApp)
+      picks.push({ priority: 3, text: `Traction stats are on the page but no primary CTA was detected — placing a "Start free" or "Get access" button immediately after your user count is the highest-ROI layout change you can make.` })
+    if (hasNamedTestimonials && !hasStatPattern && !isJSOnlyApp)
+      picks.push({ priority: 3, text: `Named testimonials are present but no user count or outcome stat was found. Adding one concrete number ("Trusted by 800 founders") near your testimonials makes them feel even more credible.` })
+    if (hasSP && hasStatPattern && !hasHow && !isJSOnlyApp)
+      picks.push({ priority: 3, text: `Social proof and stats are present, but there's no how-it-works section — visitors who see proof but can't visualize the steps still bounce. A 3-step flow in the hero section closes that gap.` })
+
+    // Priority 2 — specific gap with contextual details
+    if (primaryCta && !hasPricing && !hasFreeOpt && !isJSOnlyApp)
+      picks.push({ priority: 2, text: `CTA "${primaryCta.slice(0,30)}" is visible but no pricing or free-trial info was detected — visitors who can't see a cost or starting point often abandon instead of clicking. A "Free forever" label or "$X/month" near the CTA removes that hesitation.` })
+    if (!hasYouFocus && weCount > 2 && !isJSOnlyApp)
+      picks.push({ priority: 2, text: `The copy uses "we/our" (${weCount}×) more than "you/your" (${youCount}×). Flipping key sentences to user-centric framing ("You can…" instead of "We help you…") is the fastest copy fix with measurable conversion lift.` })
+    if (hasYouFocus && !hasNums && !isJSOnlyApp)
+      picks.push({ priority: 2, text: `The copy is user-focused (${youCount} "you/your" phrases) but has no specific outcome numbers. Adding one concrete result ("Save 5 hours/week" or "Trusted by 500 founders") makes the benefit tangible and shareable.` })
+    if (!hasSP && !isJSOnlyApp && !isEarlyStage)
+      picks.push({ priority: 2, text: `No social proof detected across ${crawledPages} — no testimonials, user counts, or star ratings. Even one result-oriented quote ("This saved me 4 hours/week — [role]") near the hero section builds immediate trust.` })
+    if (!hasHow && !isJSOnlyApp)
+      picks.push({ priority: 2, text: `No how-it-works section detected across ${crawledPages}. Visitors who can't mentally simulate using the product bounce 2× faster — a 3-step visual flow above the fold is the single most impactful structural addition.` })
+    if (isJSOnlyApp)
+      picks.push({ priority: 2, text: `This page renders key content via JavaScript — CTAs, pricing, and social proof that exist on your live page may be invisible in Google snippets and social link previews. Adding visible og:title, og:description, and a free-trial message in plain HTML improves both SEO and first-impression click-through.` })
+
+    // Highest-priority candidate wins; tiebreak on text length (more detail = more specific)
+    picks.sort((a, b) => b.priority - a.priority || b.text.length - a.text.length)
+    if (picks.length > 0) return picks[0].text
+
+    // Category fallback when no specific signal applies
+    const fallback: Record<string, string> = {
+      'Health & Wellness': `"Before & after" content showing real user transformations gets 3× more saves than product demos. For ${appName}, a weekly win series builds trust fast.`,
+      'SaaS':              `Founder-led "how I solved X" content drives more inbound than product demos for B2B. For "${appName}", a weekly problem-solving series builds pipeline.`,
+      'Finance':           `"Money mistake" content showing the problems "${appName}" solves consistently outperforms product demos — hook with the pain, reveal the solution.`,
+      'Education':         `"Before/after learning" posts with specific skill outcomes convert cold audiences 5× faster than feature demos for an app like "${appName}".`,
+      'Marketing':         `Weekly teardowns showing how "${appName}" solves a specific pain point build authority fast — specificity wins in crowded feeds.`,
+      'Productivity':      `"My exact workflow using ${appName}" posts are the highest-saved format in productivity — visitors want to see the before/after, not a feature list.`,
+      'E-commerce':        `Customer story reels with specific numbers ("saved ₹2,000 this month") convert 8× better than product showcases for "${appName}".`,
+    }
+    return fallback[category] ?? `"Problem → solution" posts showing the exact moment ${appName} saves the day is the highest-converting landing page addition.`
+  })()
 
   // ── Signal-diversity confidence ──────────────────────────────────────────────
   const signalCount = [!!primaryCta, hasSP, hasPricing, hasTeam].filter(Boolean).length
@@ -642,6 +691,12 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     : signalCount >= 4 ? 'high'
     : signalCount >= 2 ? 'medium'
     : 'low'
+
+  const confidenceReason = isJSOnlyApp
+    ? `JavaScript-rendered website — ${confidencePercent}% verified`
+    : confidence === 'high'   ? 'Full static HTML analysis'
+    : confidence === 'medium' ? 'Partial HTML analysis'
+    : 'Limited signals detected'
 
   // ── Pages analysed summary ───────────────────────────────────────────────────
   const pagesRead = Object.keys(pages).filter(k => k !== 'home')
@@ -652,9 +707,11 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     headline: headline || 'No headline detected',
     category,
     dimensions,
-    bottleneck:   { label: bottleneck.label, issue: bottleneck.issue },
-    growth_teaser: teasers[category] ?? teasers['App'],
+    bottleneck,
+    growth_teaser,
     confidence,
+    confidencePercent,
+    confidenceReason,
     pagesRead,
     isJSApp: home.wordCount < 100,
     scraped: {

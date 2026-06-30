@@ -22,13 +22,15 @@ interface AnalysisResult {
   overall: number
   headline: string
   category: string
-  dimensions: { label: string; score: number; issue: string }[]
-  bottleneck: { label: string; issue: string }
+  dimensions: { label: string; score: number; issue: string; verificationStatus?: string }[]
+  bottleneck: { label: string; issue: string; isUnverifiable?: boolean }
   growth_teaser: string
   scraped: { title: string; h1: string; metaDesc: string }
   isJSApp?: boolean
   pagesRead?: string[]
   confidence?: 'high' | 'medium' | 'low' | 'js-app'
+  confidencePercent?: number
+  confidenceReason?: string
   totalWords?: number
 }
 
@@ -313,7 +315,9 @@ export default function Landing() {
                       background: result.confidence==='high' ? 'rgba(52,201,138,.12)' : result.confidence==='medium' ? 'rgba(245,166,35,.12)' : result.confidence==='js-app' ? 'rgba(245,166,35,.08)' : 'rgba(144,144,176,.12)',
                       color: result.confidence==='high' ? '#34c98a' : result.confidence==='medium' ? '#f5a623' : '#9090b0'
                     }}>
-                      {result.confidence==='high' ? '● High confidence' : result.confidence==='medium' ? '● Medium confidence' : result.confidence==='js-app' ? '● JavaScript app — partial read' : '● Limited read'}
+                      ● Confidence:{' '}
+                      {result.confidence==='high' ? 'High' : result.confidence==='medium' ? 'Medium' : result.confidence==='js-app' ? `Partial (${result.confidencePercent ?? 65}%)` : 'Low'}
+                      {result.confidenceReason && <span style={{ fontWeight:400, opacity:.75 }}> — {result.confidenceReason}</span>}
                     </div>
                   )}
                 </div>
@@ -350,10 +354,12 @@ export default function Landing() {
                 </div>
               </div>
 
-              {/* Biggest bottleneck */}
-              <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(255,255,255,.07)', background:'rgba(220,38,38,.04)' }}>
-                <div style={{ fontSize:11, fontWeight:700, color:'#fca5a5', letterSpacing:'.06em', textTransform:'uppercase' as const, marginBottom:5, fontFamily:D }}>
-                  🚨 Biggest Bottleneck — {result.bottleneck.label}
+              {/* Bottleneck / manual review */}
+              <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(255,255,255,.07)', background: result.bottleneck.isUnverifiable ? 'rgba(245,166,35,.04)' : 'rgba(220,38,38,.04)' }}>
+                <div style={{ fontSize:11, fontWeight:700, color: result.bottleneck.isUnverifiable ? '#f5a623' : '#fca5a5', letterSpacing:'.06em', textTransform:'uppercase' as const, marginBottom:5, fontFamily:D }}>
+                  {result.bottleneck.isUnverifiable
+                    ? `⚠️ Needs Manual Review — Unable to fully evaluate ${result.bottleneck.label} — JavaScript-rendered page`
+                    : `🚨 Biggest Bottleneck — ${result.bottleneck.label}`}
                 </div>
                 <div style={{ fontSize:13, color:'rgba(255,255,255,.75)', lineHeight:1.6, fontFamily:D }}>{result.bottleneck.issue}</div>
               </div>
