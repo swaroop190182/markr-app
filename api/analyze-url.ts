@@ -353,6 +353,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     // 3+ "N. word" numbered items anywhere in home text
     || (homeBodyText.match(/(?<!\d)\d\.[ \t]+[A-Za-z]/g) ?? []).length >= 3
 
+  const isJSOnlyApp = home.wordCount < 100
+
   const headline = home.bestH1 || home.bestTitle
   const desc     = home.bestDesc
 
@@ -441,7 +443,6 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     || /(?:six|6|seven|7).?figure|(?:double|triple|10x)\s*(?:my|their|revenue|income|salary)/i.test(allPagesText)
   )
 
-  const isJSOnlyApp = home.wordCount < 100
   const hasYouFocus = youCount > weCount * 1.2 || youCount >= 5
 
   let emotion = 2
@@ -520,7 +521,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
   const hasPricingPage = !!pricing
-  const hasPriceInText = (allPagesText.match(/\$\d+\.?\d*|₹\d+|\bfree\b/gi) ?? []).length >= 2
+  const hasPriceInText = (allPagesText.match(/\$\d+\.?\d*|₹\d+/gi) ?? []).length >= 2
   const hasPricing  = hasPricingPage || hasPriceInText
   const hasFreeOpt  = (hasPricing && /\bfree\b/i.test(allPagesText))
     || /\bfree\s+(?:trial|plan|tier|forever|version)\b|\bfreemium\b|\bno\s+credit\s+card\b|\bcancel\s+anytime\b/i.test(allPagesText)
