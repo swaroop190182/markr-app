@@ -552,13 +552,19 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const vs = (found: boolean): 'verified_present' | 'verified_absent' | 'unverifiable_js' =>
     found ? 'verified_present' : isJSOnlyApp ? 'unverifiable_js' : 'verified_absent'
 
-  const dimensions = [
+  // Trust and User Journey → 'pending' when unverifiable; other dims → 'na'
+  const dsp = (label: string, score: number, vst: string): number | 'pending' | 'na' =>
+    vst !== 'unverifiable_js' ? score
+    : (label === 'Trust' || label === 'User Journey') ? 'pending' : 'na'
+
+  const _rawDims = [
     { label:'Clarity',              score:clarity,    issue:clarityIssue,    verificationStatus: vs(!!headline && headline.length > 8) },
     { label:'User Journey',         score:journey,    issue:journeyIssue,    verificationStatus: vs(!!primaryCta) },
     { label:'Emotional Pull',       score:emotion,    issue:emotionIssue,    verificationStatus: vs(hasNums || hasYouFocus) },
     { label:'Trust',                score:trust,      issue:trustIssue,      verificationStatus: vs(!!(hasSP || hasTeam)) },
     { label:'Conversion Readiness', score:conversion, issue:conversionIssue, verificationStatus: vs(!!(hasPricing || primaryCta)) },
   ]
+  const dimensions = _rawDims.map(d => ({ ...d, displayScore: dsp(d.label, d.score, d.verificationStatus) }))
 
   // ── Confidence-weighted overall ──────────────────────────────────────────────
   // unverifiable_js dims count at 70% weight, score blended 70% toward actual + 30% toward neutral 5.5.
@@ -588,6 +594,25 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
   const unverifiableCount = dimensions.filter(d => d.verificationStatus === 'unverifiable_js').length
   const verifiedCount = dimensions.length - unverifiableCount
   const confidencePercent = Math.round((verifiedCount + 0.5 * unverifiableCount) / dimensions.length * 100)
+
+  // ── Verified Score — average of confirmed dims only (null if < 3 verified) ──
+  const verifiedDims = dimensions.filter(d => d.verificationStatus !== 'unverifiable_js')
+  const verifiedScore: number | null = verifiedDims.length >= 3
+    ? Math.round(verifiedDims.reduce((s, d) => s + d.score, 0) / verifiedDims.length * 10) / 10
+    : null
+  const coverage = confidencePercent
+
+  // ── What we checked — per-signal verification checklist ─────────────────────
+  const checkedSignals = [
+    { label: 'Headline',         found: !!(headline && headline.length > 8), js: false },
+    { label: 'Meta description', found: home.bestDesc.length > 20,           js: false },
+    { label: 'H1 tag',           found: !!home.h1s[0],                        js: false },
+    { label: 'How-it-works',     found: hasHow,                                js: !hasHow && isJSOnlyApp },
+    { label: 'CTA button',       found: !!primaryCta,                          js: !primaryCta && isJSOnlyApp },
+    { label: 'Pricing',          found: hasPricing,                            js: !hasPricing && isJSOnlyApp },
+    { label: 'Social proof',     found: !!(hasSP || hasQuotes),                 js: !(hasSP || hasQuotes) && isJSOnlyApp },
+    { label: 'Team / About',     found: hasTeam,                                js: !hasTeam && isJSOnlyApp },
+  ]
 
   // ── Bottleneck ───────────────────────────────────────────────────────────────
   const sortedDims = [...dimensions].sort((a, b) => a.score - b.score)
@@ -703,6 +728,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
 
   return {
     overall: finalOverall,
+    verifiedScore,
+    coverage,
     cappedBy,
     headline: headline || 'No headline detected',
     category,
@@ -712,6 +739,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     confidence,
     confidencePercent,
     confidenceReason,
+    checkedSignals,
     pagesRead,
     isJSApp: home.wordCount < 100,
     scraped: {
