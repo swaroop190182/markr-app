@@ -229,21 +229,41 @@ Output the full post exactly as it should appear on LinkedIn.`
       return `${base}
 Write 3 Instagram posts for ${ctx.headline}. Each post must use a DIFFERENT format.
 
-POST FORMAT:
-VISUAL: [One sentence describing exactly what the image or reel should show — be specific about what's in frame]
+POST FORMAT (use for each post):
+VISUAL: [Detailed image description — follow visual rules below]
 CAPTION:
 [Hook line — must be compelling before the "more" cutoff, max 125 chars]
 [2-3 sentences of content]
 [Closing line — NOT a generic question]
 HASHTAGS: [8 hashtags — mix of niche-specific, audience-specific, and 1-2 broad. NO generic ones like #motivation #success]
 
-FORMAT VARIETY RULES:
-- Post 1: Before/after or transformation format
-- Post 2: Specific tip or fact with a real example
-- Post 3: Story or scene — a real moment, not a product pitch
+FORMAT RULES:
+- Post 1 (Before/After): transformation format — "[user] used to [problem]. Now [specific change]."
+- Post 2 (Tip/Fact): specific tip or non-obvious fact with a real example and number
+- Post 3 (Story/Scene): a cinematic real-life moment — not a product pitch
 - Maximum 1 post may end with a question
 - NEVER start two posts with the same word
-- NEVER use "just", "simply", "easily"`
+- NEVER use "just", "simply", "easily"
+
+VISUAL RULES:
+Each VISUAL description must be directly tied to THAT post's specific message — not generic.
+
+Post 1 VISUAL (Before/After): Split image — left side shows the PROBLEM state specific to this post's message (frustrated user, chaotic workflow, failed attempt — name the exact scene), right side shows the SOLUTION state (calm, organised, relieved — name the exact scene). Describe both halves specifically with setting, lighting, and emotion.
+
+Post 2 VISUAL (Tip/Fact): Clean infographic style — one bold number or short statement as the focal point, minimal text overlay, strong color contrast. Describe the background color, typography mood, and any supporting graphic element that reinforces the specific tip or fact in this post.
+
+Post 3 VISUAL (Story/Scene): Cinematic real-life moment — describe a SPECIFIC SCENE with: who is in frame, where they are, what time of day, what they are doing, what emotion is on their face, and the lighting and color palette. Think documentary-style, not stock photo.
+
+For ALL three visuals:
+- Always square (1:1) or portrait (4:5) format
+- Must work as a standalone image without reading the caption
+- Describe mood, lighting, and color palette — not just the subject
+- Be specific to the TARGET USER of ${ctx.headline} — name their context (job, location, situation)
+- Be detailed enough for a designer or AI image generator to recreate exactly
+- NEVER say "person using app on phone" or "person on smartphone" — always describe who, where, when, and how they feel
+
+Example of BAD visual: "Person using smartphone with app open"
+Example of GOOD visual: "Close-up of a tired Indian founder at 11pm, dim desk lamp, laptop screen showing a red landing page score, coffee cup half empty, expression shifting to relief as score improves"`
 
     case 'YouTube Shorts':
       return `${base}
