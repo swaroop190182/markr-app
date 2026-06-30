@@ -9,7 +9,7 @@ interface ScorecardRow {
   overall: number
   headline: string
   category: string
-  dimensions: { label: string; score: number; issue: string; verificationStatus?: string }[]
+  dimensions: { label: string; score: number; displayScore?: number | 'pending' | 'na'; issue: string; verificationStatus?: string }[]
   bottleneck: { label: string; issue: string; isUnverifiable?: boolean }
   growth_teaser: string
   scraped: { title: string; h1: string; metaDesc: string }
@@ -60,19 +60,31 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
   }
 
   const domain = sc.url.replace(/^https?:\/\//, '').split('/')[0]
-  const scoreColor = sc.overall >= 7 ? '#34c98a' : sc.overall >= 5 ? '#f5a623' : '#e55'
 
-  // Derive confidence display from stored confidence field (confidencePercent not stored in DB)
-  const unverifiableStored = (sc.dimensions ?? []).filter(d => d.verificationStatus === 'unverifiable_js').length
-  const verifiedStored = (sc.dimensions ?? []).length - unverifiableStored
-  const confidencePercent = (sc.dimensions ?? []).length > 0
-    ? Math.round((verifiedStored + 0.5 * unverifiableStored) / sc.dimensions.length * 100)
+  const dims = sc.dimensions ?? []
+  const unverifiableStored = dims.filter(d => d.verificationStatus === 'unverifiable_js').length
+  const verifiedStored = dims.length - unverifiableStored
+  const coverage = dims.length > 0
+    ? Math.round((verifiedStored + 0.5 * unverifiableStored) / dims.length * 100)
     : sc.confidence === 'high' ? 95 : sc.confidence === 'medium' ? 78 : sc.confidence === 'js-app' ? 65 : 50
   const confidenceReason = sc.confidence === 'js-app'
-    ? `JavaScript-rendered website — ${confidencePercent}% verified`
+    ? `JavaScript-rendered website — ${coverage}% verified`
     : sc.confidence === 'high'   ? 'Full static HTML analysis'
     : sc.confidence === 'medium' ? 'Partial HTML analysis'
     : 'Limited signals detected'
+
+  // verifiedScore: average of confirmed dims only; null if < 3 verified (re-derived from JSONB)
+  const verifiedDims = dims.filter(d => d.verificationStatus !== 'unverifiable_js')
+  const verifiedScore: number | null = verifiedDims.length >= 3
+    ? Math.round(verifiedDims.reduce((s, d) => s + d.score, 0) / verifiedDims.length * 10) / 10
+    : null
+
+  // For dims stored before displayScore was added, re-derive it
+  const getDimDisplay = (d: typeof dims[number]): number | 'pending' | 'na' => {
+    if (d.displayScore !== undefined) return d.displayScore
+    if (!d.verificationStatus || d.verificationStatus !== 'unverifiable_js') return d.score
+    return (d.label === 'Trust' || d.label === 'User Journey') ? 'pending' : 'na'
+  }
 
   return (
     <div style={{ background: '#08080a', color: '#f0f0f5', fontFamily: D, minHeight: '100vh', lineHeight: 1.6 }}>
@@ -101,20 +113,29 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
             <div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', marginBottom: 3 }}>Analysis for</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: '#f0f0f5' }}>{domain}</div>
-              {sc.confidence && (
-                <div style={{ marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600,
-                  background: sc.confidence === 'high' ? 'rgba(52,201,138,.12)' : sc.confidence === 'medium' ? 'rgba(245,166,35,.12)' : 'rgba(144,144,176,.12)',
-                  color: sc.confidence === 'high' ? '#34c98a' : sc.confidence === 'medium' ? '#f5a623' : '#9090b0'
-                }}>
-                  ● Confidence:{' '}
-                  {sc.confidence === 'high' ? 'High' : sc.confidence === 'medium' ? 'Medium' : sc.confidence === 'js-app' ? `Partial (${confidencePercent}%)` : 'Low'}
-                  <span style={{ fontWeight: 400, opacity: .75 }}> — {confidenceReason}</span>
-                </div>
-              )}
+              {(() => {
+                const tier = coverage >= 90
+                  ? { icon: '🟢', label: 'High',   color: '#34c98a', bg: 'rgba(52,201,138,.12)' }
+                  : coverage >= 60
+                  ? { icon: '🟡', label: 'Medium', color: '#f5a623', bg: 'rgba(245,166,35,.12)' }
+                  : { icon: '🔴', label: 'Low',    color: '#e55',    bg: 'rgba(220,38,38,.12)'  }
+                return (
+                  <div style={{ marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600, background: tier.bg, color: tier.color }}>
+                    {tier.icon} Coverage: {coverage}% — {tier.label}
+                    <span style={{ fontWeight: 400, opacity: .75 }}> · {confidenceReason}</span>
+                  </div>
+                )
+              })()}
             </div>
-            <div style={{ textAlign: 'center' as const }}>
-              <div style={{ fontSize: 52, fontWeight: 700, color: scoreColor, lineHeight: 1 }}>{sc.overall}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.3)' }}>/10</div>
+            <div style={{ textAlign: 'center' as const, minWidth: 80 }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginBottom: 2 }}>Verified Score</div>
+              {verifiedScore !== null
+                ? <>
+                    <div style={{ fontSize: 48, fontWeight: 700, lineHeight: 1, color: verifiedScore >= 7 ? '#34c98a' : verifiedScore >= 5 ? '#f5a623' : '#e55' }}>{verifiedScore}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,.3)' }}>/10</div>
+                  </>
+                : <div style={{ fontSize: 12, color: 'rgba(144,144,176,.7)', lineHeight: 1.3 }}>Insufficient<br/>data</div>
+              }
             </div>
           </div>
 
@@ -133,18 +154,31 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
           <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.3)', letterSpacing: '.06em', textTransform: 'uppercase' as const, marginBottom: 14 }}>Score Breakdown</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              {(sc.dimensions || []).map(d => {
-                const c = d.score >= 7 ? '#34c98a' : d.score >= 5 ? '#f5a623' : '#e55'
+              {dims.map(d => {
+                const ds        = getDimDisplay(d)
+                const isPending = ds === 'pending'
+                const isNA      = ds === 'na'
+                const num       = typeof ds === 'number' ? ds : null
+                const c         = num !== null ? (num >= 7 ? '#34c98a' : num >= 5 ? '#f5a623' : '#e55') : '#9090b0'
                 return (
                   <div key={d.label}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                       <span style={{ fontSize: 12, color: 'rgba(255,255,255,.6)' }}>{d.label}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: c }}>{d.score}/10</span>
+                      {isPending
+                        ? <span style={{ fontSize: 11, fontWeight: 600, color: '#f5a623' }}>⏳ Pending</span>
+                        : isNA
+                        ? <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(144,144,176,.8)' }}>N/A</span>
+                        : <span style={{ fontSize: 12, fontWeight: 700, color: c }}>{num}/10</span>
+                      }
                     </div>
-                    <div style={{ height: 5, background: 'rgba(255,255,255,.08)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${d.score * 10}%`, background: c, borderRadius: 3 }} />
+                    {num !== null && (
+                      <div style={{ height: 5, background: 'rgba(255,255,255,.08)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${num * 10}%`, background: c, borderRadius: 3 }} />
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5, color: isPending ? 'rgba(245,166,35,.8)' : isNA ? 'rgba(144,144,176,.65)' : 'rgba(255,255,255,.4)' }}>
+                      {isPending ? 'Pending — needs manual review' : isNA ? 'N/A — JavaScript-rendered' : (d.issue || '')}
                     </div>
-                    {d.issue && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', marginTop: 4, lineHeight: 1.5 }}>{d.issue}</div>}
                   </div>
                 )
               })}
