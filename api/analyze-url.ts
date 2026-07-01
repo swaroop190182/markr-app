@@ -157,6 +157,29 @@ async function fullScrape(url: string) {
     mainHtml.includes('window.__')
   )
 
+  // ── Railway renderer — only for JS SPAs ──────────────────────────────────
+  if (isJsSpa && process.env.RENDERER_URL && process.env.RENDERER_SECRET) {
+    try {
+      const rendered = await Promise.race([
+        fetch(`${process.env.RENDERER_URL}/render`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-renderer-secret': process.env.RENDERER_SECRET,
+          },
+          body: JSON.stringify({ url }),
+        }).then(r => r.json()),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 20000)),
+      ])
+      if (rendered?.html && rendered.html.length > 5000) {
+        mainHtml = rendered.html
+        console.log('[analyze-url] Used Railway renderer — chars:', rendered.html.length)
+      }
+    } catch (err) {
+      console.error('[analyze-url] Renderer failed, using static HTML:', err)
+    }
+  }
+
   // ── Firecrawl fallback — only for JS SPAs ────────────────────────────────
   if (isJsSpa && process.env.FIRECRAWL_API_KEY) {
     try {
