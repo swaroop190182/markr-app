@@ -350,6 +350,15 @@ async function fullScrape(url: string) {
   return { pages, renderedByHeadless }
 }
 
+// ── Dimension weights — reflect business importance, sum to 1.0 ──────────────
+const DIMENSION_WEIGHTS: Record<string, number> = {
+  'Clarity': 0.20,
+  'User Journey': 0.15,
+  'Emotional Pull': 0.10,
+  'Trust': 0.25,
+  'Conversion Readiness': 0.30,
+}
+
 // ── Score the app ─────────────────────────────────────────────────────────────
 function score(pages: Record<string, ReturnType<typeof extract>>, url: string, renderedByHeadless: boolean) {
   const home     = pages.home
@@ -613,19 +622,23 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
   ]
   const dimensions = _rawDims.map(d => ({ ...d, displayScore: dsp(d.label, d.score, d.verificationStatus) }))
 
-  // ── Confidence-weighted overall ──────────────────────────────────────────────
-  // unverifiable_js dims count at 70% weight, score blended 70% toward actual + 30% toward neutral 5.5.
-  // This avoids punishing JS apps as hard as apps that verifiably lack signals.
+  // ── Confidence- and dimension-weighted overall ───────────────────────────────
+  // Each dimension counts by its DIMENSION_WEIGHTS share (Conversion Readiness >
+  // Trust > Clarity > User Journey > Emotional Pull). unverifiable_js dims count
+  // at 70% of their dimension weight, score blended 70% toward actual + 30%
+  // toward neutral 5.5 — avoids punishing JS apps as hard as apps that verifiably
+  // lack signals.
   const NEUTRAL = 5.5
   let totalW = 0, totalS = 0
   for (const dim of dimensions) {
+    const dimWeight = DIMENSION_WEIGHTS[dim.label] ?? 0.20
     if (dim.verificationStatus === 'unverifiable_js') {
-      const w = 0.7
+      const w = dimWeight * 0.7
       totalS += w * (0.7 * dim.score + 0.3 * NEUTRAL)
       totalW += w
     } else {
-      totalS += dim.score
-      totalW += 1.0
+      totalS += dimWeight * dim.score
+      totalW += dimWeight
     }
   }
   const overall = Math.round(totalS / totalW * 10) / 10
@@ -642,10 +655,11 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
   const verifiedCount = dimensions.length - unverifiableCount
   const confidencePercent = Math.round((verifiedCount + 0.5 * unverifiableCount) / dimensions.length * 100)
 
-  // ── Verified Score — average of confirmed dims only (null if < 3 verified) ──
+  // ── Verified Score — weighted average of confirmed dims only (null if < 3 verified) ──
   const verifiedDims = dimensions.filter(d => d.verificationStatus !== 'unverifiable_js')
+  const verifiedWeightSum = verifiedDims.reduce((s, d) => s + (DIMENSION_WEIGHTS[d.label] ?? 0.20), 0)
   const verifiedScore: number | null = verifiedDims.length >= 3
-    ? Math.round(verifiedDims.reduce((s, d) => s + d.score, 0) / verifiedDims.length * 10) / 10
+    ? Math.round(verifiedDims.reduce((s, d) => s + d.score * (DIMENSION_WEIGHTS[d.label] ?? 0.20), 0) / verifiedWeightSum * 10) / 10
     : null
   const coverage = confidencePercent
 
