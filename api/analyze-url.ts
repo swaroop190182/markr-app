@@ -546,11 +546,19 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
   const hasPricingPage = !!pricing
-  const hasPriceInText = (allPagesText.match(/\$\d+\.?\d*|₹\d+/gi) ?? []).length >= 2
+  // Universal price detection — currency symbol+amount, amount+ISO code, Rs/Rp text prefixes, or amount+billing period
+  const PRICE_REGEX = /[\$£€¥₹₩₪₫₴₦₵₲₱฿₭₮₯₰₳₺₼₽﹩＄]\s*[\d,]+(?:\.\d{1,2})?|[\d,]+(?:\.\d{1,2})?\s*(?:USD|EUR|GBP|INR|JPY|CAD|AUD|CHF|CNY|KRW|BRL|MXN|SGD|HKD|NOK|SEK|DKK|PLN|CZK|HUF|RON|BGN|HRK|RUB|TRY|SAR|AED|MYR|THB|IDR|PHP|VND|PKR|BDT|LKR|NGN|KES|GHS|ZAR)|(?:Rs\.?|Rp\.?)\s*[\d,]+|[\d,]+\s*(?:\/mo|\/month|\/yr|\/year|per month|per year)/gi
+  const hasPriceInText = PRICE_REGEX.test(allPagesText)
   const hasPricing  = hasPricingPage || hasPriceInText
-  const hasFreeOpt  = (hasPricing && /\bfree\b/i.test(allPagesText))
-    || /\bfree\s+(?:trial|plan|tier|forever|version)\b|\bfreemium\b|\bno\s+credit\s+card\b|\bcancel\s+anytime\b/i.test(allPagesText)
-    || /\btrial\b|\bdemo\b/i.test(allPagesText)
+  // Universal free-tier phrases — currency-agnostic, boundary-anchored to avoid matching "$10/mo" as "0/mo"
+  const FREE_TIER_PHRASES = [
+    'free forever', 'free plan', 'free tier', 'free trial',
+    'start free', 'try free', 'no credit card', 'always free',
+    'free to use', 'free to download', 'free to start',
+    '₹0', '$0', '€0', '£0',
+  ]
+  const hasFreeOpt = FREE_TIER_PHRASES.some(phrase => allPagesText.toLowerCase().includes(phrase))
+    || /\b0\/mo\b|\b0\/month\b/i.test(allPagesText)
   const hasMultiCTA = allBtns.filter(b => /start|try|get|sign|join|free|demo|explore|download/i.test(b)).length >= 2
 
   let conversion = 2
