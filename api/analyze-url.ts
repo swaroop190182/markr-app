@@ -158,6 +158,7 @@ async function fullScrape(url: string) {
   )
 
   // ── Railway renderer — only for JS SPAs ──────────────────────────────────
+  let renderedByHeadless = false
   if (isJsSpa && process.env.RENDERER_URL && process.env.RENDERER_SECRET) {
     try {
       const rendered = await Promise.race([
@@ -173,6 +174,7 @@ async function fullScrape(url: string) {
       ])
       if (rendered?.html && rendered.html.length > 5000) {
         mainHtml = rendered.html
+        renderedByHeadless = true
         console.log('[analyze-url] Used Railway renderer — chars:', rendered.html.length)
       }
     } catch (err) {
@@ -342,11 +344,11 @@ async function fullScrape(url: string) {
     }
   }
 
-  return pages
+  return { pages, renderedByHeadless }
 }
 
 // ── Score the app ─────────────────────────────────────────────────────────────
-function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
+function score(pages: Record<string, ReturnType<typeof extract>>, url: string, renderedByHeadless: boolean) {
   const home     = pages.home
   const pricing  = pages.pricing
   const features = pages.features
@@ -740,7 +742,9 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string) {
     : signalCount >= 2 ? 'medium'
     : 'low'
 
-  const confidenceReason = isJSOnlyApp
+  const confidenceReason = renderedByHeadless
+    ? 'Full JavaScript rendering via headless browser'
+    : isJSOnlyApp
     ? `JavaScript-rendered website — ${confidencePercent}% verified`
     : confidence === 'high'   ? 'Full static HTML analysis'
     : confidence === 'medium' ? 'Partial HTML analysis'
@@ -791,7 +795,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const pages = await fullScrape(url)
+    const { pages, renderedByHeadless } = await fullScrape(url)
 
     // Confidence check — total words scraped across all pages
     const totalWords = Object.values(pages).reduce((sum, p) => sum + p.wordCount, 0)
@@ -809,7 +813,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    const result = score(pages, url)
+    const result = score(pages, url, renderedByHeadless)
     ;(result as any).totalWords = totalWords
     if (result.confidence === 'js-app') {
       ;(result as any).jsAppMessage = 'This score may be incomplete. We could only read static HTML — buttons, pricing, and stats that load via JavaScript may not be reflected.'
