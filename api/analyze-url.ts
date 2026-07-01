@@ -30,8 +30,8 @@ async function fetchSafe(url: string, timeout = 6000): Promise<string | null> {
 function extract(html: string) {
   const clean = (s: string) => s.replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()
   const get   = (re: RegExp) => clean(html.match(re)?.[1] ?? '')
-  const getAll = (tag: string, n = 6) => {
-    const out: string[] = []; const re = new RegExp(`<${tag}[^>]*>([\\s\\S]{1,200}?)<\\/${tag}>`, 'gi'); let m
+  const getAll = (tag: string, n = 6, maxChars = 200) => {
+    const out: string[] = []; const re = new RegExp(`<${tag}[^>]*>([\\s\\S]{1,${maxChars}}?)<\\/${tag}>`, 'gi'); let m
     while ((m = re.exec(html)) && out.length < n) { const t = clean(m[1]); if (t.length > 2) out.push(t) }
     return out
   }
@@ -49,8 +49,8 @@ function extract(html: string) {
   const h1s     = getAll('h1', 3)
   const h2s     = getAll('h2', 8)
   const h3s     = getAll('h3', 8)
-  const paras   = getAll('p', 12)
-  const lis     = getAll('li', 12)
+  const paras   = getAll('p', 20, 400)
+  const lis     = getAll('li', 20, 400)
 
   // JSON-LD
   let jldText = ''
@@ -79,15 +79,15 @@ function extract(html: string) {
   const bestTitle = title || ogT || twT || ''
   const bestDesc  = metaD || ogD || twD || jldText || ''
   const bestH1    = h1s[0] || ogT || title || ''
-  const allText   = [bestTitle, bestDesc, bestH1, h2s.join(' '), h3s.join(' '), paras.join(' '), lis.join(' '), jldText, noscriptContent, body.slice(0, 2000)].join(' ')
+  const allText   = [bestTitle, bestDesc, bestH1, h2s.join(' '), h3s.join(' '), paras.join(' '), lis.join(' '), jldText, noscriptContent, body.slice(0, 8000)].join(' ')
 
   return {
     title, metaD, ogT, ogD, twT, twD, jldText,
     h1s, h2s, h3s, paras, lis, btns,
-    body: body.slice(0, 3000),
+    body: body.slice(0, 8000),
     noscript: noscriptContent.slice(0, 2000),
     bestTitle, bestDesc, bestH1,
-    allText: allText.slice(0, 5000),
+    allText: allText.slice(0, 15000),
       noscriptBtns: (noscriptContent.match(/>([^<]{3,60})</g) ?? [])
         .map(m => m.replace(/^>|<$/g,'').trim())
         .filter(t => /start|try|get|sign|join|analyze|free|demo|begin|access/i.test(t))
@@ -788,8 +788,6 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     checkedSignals,
     pagesRead,
     isJSApp: home.wordCount < 100,
-    // TEMP DEBUG — remove once ₹ pricing detection is confirmed fixed
-    pricingDebug: { rupeeFound: hasRupeePrice, allPagesTextLength: allPagesText.length },
     scraped: {
       title:    home.bestTitle,
       h1:       home.bestH1,
