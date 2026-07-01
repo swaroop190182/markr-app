@@ -151,13 +151,22 @@ async function fullScrape(url: string) {
   // ── JS SPA detection ──────────────────────────────────────────────────────
   // Raw HTML under 2KB is almost certainly a SPA shell — no legitimate static
   // landing page is ever that small.
+  // Word count strips <script>/<style> content first — otherwise JS/CSS tokens
+  // would count as "words" and mask a page that's all shell, no readable text.
+  const rawWordCount = mainHtml
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean).length
   const isJsSpa = (
     mainHtml.includes('__NEXT_DATA__') ||
     mainHtml.includes('__nuxt') ||
     (mainHtml.includes('<div id="root">') && mainHtml.length < 8000) ||
     (mainHtml.includes('<div id="app">') && mainHtml.length < 8000) ||
     mainHtml.includes('window.__') ||
-    mainHtml.length < 2000
+    mainHtml.length < 2000 ||
+    rawWordCount < 50
   )
 
   // ── Railway renderer — only for JS SPAs ──────────────────────────────────
