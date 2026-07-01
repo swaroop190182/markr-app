@@ -149,12 +149,15 @@ async function fullScrape(url: string) {
   if (!mainHtml) throw new Error('Could not reach this URL — make sure it is public and accessible.')
 
   // ── JS SPA detection ──────────────────────────────────────────────────────
+  // Raw HTML under 2KB is almost certainly a SPA shell — no legitimate static
+  // landing page is ever that small.
   const isJsSpa = (
     mainHtml.includes('__NEXT_DATA__') ||
     mainHtml.includes('__nuxt') ||
     (mainHtml.includes('<div id="root">') && mainHtml.length < 8000) ||
     (mainHtml.includes('<div id="app">') && mainHtml.length < 8000) ||
-    mainHtml.includes('window.__')
+    mainHtml.includes('window.__') ||
+    mainHtml.length < 2000
   )
 
   // ── Railway renderer — only for JS SPAs ──────────────────────────────────
