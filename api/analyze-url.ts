@@ -381,7 +381,10 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     // 3+ "N. word" numbered items anywhere in home text
     || (homeBodyText.match(/(?<!\d)\d\.[ \t]+[A-Za-z]/g) ?? []).length >= 3
 
-  const isJSOnlyApp = home.wordCount < 100
+  // Low word count only means "unverifiable" when static HTML was the only source.
+  // Once the Railway renderer has supplied full HTML, a missing signal is a genuine
+  // absence, not a rendering limitation — so isJSOnlyApp is suppressed in that case.
+  const isJSOnlyApp = home.wordCount < 100 && !renderedByHeadless
 
   const headline = home.bestH1 || home.bestTitle
   const desc     = home.bestDesc
