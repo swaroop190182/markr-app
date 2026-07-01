@@ -156,8 +156,9 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {dims.map(d => {
                 const ds        = getDimDisplay(d)
-                const isPending = ds === 'pending'
-                const isNA      = ds === 'na'
+                const isPending          = ds === 'pending'
+                const isNA               = ds === 'na'
+                const isNotFoundRendered = d.verificationStatus === 'not_found_rendered'
                 const num       = typeof ds === 'number' ? ds : null
                 const c         = num !== null ? (num >= 7 ? '#34c98a' : num >= 5 ? '#f5a623' : '#e55') : '#9090b0'
                 return (
@@ -168,7 +169,10 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
                         ? <span style={{ fontSize: 11, fontWeight: 600, color: '#f5a623' }}>⏳ Pending</span>
                         : isNA
                         ? <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(144,144,176,.8)' }}>N/A</span>
-                        : <span style={{ fontSize: 12, fontWeight: 700, color: c }}>{num}/10</span>
+                        : <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {isNotFoundRendered && <span style={{ fontSize: 11, fontWeight: 600, color: '#f5a623' }}>⚠️ Not detected</span>}
+                            <span style={{ fontSize: 12, fontWeight: 700, color: c }}>{num}/10</span>
+                          </span>
                       }
                     </div>
                     {num !== null && (
@@ -176,7 +180,7 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
                         <div style={{ height: '100%', width: `${num * 10}%`, background: c, borderRadius: 3 }} />
                       </div>
                     )}
-                    <div style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5, color: isPending ? 'rgba(245,166,35,.8)' : isNA ? 'rgba(144,144,176,.65)' : 'rgba(255,255,255,.4)' }}>
+                    <div style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5, color: isPending ? 'rgba(245,166,35,.8)' : isNA ? 'rgba(144,144,176,.65)' : isNotFoundRendered ? 'rgba(245,166,35,.7)' : 'rgba(255,255,255,.4)' }}>
                       {isPending ? 'Pending — needs manual review' : isNA ? 'N/A — JavaScript-rendered' : (d.issue || '')}
                     </div>
                   </div>

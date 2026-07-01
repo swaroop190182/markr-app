@@ -605,13 +605,25 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     `${strongCtaCount} strong CTA${strongCtaCount === 1 ? '' : 's'} detected`,
   ].join(', ') + ` in pages analyzed: ${crawledPages}`
 
-  const vs = (found: boolean): 'verified_present' | 'verified_absent' | 'unverifiable_js' =>
-    found ? 'verified_present' : isJSOnlyApp ? 'unverifiable_js' : 'verified_absent'
+  // 'not_found_rendered': the Railway renderer supplied full HTML and the signal
+  // still wasn't found — a confident absence, distinct from a static-HTML-only
+  // page where JS content could genuinely be hiding the signal (unverifiable_js).
+  const vs = (found: boolean): 'verified_present' | 'verified_absent' | 'unverifiable_js' | 'not_found_rendered' =>
+    found ? 'verified_present'
+    : isJSOnlyApp ? 'unverifiable_js'
+    : renderedByHeadless ? 'not_found_rendered'
+    : 'verified_absent'
 
   // Trust and User Journey → 'pending' when unverifiable; other dims → 'na'
   const dsp = (label: string, score: number, vst: string): number | 'pending' | 'na' =>
     vst !== 'unverifiable_js' ? score
     : (label === 'Trust' || label === 'User Journey') ? 'pending' : 'na'
+
+  // Floor for genuinely-absent-after-full-render signals: a live rendered product
+  // probably has *some* minimal credibility even where we found no concrete signal.
+  const NOT_FOUND_RENDERED_FLOOR: Record<string, number> = { Trust: 2 }
+  const applyFloor = (label: string, rawScore: number, vst: string): number =>
+    vst === 'not_found_rendered' ? Math.max(rawScore, NOT_FOUND_RENDERED_FLOOR[label] ?? 3) : rawScore
 
   const _rawDims = [
     { label:'Clarity',              score:clarity,    issue:clarityIssue,    verificationStatus: vs(!!headline && headline.length > 8) },
@@ -620,7 +632,10 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     { label:'Trust',                score:trust,      issue:trustIssue,      verificationStatus: vs(!!(hasSP || hasTeam)) },
     { label:'Conversion Readiness', score:conversion, issue:conversionIssue, verificationStatus: vs(!!(hasPricing || primaryCta)) },
   ]
-  const dimensions = _rawDims.map(d => ({ ...d, displayScore: dsp(d.label, d.score, d.verificationStatus) }))
+  const dimensions = _rawDims.map(d => {
+    const flooredScore = applyFloor(d.label, d.score, d.verificationStatus)
+    return { ...d, score: flooredScore, displayScore: dsp(d.label, flooredScore, d.verificationStatus) }
+  })
 
   // ── Confidence- and dimension-weighted overall ───────────────────────────────
   // Each dimension counts by its DIMENSION_WEIGHTS share (Conversion Readiness >

@@ -355,8 +355,9 @@ export default function Landing() {
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
                   {result.dimensions.map(d => {
                     const ds = d.displayScore ?? d.score
-                    const isPending = ds === 'pending'
-                    const isNA      = ds === 'na'
+                    const isPending          = ds === 'pending'
+                    const isNA               = ds === 'na'
+                    const isNotFoundRendered = d.verificationStatus === 'not_found_rendered'
                     const num       = typeof ds === 'number' ? ds : null
                     const dc        = num !== null ? (num >= 7 ? '#34c98a' : num >= 5 ? '#f5a623' : '#e55') : '#9090b0'
                     return (
@@ -367,7 +368,10 @@ export default function Landing() {
                             ? <span style={{ fontSize:10, fontWeight:600, color:'#f5a623', fontFamily:D }}>⏳ Pending</span>
                             : isNA
                             ? <span style={{ fontSize:10, fontWeight:600, color:'rgba(144,144,176,.8)', fontFamily:D }}>N/A</span>
-                            : <span style={{ fontSize:11, fontWeight:700, color:dc, fontFamily:D }}>{num}/10</span>
+                            : <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                                {isNotFoundRendered && <span style={{ fontSize:10, fontWeight:600, color:'#f5a623', fontFamily:D }}>⚠️ Not detected</span>}
+                                <span style={{ fontSize:11, fontWeight:700, color:dc, fontFamily:D }}>{num}/10</span>
+                              </span>
                           }
                         </div>
                         {num !== null && (
@@ -375,7 +379,7 @@ export default function Landing() {
                             <div style={{ height:'100%', width:`${num*10}%`, background:dc, borderRadius:2, transition:'width .6s' }} />
                           </div>
                         )}
-                        <div style={{ fontSize:10, lineHeight:1.4, fontFamily:D, color: isPending ? 'rgba(245,166,35,.8)' : isNA ? 'rgba(144,144,176,.65)' : 'rgba(255,255,255,.4)' }}>
+                        <div style={{ fontSize:10, lineHeight:1.4, fontFamily:D, color: isPending ? 'rgba(245,166,35,.8)' : isNA ? 'rgba(144,144,176,.65)' : isNotFoundRendered ? 'rgba(245,166,35,.7)' : 'rgba(255,255,255,.4)' }}>
                           {isPending ? 'Pending — needs manual review' : isNA ? 'N/A — JavaScript-rendered' : (d.issue || '')}
                         </div>
                       </div>
