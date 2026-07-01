@@ -761,8 +761,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url
 
   const isInternal = req.headers['x-internal-call'] === 'markr_internal'
-  const ip = ((req.headers['x-forwarded-for'] as string) || '').split(',')[0].trim() || 'unknown'
-  if (!isInternal && !checkIpLimit(ip)) {
+  const clientIp = ((req.headers['x-forwarded-for'] as string) || '').split(',')[0].trim() || 'unknown'
+  const WHITELISTED_IPS = ['127.0.0.1', '::1', '49.207.50.194']
+  if (!isInternal && !WHITELISTED_IPS.includes(clientIp) && !checkIpLimit(clientIp)) {
     return res.status(429).json({ error: 'You\'ve analyzed 3 URLs today — come back tomorrow or sign up for unlimited access.' })
   }
 
