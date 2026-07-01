@@ -347,7 +347,7 @@ async function fullScrape(url: string) {
     }
   }
 
-  return { pages, renderedByHeadless }
+  return { pages, renderedByHeadless, isJsSpa, htmlLength: mainHtml.length }
 }
 
 // ── Dimension weights — reflect business importance, sum to 1.0 ──────────────
@@ -360,7 +360,7 @@ const DIMENSION_WEIGHTS: Record<string, number> = {
 }
 
 // ── Score the app ─────────────────────────────────────────────────────────────
-function score(pages: Record<string, ReturnType<typeof extract>>, url: string, renderedByHeadless: boolean) {
+function score(pages: Record<string, ReturnType<typeof extract>>, url: string, renderedByHeadless: boolean, isJsSpa: boolean, htmlLength: number) {
   const home     = pages.home
   const pricing  = pages.pricing
   const features = pages.features
@@ -820,6 +820,14 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     checkedSignals,
     pagesRead,
     isJSApp: home.wordCount < 100,
+    // TEMP DEBUG — remove after confirming renderer routing behaves as expected
+    debug: {
+      renderedByHeadless,
+      isJsSpa,
+      isJSOnlyApp,
+      htmlLength,
+      rendererUrl: !!process.env.RENDERER_URL,
+    },
     scraped: {
       title:    home.bestTitle,
       h1:       home.bestH1,
@@ -846,7 +854,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { pages, renderedByHeadless } = await fullScrape(url)
+    const { pages, renderedByHeadless, isJsSpa, htmlLength } = await fullScrape(url)
 
     // Confidence check — total words scraped across all pages
     const totalWords = Object.values(pages).reduce((sum, p) => sum + p.wordCount, 0)
@@ -864,7 +872,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    const result = score(pages, url, renderedByHeadless)
+    const result = score(pages, url, renderedByHeadless, isJsSpa, htmlLength)
     ;(result as any).totalWords = totalWords
     if (result.confidence === 'js-app') {
       ;(result as any).jsAppMessage = 'This score may be incomplete. We could only read static HTML — buttons, pricing, and stats that load via JavaScript may not be reflected.'
