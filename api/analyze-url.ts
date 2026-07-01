@@ -788,6 +788,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     checkedSignals,
     pagesRead,
     isJSApp: home.wordCount < 100,
+    // TEMP DEBUG — remove once ₹ pricing detection is confirmed fixed
+    pricingDebug: { rupeeFound: hasRupeePrice, allPagesTextLength: allPagesText.length },
     scraped: {
       title:    home.bestTitle,
       h1:       home.bestH1,
