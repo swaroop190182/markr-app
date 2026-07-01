@@ -551,7 +551,15 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
   const hasPricingPage = !!pricing
   // Universal price detection — currency symbol+amount, amount+ISO code, Rs/Rp text prefixes, or amount+billing period
   const PRICE_REGEX = /[\$£€¥₹₩₪₫₴₦₵₲₱฿₭₮₯₰₳₺₼₽﹩＄]\s*[\d,]+(?:\.\d{1,2})?|[\d,]+(?:\.\d{1,2})?\s*(?:USD|EUR|GBP|INR|JPY|CAD|AUD|CHF|CNY|KRW|BRL|MXN|SGD|HKD|NOK|SEK|DKK|PLN|CZK|HUF|RON|BGN|HRK|RUB|TRY|SAR|AED|MYR|THB|IDR|PHP|VND|PKR|BDT|LKR|NGN|KES|GHS|ZAR)|(?:Rs\.?|Rp\.?)\s*[\d,]+|[\d,]+\s*(?:\/mo|\/month|\/yr|\/year|per month|per year)/gi
-  const hasPriceInText = PRICE_REGEX.test(allPagesText)
+  // Explicit Unicode rupee symbol — catches ₹49/mo, ₹49, etc.
+  const hasRupeePrice = /₹\s*\d+/.test(allPagesText)
+  const hasResetPlus = /reset plus/i.test(allPagesText) // named paid tier
+  const hasPriceInText = PRICE_REGEX.test(allPagesText) || hasRupeePrice || hasResetPlus
+  const rupeeIdx = allPagesText.indexOf('₹')
+  console.log(
+    '[pricing] rupee found:', /₹/.test(allPagesText),
+    rupeeIdx >= 0 ? `context: "${allPagesText.slice(Math.max(0, rupeeIdx - 30), rupeeIdx + 30)}"` : `not found — allPagesText length: ${allPagesText.length}, sample: "${allPagesText.slice(0, 200)}"`
+  )
   const hasPricing  = hasPricingPage || hasPriceInText
   // Universal free-tier phrases — currency-agnostic, boundary-anchored to avoid matching "$10/mo" as "0/mo"
   const FREE_TIER_PHRASES = [
