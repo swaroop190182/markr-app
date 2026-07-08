@@ -34,6 +34,18 @@ function marketingChannelToId(name: string): ChannelId | null {
   return null
 }
 
+async function fetchTrendingTopics(category: string): Promise<string> {
+  const resp = await fetch('/api/trending', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ category }),
+  })
+  if (!resp.ok) return ''
+  const data = await resp.json()
+  const topics: string[] = data.topics ?? []
+  return topics.join(' | ')
+}
+
 function getDefaultChannel(app: AppData): ChannelId {
   try {
     const gtm = app.gtm_analysis ? JSON.parse(app.gtm_analysis) : null
@@ -743,11 +755,24 @@ ${postHistory.slice(-5).map(h => `  • [${h.channel}/${h.format}] "${h.excerpt.
       ? `\nTOP-PERFORMING FORMATS for this account: ${topFormats.join(', ')} — prioritise these when the pillar allows.\n`
       : ''
 
-    // Trending topics from Reddit (fetched async on mount)
-    const trendingBlock = trendingTopics.length > 0
-      ? `\nTRENDING NOW in ${currentApp.category}:\n${trendingTopics.map(t => `  • ${t}`).join('\n')}\n(Reference these themes if relevant to the content pillar — don't force it)\n`
+    // Trending topics — never allowed to block or fail content generation
+    let trendingContext = ''
+    try {
+      const trendingResult = await Promise.race([
+        fetchTrendingTopics(currentApp.category),
+        new Promise<string>(resolve => setTimeout(() => resolve(''), 2000)),
+      ])
+      trendingContext = trendingResult || ''
+    } catch {
+      trendingContext = ''
+    }
+    console.log('[content] stage: trending topics', trendingContext.length)
+
+    const trendingBlock = trendingContext.length > 0
+      ? `\nTRENDING NOW in ${currentApp.category}:\n  ${trendingContext}\n(Reference these themes if relevant to the content pillar — don't force it)\n`
       : ''
 
+    console.log('[content] stage: building prompt')
     const prompt = `${ABSOLUTE_RULES}
 
 ${brandVoice}
@@ -798,12 +823,14 @@ Output ONLY valid JSON:
 
 You are an expert Instagram content strategist. Output ONLY valid JSON. Follow the ABSOLUTE RULES, POST STYLE, and FORMAT REQUIREMENT — all are mandatory, in that priority order.`
     function recordHistory(caption: string) {
+      console.log('[content] stage: saving to post_history')
       const entry: PostHistoryEntry = { ts: new Date().toISOString(), channel: 'instagram', format: `${style}:${type}`, excerpt: caption.slice(0, 120) }
       const prev = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
       updateApp(currentApp.id, { post_history: [...prev, entry].slice(-30) } as any)
     }
 
     try {
+      console.log('[content] stage: calling claude api')
       const raw = await callClaude(prompt, SYSTEM, 1800, undefined, 'haiku', 'content')
       const post = safeParseJSON<AgentPost>(raw)
       updateSlot(type, { state:'ready', post })
@@ -813,6 +840,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       // If context was present it may have caused malformed JSON — retry without it
       if (contentCtxBlock) {
         try {
+          console.log('[content] stage: calling claude api (retry without context)')
           const raw = await callClaude(prompt.replace(contentCtxBlock, ''), SYSTEM, 1800, undefined, 'haiku', 'content')
           const post = safeParseJSON<AgentPost>(raw)
           updateSlot(type, { state:'ready', post })
@@ -823,7 +851,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       }
       updateSlot(type, { state:'error', error: 'Generation failed — please try again.' })
     }
-  }, [currentApp, todaysPillars, postStyle, selectedPillar, pillarSuggestions, updateApp, trendingTopics])
+  }, [currentApp, todaysPillars, postStyle, selectedPillar, pillarSuggestions, updateApp])
 
   const generateAll = () => {
     generatePost('morning', postStyle)
