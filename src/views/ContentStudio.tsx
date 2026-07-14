@@ -206,6 +206,9 @@ BANNED WORDS AND PHRASES (never use): delve, unlock, elevate, seamless, revoluti
 
 RECENT POSTS (do NOT repeat these angles, hooks, or formats):
 ${ctx.recentPosts || 'None yet'}
+
+RECENT VISUALS (never reuse these settings, subjects, or times of day):
+${ctx.recentVisuals || 'None yet'}
 `
 
   switch (channel) {
@@ -285,8 +288,16 @@ For ALL three visuals:
 - Be detailed enough for a designer or AI image generator to recreate exactly
 - NEVER say "person using app on phone" or "person on smartphone" — always describe who, where, when, and how they feel
 
+VISUAL VARIETY — rotate deliberately across these dimensions, never matching any visual in RECENT VISUALS:
+- SETTING: home desk / kitchen / commute / cafe / outdoors / co-working space / bedroom at night
+- TIME: early morning / midday / golden hour / late night
+- SUBJECT: user alone / user with family / user with a friend / hands + screen only / no person (object-led scene)
+- PALETTE: warm amber / cool blue / bright daylight / muted pastel / high-contrast dark
+Pick a different combination for each of the 3 posts AND different from all RECENT VISUALS.
+
 Example of BAD visual: "Person using smartphone with app open"
-Example of GOOD visual: "Close-up of a tired Indian founder at 11pm, dim desk lamp, laptop screen showing a red landing page score, coffee cup half empty, expression shifting to relief as score improves"`
+GOOD example 1: "Overhead shot of a kitchen counter at 7am, bright daylight, a mother's hand placing a lunchbox next to a phone showing this week's meal plan, toddler's sippy cup in frame, warm yellow palette"
+GOOD example 2: "No person — a cluttered desk at golden hour, sticky notes with crossed-out marketing ideas, one glowing laptop screen showing a clear 3-step plan, muted pastel palette"`
 
     case 'YouTube Shorts':
       return `${base}
@@ -875,9 +886,10 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     const postHistory = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
     const stratCtx    = {
       ...buildContentStrategyContext(currentApp, ua),
-      appName:     currentApp.name,
-      appDesc:     currentApp.desc,
-      recentPosts: postHistory.slice(-5).map(h => `[${h.channel}] ${h.excerpt.split('\n')[0]}`).join('\n'),
+      appName:      currentApp.name,
+      appDesc:      currentApp.desc,
+      recentPosts:  postHistory.slice(-5).map(h => `[${h.channel}] ${h.excerpt.split('\n')[0]}`).join('\n'),
+      recentVisuals: postHistory.filter(h => h.channel === 'instagram' && h.visuals).slice(-5).map(h => h.visuals).join('\n'),
     }
     const ch          = CHANNELS.find(c => c.id === activeChannel)
     const label       = ch?.label ?? activeChannel
@@ -920,7 +932,10 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       setChannelResults(prev => ({ ...prev, [activeChannel]: raw }))
       toast(`${label} content ready!`)
       // Append to post history
-      const entry: PostHistoryEntry = { ts: new Date().toISOString(), channel: activeChannel, format: label, excerpt: raw.slice(0, 120).trim() }
+      const visuals = activeChannel === 'instagram'
+        ? (raw.match(/VISUAL:\s*[^\n]*/gi) || []).join('\n')
+        : undefined
+      const entry: PostHistoryEntry = { ts: new Date().toISOString(), channel: activeChannel, format: label, excerpt: raw.slice(0, 120).trim(), ...(visuals ? { visuals } : {}) }
       const prev = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
       updateApp(currentApp.id, { post_history: [...prev, entry].slice(-30) } as any)
     } catch (e: any) {

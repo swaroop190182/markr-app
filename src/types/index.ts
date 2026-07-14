@@ -165,6 +165,7 @@ export interface PostHistoryEntry {
   channel: string  // channel id
   format:  string  // style:slot for instagram, channel label for others
   excerpt: string  // first 120 chars of generated content
+  visuals?: string  // extracted VISUAL: lines, for Instagram anti-repetition
 }
 
 export type ViewType = 'overview' | 'marketing' | 'studio' | 'strategy' | 'calendar' | 'insights' | 'admin'
