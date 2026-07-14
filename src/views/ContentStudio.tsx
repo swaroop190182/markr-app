@@ -187,7 +187,9 @@ function buildContentStrategyContext(currentApp: any, ua: any) {
 
 function getPlatformPrompt(channel: string, ctx: any, style: string): string {
   const base = `
-APP: ${ctx.headline}
+APP NAME: ${ctx.appName}
+WHAT IT DOES: ${ctx.appDesc}
+LANDING PAGE HEADLINE: ${ctx.headline}
 TARGET USER: ${ctx.targetUser}
 REAL RESULT: ${ctx.realResult}
 USER QUOTE: ${ctx.userQuote}
@@ -197,6 +199,13 @@ POSITIONING GAP: ${ctx.positioningGap}
 ACTIVE PILLAR: ${ctx.activePillar}
 TOP STRENGTH: ${ctx.topStrengths?.[0] || ''}
 STYLE: ${style}
+
+CRITICAL: Every piece of content must be about ${ctx.appName} specifically — what it actually does per WHAT IT DOES above. Never drift to a different product category.
+
+BANNED WORDS AND PHRASES (never use): delve, unlock, elevate, seamless, revolutionize, game-changer, game changer, in today's fast-paced world, look no further, we've got you covered, take it to the next level, empower, supercharge, harness, unleash, navigate the landscape, at the end of the day, the key is
+
+RECENT POSTS (do NOT repeat these angles, hooks, or formats):
+${ctx.recentPosts || 'None yet'}
 `
 
   switch (channel) {
@@ -213,6 +222,7 @@ TWEET FORMAT RULES:
 - NEVER use "thread" as the first word
 - NEVER write one-liners — each tweet needs substance
 - NO generic phrases like "the key is", "at the end of the day", "game changer"
+- Tweet 1 hook type must differ from the most recent thread's hook in RECENT POSTS.
 
 Output format:
 1/ [tweet text — 200-250 chars]
@@ -234,6 +244,7 @@ LINKEDIN FORMAT RULES:
 - Hashtags: Maximum 3, highly specific, at the very end on a new line
 - NEVER use bullet points
 - NEVER mention features — tell a story or share an insight
+- HOOK TYPE: Rotate between these 4 hook types and never use the same type as the most recent post in RECENT POSTS: (a) contrarian statement, (b) specific number/stat, (c) short personal story opener, (d) bold prediction.
 
 Output the full post exactly as it should appear on LinkedIn.`
 
@@ -252,7 +263,7 @@ HASHTAGS: [8 hashtags — mix of niche-specific, audience-specific, and 1-2 broa
 FORMAT RULES:
 - Post 1 (Before/After): transformation format — "[user] used to [problem]. Now [specific change]."
 - Post 2 (Tip/Fact): specific tip or non-obvious fact with a real example and number
-- Post 3 (Story/Scene): a cinematic real-life moment — not a product pitch
+- Post 3 (Story/Scene OR Reel script): a cinematic real-life moment, OR a 15-second Reel script with shot-by-shot description if the message suits motion better.
 - Maximum 1 post may end with a question
 - NEVER start two posts with the same word
 - NEVER use "just", "simply", "easily"
@@ -326,7 +337,7 @@ WHATSAPP FORMAT RULES:
 Write 1 email newsletter for ${ctx.headline}.
 
 EMAIL FORMAT:
-SUBJECT LINE: [Max 7 words. Curiosity gap or specific promise. No clickbait. No emojis.]
+SUBJECT LINE A and SUBJECT LINE B: two alternatives — one curiosity-gap style, one specific-promise style, so the founder can A/B test. [Each max 7 words. No clickbait. No emojis.]
 PREVIEW TEXT: [Completes or extends the subject line. Max 12 words.]
 
 BODY:
@@ -861,7 +872,13 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
 
   async function generateForChannel() {
     const ua          = currentApp.url_analysis
-    const stratCtx    = buildContentStrategyContext(currentApp, ua)
+    const postHistory = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
+    const stratCtx    = {
+      ...buildContentStrategyContext(currentApp, ua),
+      appName:     currentApp.name,
+      appDesc:     currentApp.desc,
+      recentPosts: postHistory.slice(-5).map(h => `[${h.channel}] ${h.excerpt.split('\n')[0]}`).join('\n'),
+    }
     const ch          = CHANNELS.find(c => c.id === activeChannel)
     const label       = ch?.label ?? activeChannel
     const ctx          = (currentApp as any).content_context as ContentContext | null | undefined
@@ -874,7 +891,6 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
       : ''
 
     // Post history injection
-    const postHistory   = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
     const historyBlock  = postHistory.length > 0
       ? `\n\nRECENT POSTS — create meaningfully different content:\n${postHistory.slice(-5).map(h => `  • [${h.channel}] "${h.excerpt.slice(0, 80)}"`).join('\n')}\n(Do NOT reuse the same opening, hook structure, or CTA from any of the above)`
       : ''
