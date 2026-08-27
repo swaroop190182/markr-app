@@ -14,6 +14,10 @@ const CATEGORIES = [
   'Productivity','Finance','Dev Tools','Marketing','Health & Wellness',
   'Food & Nutrition','Education','E-commerce','Travel','Social','Other'
 ]
+const MARKETS = [
+  'Auto-detect','India','United States','United Kingdom','Europe',
+  'Southeast Asia','Middle East','Australia','Global'
+]
 
 export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: () => void; prefilledUrl?: string }) {
   const { apps, addApp, setCurrentApp, canUseProductTest } = useStore()
@@ -25,6 +29,7 @@ export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: (
   const [platform, setPlatform] = useState<string>('Web')
   const [stage,    setStage]    = useState<string>('Launch')
   const [category, setCategory] = useState<string>('Productivity')
+  const [primaryMarket, setPrimaryMarket] = useState<string>('Auto-detect')
   const [extra,    setExtra]    = useState('')
   const [credsOpen, setCredsOpen] = useState(false)
   const [testUser,  setTestUser]  = useState('')
@@ -156,6 +161,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         testCreds: hasCreds ? { user: testUser, password: testPass, loginUrl: loginUrl || url, flows: testFlows } : null,
         productTest,
         url_analysis: savedUrlAnalysis,
+        primary_market: primaryMarket,
         analyzed: true
       }
       addApp(newApp)
@@ -206,6 +212,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
       </div>
 
       <SelectField label="Category" value={category} onChange={setCategory} options={CATEGORIES} />
+      <SelectField label="Primary market" value={primaryMarket} onChange={setPrimaryMarket} options={MARKETS} />
 
       <Field label="Extra context (optional)">
         <textarea value={extra} onChange={e=>setExtra(e.target.value)} rows={2}

@@ -89,6 +89,7 @@ export interface AppData {
   productTest?: ProductTest | null
   analyzed?: boolean
   recent_context?: string | null  // user-provided recent data: reviews, metrics, feedback
+  primary_market?: string | null  // user-set market override for competitor detection — 'Auto-detect' or a specific market
   // Persisted analysis cache
   competitive_analysis?: string | null
   bmc_analysis?:         string | null

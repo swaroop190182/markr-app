@@ -192,7 +192,10 @@ ${rc.trim()}
     const rcCtx = getRecentContext()
     try {
       const ua = (currentApp as any).url_analysis
-      const detectedMarket = detectMarket(currentApp.desc || '', currentApp.url, ua)
+      const userMarket = currentApp.primary_market
+      const detectedMarket = (userMarket && userMarket !== 'Auto-detect')
+        ? userMarket
+        : detectMarket(currentApp.desc || '', currentApp.url, ua)
       const appContext = `PRODUCT DETAILS:
 Name: ${currentApp.name}
 Description: ${currentApp.desc || ''}

@@ -8,6 +8,7 @@ import type { AppData } from '../types'
 const PLATFORMS  = ['Web', 'Mobile', 'Both'] as const
 const STAGES     = ['Idea', 'Early', 'Launch', 'Growth'] as const
 const CATEGORIES = ['Productivity','Finance','Dev Tools','Marketing','Health & Wellness','Food & Nutrition','Education','E-commerce','Travel','Social','Other']
+const MARKETS = ['Auto-detect','India','United States','United Kingdom','Europe','Southeast Asia','Middle East','Australia','Global']
 
 type Step = 'pending' | 'active' | 'done' | 'skip'
 
@@ -20,6 +21,7 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
   const [platform,  setPlatform]  = useState<typeof PLATFORMS[number]>(app.platform as typeof PLATFORMS[number])
   const [stage,     setStage]     = useState<typeof STAGES[number]>(app.stage as typeof STAGES[number])
   const [category,  setCategory]  = useState(app.category)
+  const [primaryMarket, setPrimaryMarket] = useState(app.primary_market ?? 'Auto-detect')
   const [desc,      setDesc]      = useState(app.desc ?? '')
   const [recentCtx, setRecentCtx] = useState(app.recent_context ?? '')
   const [credsOpen, setCredsOpen] = useState(!!(app.testCreds?.user))
@@ -42,6 +44,7 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
       stage: stage as AppData['stage'],
       category, desc,
       recent_context: recentCtx || null,
+      primary_market: primaryMarket,
       testCreds: testUser ? {
         user: testUser,
         password: testPass || app.testCreds?.password || '',
@@ -141,6 +144,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         desc: newDesc,
         brand, pillars, features, audience, problem, diff,
         recent_context: recentCtx || null,
+        primary_market: primaryMarket,
         testCreds: {
           user: testUser,
           password: effectivePass,
@@ -185,6 +189,11 @@ BRAND_VOICE: [3-4 sentences on voice]`,
       <Field label="Category">
         <select value={category} onChange={e => setCategory(e.target.value)}>
           {CATEGORIES.map(o => <option key={o}>{o}</option>)}
+        </select>
+      </Field>
+      <Field label="Primary market">
+        <select value={primaryMarket} onChange={e => setPrimaryMarket(e.target.value)}>
+          {MARKETS.map(o => <option key={o}>{o}</option>)}
         </select>
       </Field>
       <Field label="Description">
