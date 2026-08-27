@@ -854,23 +854,26 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     try {
       console.log('[content] stage: calling claude api')
       const raw = await callClaude(prompt, SYSTEM, 1800, undefined, 'haiku', 'content')
-      const post = safeParseJSON<AgentPost>(raw)
+
+      // A malformed-JSON parse failure (often caused by a large context block) is
+      // worth retrying without context. A callClaude() failure means the full
+      // Anthropic → Groq/Gemini failover chain already ran server-side and came
+      // up empty — retrying the same request here would just repeat that chain
+      // pointlessly, so let it propagate straight to the error state instead.
+      let post: AgentPost
+      try {
+        post = safeParseJSON<AgentPost>(raw)
+      } catch (parseErr) {
+        if (!contentCtxBlock) throw parseErr
+        console.log('[content] stage: calling claude api (retry without context)')
+        const raw2 = await callClaude(prompt.replace(contentCtxBlock, ''), SYSTEM, 1800, undefined, 'haiku', 'content')
+        post = safeParseJSON<AgentPost>(raw2)
+      }
+
       updateSlot(type, { state:'ready', post })
       toast(`${c.label} ready! ✓`)
       recordHistory(post.caption ?? '')
     } catch(e) {
-      // If context was present it may have caused malformed JSON — retry without it
-      if (contentCtxBlock) {
-        try {
-          console.log('[content] stage: calling claude api (retry without context)')
-          const raw = await callClaude(prompt.replace(contentCtxBlock, ''), SYSTEM, 1800, undefined, 'haiku', 'content')
-          const post = safeParseJSON<AgentPost>(raw)
-          updateSlot(type, { state:'ready', post })
-          toast(`${c.label} ready! ✓`)
-          recordHistory(post.caption ?? '')
-          return
-        } catch { /* fall through */ }
-      }
       updateSlot(type, { state:'error', error: 'Generation failed — please try again.' })
     }
   }, [currentApp, todaysPillars, postStyle, selectedPillar, pillarSuggestions, updateApp])

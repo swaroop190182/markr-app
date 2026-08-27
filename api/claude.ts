@@ -242,6 +242,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const anthropicStatus = anthropicResult && 'failStatus' in anthropicResult ? anthropicResult.failStatus : null
+  const status = anthropicStatus
+  console.log('[callClaude] provider failover triggered, status:', status)
 
   // 401/429/503 from Anthropic → skip Gemini and go straight to Groq
   if (anthropicStatus !== null && [401, 429, 503].includes(anthropicStatus)) {
