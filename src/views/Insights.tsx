@@ -31,6 +31,58 @@ function lastUpdatedLabel(ts: string | null | undefined): string {
 import { toast } from '../components/Toast'
 import ProductTest from './insights/ProductTest'
 
+// ── Market detection ──────────────────────────────────────────────────────────
+// url_analysis doesn't store the raw scraped page — only headline/category/
+// bottleneck/dimension issues/growth_teaser — so those plus the app description
+// stand in for "landing page text" below.
+function detectMarket(desc: string, url: string, ua?: {
+  headline?: string; category?: string
+  bottleneck?: { issue?: string }
+  dimensions?: Array<{ issue?: string }>
+  growth_teaser?: string
+} | null): string {
+  const text = [
+    desc, ua?.headline, ua?.growth_teaser, ua?.bottleneck?.issue,
+    ...(ua?.dimensions ?? []).map(d => d.issue),
+  ].filter(Boolean).join(' ')
+
+  // 1. Explicit country/city named in the description or landing page text
+  const places: Array<[RegExp, string]> = [
+    [/\bindia\b|\bindian\b|\bbengaluru\b|\bbangalore\b|\bmumbai\b|\bdelhi\b|\bhyderabad\b|\bpune\b|\bchennai\b|\bkolkata\b|\bgurgaon\b|\bgurugram\b|\bnoida\b/i, 'India'],
+    [/\bunited kingdom\b|\b(?<![a-z])uk(?![a-z])\b|\bbritain\b|\blondon\b|\bmanchester\b/i, 'UK'],
+    [/\bunited states\b|\b(?<![a-z])usa(?![a-z])\b|\bamerica\b|\bnew york\b|\bsan francisco\b|\bsilicon valley\b|\baustin\b|\bseattle\b/i, 'US'],
+    [/\bsingapore\b/i, 'Singapore'],
+    [/\baustralia\b|\bsydney\b|\bmelbourne\b/i, 'Australia'],
+    [/\bcanada\b|\btoronto\b|\bvancouver\b/i, 'Canada'],
+    [/\bdubai\b|\b(?<![a-z])uae(?![a-z])\b|\bunited arab emirates\b/i, 'UAE'],
+  ]
+  for (const [re, market] of places) if (re.test(text)) return market
+
+  // 2. Currency symbols
+  if (/₹/.test(text)) return 'India'
+  if (/£/.test(text)) return 'UK'
+  if (/€/.test(text)) return 'Europe'
+  if (/\$/.test(text)) return 'US'
+
+  // 3. TLD
+  try {
+    const host = new URL(url).hostname
+    if (/\.in$/.test(host)) return 'India'
+    if (/\.co\.uk$/.test(host)) return 'UK'
+    if (/\.ca$/.test(host)) return 'Canada'
+    if (/\.com\.au$/.test(host)) return 'Australia'
+    if (/\.sg$/.test(host)) return 'Singapore'
+    if (/\.ae$/.test(host)) return 'UAE'
+  } catch { /* invalid URL — skip TLD check */ }
+
+  // 4. Phone number format
+  if (/\+91[\s-]?\d{4,5}/.test(text)) return 'India'
+  if (/\+44[\s-]?\d/.test(text)) return 'UK'
+  if (/\+1[\s-]?\(?\d{3}\)?/.test(text)) return 'US'
+
+  return 'Global'
+}
+
 type Tab = 'competitive' | 'bmc' | 'swot' | 'growth' | 'pricing' | 'product'
 
 const TABS: { id: Tab; label: string; emoji: string }[] = [
@@ -140,12 +192,14 @@ ${rc.trim()}
     const rcCtx = getRecentContext()
     try {
       const ua = (currentApp as any).url_analysis
+      const detectedMarket = detectMarket(currentApp.desc || '', currentApp.url, ua)
       const appContext = `PRODUCT DETAILS:
 Name: ${currentApp.name}
 Description: ${currentApp.desc || ''}
 URL: ${currentApp.url}
 Landing page headline: ${ua?.headline || ''}
 Category: ${ua?.category || currentApp.category || ''}
+MARKET: ${detectedMarket}
 
 CRITICAL: Base your competitor selection on what this product ACTUALLY DOES based on the description, headline and URL above — NOT just the product name. Only return products that directly compete with the core function described above. If unsure, visit the URL before deciding.`
 
@@ -153,7 +207,13 @@ CRITICAL: Base your competitor selection on what this product ACTUALLY DOES base
 
 ${appContext}${rcCtx}
 
-PRIORITY: list 2-3 LOCAL competitors first (same country/region — detect from currency, domain, language), then 2-3 GLOBAL ones. Total must be exactly 5.
+CRITICAL — MARKET RELEVANCE:
+This product operates primarily in: ${detectedMarket}
+- The 2-3 LOCAL competitors MUST be companies actually operating in ${detectedMarket}. Not international brands with a presence there — companies headquartered and operating in that market.
+- If you cannot name real competitors in ${detectedMarket}, say so explicitly rather than substituting global ones.
+- Only after local competitors should you list global players, clearly labelled as global.
+
+PRIORITY: list 2-3 LOCAL competitors first (type:"local"), then 2-3 GLOBAL ones (type:"global"). Total must be exactly 5 unless you explicitly noted in mktPos that genuine local competitors don't exist.
 
 For each competitor draw on your training knowledge across ALL sources: Crunchbase, LinkedIn, G2, Capterra, Reddit, ProductHunt, TechCrunch, and app store data. Provide specific numbers where you know them (funding amounts, employee counts, review counts, upvotes).
 
