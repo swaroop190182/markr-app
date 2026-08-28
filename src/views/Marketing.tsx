@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
-import { callClaude } from '../lib/claude'
+import { callClaude, extractJSON } from '../lib/claude'
 import { toast } from '../components/Toast'
 import GoToMarketTab from './insights/GoToMarket'
 
@@ -176,7 +176,7 @@ Return JSON only, no markdown:
 {"channels":[{"name":"channel name","why":"cite specific score/gap/finding","timeline":"e.g. 2-4 weeks","cost":"e.g. ₹0/mo","effort":"Low","firstAction":"ultra-specific step with real names"},{"name":"...","why":"...","timeline":"...","cost":"...","effort":"Medium","firstAction":"..."},{"name":"...","why":"...","timeline":"...","cost":"...","effort":"High","firstAction":"..."}],"templates":{"coldDM":"Hey [Name],\\n\\n[specific observation].\\n\\n[Pain point]. [App Name] helps [target user] [specific outcome].\\n\\nHappy to give you free access.\\n\\n[Your Name]","redditPost":{"subreddit":"r/real_subreddit","title":"genuine helpful title — not an ad","body":"3-4 paragraph value-first post, [App Name] mentioned naturally"},"productHunt":{"tagline":"under 60 chars — punchy","description":"under 260 chars — what, who, differentiator"}},"playbook":{"categoryPlaybook":[{"company":"real company","what":"specific action they took","when":"year/period","results":"specific measurable outcome"},{"company":"...","what":"...","when":"...","results":"..."},{"company":"...","what":"...","when":"...","results":"..."}],"whatNotToDo":[{"example":"company or pattern","approach":"what was tried","why":"specific reason it failed or wasted money"},{"example":"...","approach":"...","why":"..."},{"example":"...","approach":"...","why":"..."}],"marketingFormula":[{"step":1,"action":"specific action","detail":"why first — reference bottleneck if relevant"},{"step":2,"action":"...","detail":"..."},{"step":3,"action":"...","detail":"..."},{"step":4,"action":"...","detail":"..."},{"step":5,"action":"...","detail":"..."},{"step":6,"action":"...","detail":"..."}],"eternalPrinciples":[{"principle":"Find where users already gather","action":"specific step for ${currentApp.name} from context"},{"principle":"Make first users successful before scaling","action":"..."},{"principle":"Word of mouth is the best channel","action":"..."},{"principle":"Content before ads","action":"..."},{"principle":"Positioning before promotion","action":"..."}]}}`
 
       const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 5000, undefined, 'sonnet', 'gtm')
-      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
+      const cleaned = extractJSON(raw)
       if (!cleaned) throw new Error('Empty response')
       const parsed  = JSON.parse(cleaned)
       if (!Array.isArray(parsed.channels)) throw new Error('Invalid response — missing channels')
@@ -220,7 +220,7 @@ Return JSON only, no markdown:
 {"categoryPlaybook":[{"company":"real company","what":"specific action","when":"year/period","results":"specific measurable outcome"},{"company":"...","what":"...","when":"...","results":"..."},{"company":"...","what":"...","when":"...","results":"..."}],"whatNotToDo":[{"example":"company or pattern","approach":"what was tried","why":"specific reason it failed"},{"example":"...","approach":"...","why":"..."},{"example":"...","approach":"...","why":"..."}],"marketingFormula":[{"step":1,"action":"specific action","detail":"why first — address bottleneck if relevant"},{"step":2,"action":"...","detail":"..."},{"step":3,"action":"...","detail":"..."},{"step":4,"action":"...","detail":"..."},{"step":5,"action":"...","detail":"..."},{"step":6,"action":"...","detail":"..."}],"eternalPrinciples":[{"principle":"Find where users already gather","action":"specific step for ${currentApp.name} from context"},{"principle":"Make first users successful before scaling","action":"..."},{"principle":"Word of mouth is the best channel","action":"..."},{"principle":"Content before ads","action":"..."},{"principle":"Positioning before promotion","action":"..."}]}`
 
       const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 3000, undefined, 'sonnet', 'gtm')
-      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
+      const cleaned = extractJSON(raw)
       if (!cleaned) throw new Error('Empty response')
       const parsed  = JSON.parse(cleaned)
       if (!parsed.categoryPlaybook) throw new Error('Invalid response')

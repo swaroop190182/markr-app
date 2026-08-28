@@ -87,6 +87,7 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
       if (!upstream.ok) {
         return { failStatus: upstream.status }
       }
+      res.write(`data: ${JSON.stringify({ provider: 'anthropic' })}\n\n`)
       const reader = upstream.body!.getReader(); const dec = new TextDecoder(); let buf = ''
       let inputTokens = 0, outputTokens = 0
       while (true) {
@@ -131,6 +132,7 @@ async function callGemini(prompt: string, system: string, maxTokens: number, doS
     if (doStream) {
       const upstream = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body })
       if (!upstream.ok) return false
+      res.write(`data: ${JSON.stringify({ provider: 'gemini' })}\n\n`)
       const reader = upstream.body!.getReader(); const dec = new TextDecoder(); let buf = ''
       while (true) {
         const {done,value} = await reader.read(); if (done) break
@@ -161,6 +163,7 @@ async function callGroq(prompt: string, system: string, maxTokens: number, doStr
     if (doStream) {
       const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', { method:'POST', headers, body })
       if (!upstream.ok) return false
+      res.write(`data: ${JSON.stringify({ provider: 'groq' })}\n\n`)
       const reader = upstream.body!.getReader(); const dec = new TextDecoder(); let buf = ''
       while (true) {
         const {done,value} = await reader.read(); if (done) break

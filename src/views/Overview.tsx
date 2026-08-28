@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader } from '../components/ui'
-import { callClaude } from '../lib/claude'
+import { callClaude, extractJSON } from '../lib/claude'
 import { supabase } from '../lib/supabase'
 import DeliverySettings from './DeliverySettings'
 
@@ -232,8 +232,7 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
       1200
     ).then(raw => {
       try {
-        const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
-        const parsed = JSON.parse(cleaned)
+        const parsed = JSON.parse(extractJSON(raw))
         if (typeof parsed === 'object' && parsed !== null) {
           updateApp(currentApp.id, {
             pillar_suggestions:    parsed,
@@ -305,7 +304,7 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
         setCompStatus('Identifying closest competitor…')
         const raw = await askClaude(false)
         try {
-          topComp = JSON.parse(raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim())
+          topComp = JSON.parse(extractJSON(raw))
           console.log('[competitor] step 1b — Claude returned:', topComp)
         } catch (e) {
           console.log('[competitor] step 1b — JSON parse failed:', raw, e)
@@ -318,7 +317,7 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
         console.log('[competitor] step 2 — URL invalid:', topComp?.url, '— strict retry')
         const raw2 = await askClaude(true)
         try {
-          topComp = JSON.parse(raw2.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim())
+          topComp = JSON.parse(extractJSON(raw2))
           console.log('[competitor] step 2 retry — Claude returned:', topComp)
         } catch (e) {
           console.log('[competitor] step 2 retry — JSON parse failed:', raw2, e)
@@ -489,7 +488,7 @@ Return ONLY this JSON, no markdown:
 {"headline_rewrites":[{"text":"...","angle":"benefit"},{"text":"...","angle":"outcome"},{"text":"...","angle":"specificity"}],"cta_rewrite":"...","priority_fixes":[{"fix":"...","how":"exact step with example tailored to this app"},{"fix":"...","how":"..."},{"fix":"...","how":"..."}],"biggest_lever_explanation":"..."}`
 
       const sys = 'Return ONLY valid JSON. No markdown, no explanation.'
-      const parseRaw = (raw: string) => JSON.parse(raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim())
+      const parseRaw = (raw: string) => JSON.parse(extractJSON(raw))
 
       let parsed: any = parseRaw(await callClaude(prompt, sys, 900))
 

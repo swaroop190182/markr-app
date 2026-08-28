@@ -45,6 +45,9 @@ export async function callClaude(
   if (!onChunk) {
     const data = await res.json()
     if (data.error) throw new Error(data.error)
+    // Which provider actually served this — a 200 may come from a fallback
+    // provider whose JSON adherence is weaker than Anthropic's.
+    if (data.provider) console.log(`[callClaude] served by: ${data.provider} (feature: ${feature})`)
     return data.content?.map((b: { text?: string }) => b.text ?? '').join('') ?? ''
   }
 
@@ -64,6 +67,7 @@ export async function callClaude(
       if (data === '[DONE]') return ''
       try {
         const j = JSON.parse(data)
+        if (j.provider) console.log(`[callClaude] served by: ${j.provider} (feature: ${feature}, streaming)`)
         if (j.text) onChunk(j.text)
       } catch { /* ignore */ }
     }
@@ -71,9 +75,23 @@ export async function callClaude(
   return ''
 }
 
+// ── Extract a JSON object from a model response ───────────────────────────────
+// Strips markdown fences AND any prose before the opening brace / after the
+// closing one. Fallback providers (Groq, Gemini) frequently prepend a line like
+// "Here is the analysis:" despite the system prompt, which a fence-only strip
+// leaves in place and JSON.parse then rejects.
+export function extractJSON(raw: string): string {
+  return raw
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .replace(/^[^{]*/, '')
+    .replace(/}[^}]*$/, '}')
+    .trim()
+}
+
 // ── Safe JSON parse ────────────────────────────────────────────────────────────
 export function safeParseJSON<T>(raw: string): T {
-  return JSON.parse(raw.replace(/```json|```/g, '').trim()) as T
+  return JSON.parse(extractJSON(raw)) as T
 }
 
 // ── Product test context injected into every AI call ──────────────────────────

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { CopyButton } from '../components/ui'
-import { callClaude } from '../lib/claude'
+import { callClaude, extractJSON } from '../lib/claude'
 import { toast } from '../components/Toast'
 
 export default function Strategy() {
@@ -121,7 +121,7 @@ Rules:
 - say/notSay examples must be concrete and brand-specific — not generic marketing phrases`
 
       const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 1800, undefined, 'sonnet', 'positioning')
-      const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
+      const cleaned = extractJSON(raw)
       const parsed  = JSON.parse(cleaned)
 
       if (!parsed.positioningStatement) throw new Error('Invalid response')

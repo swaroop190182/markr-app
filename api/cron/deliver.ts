@@ -54,7 +54,13 @@ Output ONLY valid JSON:
 
       const data  = await res.json()
       const text  = data.content?.map((b: any) => b.text ?? '').join('') ?? ''
-      const post  = JSON.parse(text.replace(/```json|```/g, '').trim())
+      // Same sanitizing as src/lib/claude.ts extractJSON — inlined rather than
+      // imported, since that module pulls in the Supabase browser client.
+      // Strips fences AND any prose a fallback provider prepends or appends.
+      const post  = JSON.parse(
+        text.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+            .replace(/^[^{]*/, '').replace(/}[^}]*$/, '}').trim()
+      )
       posts.push({ ...slot, pillar, ...post })
     } catch {
       posts.push({ ...slot, pillar, caption: '', hashtags: [], hook: '', image_prompt: '' })

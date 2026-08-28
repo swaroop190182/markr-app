@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, safeParseJSON } from '../lib/claude'
+import { callClaude, getTestContext, safeParseJSON, extractJSON } from '../lib/claude'
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -167,6 +167,25 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
       } catch { /* non-blocking */ }
     }
   }
+
+  // Sanitize, verify the payload actually parses, and only then persist.
+  // Writing an unparseable string would survive reloads and guarantee the same
+  // render failure on every subsequent load — the tab would be stuck showing an
+  // error until the user happened to regenerate. Returns false if nothing was
+  // written, leaving any previous good analysis intact.
+  const cacheJSON = (k: string, raw: string, label: string): boolean => {
+    const cleaned = extractJSON(raw)
+    try {
+      JSON.parse(cleaned)
+    } catch (e) {
+      console.error(`[${k}] model returned malformed JSON — not persisting.`, e, 'raw:', raw.slice(0, 300))
+      toast(`${label} generation returned malformed output — please try again.`)
+      return false
+    }
+    setTabCache(k, cleaned)
+    return true
+  }
+
   const pt = currentApp.productTest
 
   // Build recent context string injected into all prompts
@@ -226,7 +245,7 @@ JSON only, no markdown:
 {"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":"4.3/5","ratingSource":"G2","ratingCount":"~450 reviews","praise":"top praise under 10 words","complaints":"top complaint under 10 words","traction":"downloads or user count signal"},"funding":"Seed · $1.2M · 2022","fundingSource":"Crunchbase","employees":"10-50","employeesSource":"LinkedIn","userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"recentMoves":[{"headline":"specific event from last 6 months only","date":"March 2026","source":"TechCrunch"},{"headline":"another recent move — omit if none","date":"Q1 2026","source":"ProductHunt"}],"redditSentiment":"positive","redditQuote":"representative opinion from a real reddit discussion","phUpvotes":"~450","phYear":"2023","positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"}`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 4000, undefined, 'sonnet', 'competitive')
-      const cleaned = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').replace(/^[^{]*/,'').replace(/}[^}]*$/,'}').trim()
+      const cleaned = extractJSON(raw)
       if (!cleaned) throw new Error('Empty response')
       const parsed = JSON.parse(cleaned)
       if (!parsed.comps || !Array.isArray(parsed.comps) || parsed.comps.length === 0) {
@@ -282,8 +301,7 @@ Output ONLY valid JSON:
 {"key_partners":["3-4 real partner types"],"key_activities":["3-4 core activities"],"key_resources":["3-4 key assets"],"value_propositions":["3-4 specific value props"],"customer_relationships":["2-3 relationship modes"],"channels":["3-4 channels"],"customer_segments":["2-3 specific segments"],"cost_structure":["3-4 major costs"],"revenue_streams":["2-3 revenue streams"],"unfair_advantage":"1 sentence"}`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2500)
-      setTabCache('bmc', raw.replace(/```json|```/g,'').trim())
-      toast('Business Model Canvas ready!')
+      if (cacheJSON('bmc', raw, 'Business Model Canvas')) toast('Business Model Canvas ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('bmc', false)
   }
@@ -357,8 +375,7 @@ Output ONLY valid JSON, no markdown:
 }`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. Be specific and honest — no generic consulting filler.', 3000)
-      setTabCache('swot', raw.replace(/```json|```/g,'').trim())
-      toast('SWOT analysis ready!')
+      if (cacheJSON('swot', raw, 'SWOT')) toast('SWOT analysis ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('swot', false)
   }
@@ -418,8 +435,7 @@ Output ONLY valid JSON:
 {"top_priority":"single most impactful specific 30-day action for THIS app","acquisition":[{"title":"specific tactic name","description":"specific 1 sentence action referencing app features or competitors","impact":"High","effort":"Low","timeframe":"Week 1-2"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Medium","timeframe":"Week 2-4"}],"activation":[{"title":"specific tactic","description":"specific action referencing actual app feature","impact":"High","effort":"Low","timeframe":"Week 1"},{"title":"specific tactic","description":"specific action","impact":"High","effort":"Medium","timeframe":"Week 2-3"}],"retention":[{"title":"specific tactic","description":"specific action unique to this app category","impact":"High","effort":"Low","timeframe":"Ongoing"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Medium","timeframe":"Month 2"}],"revenue":[{"title":"specific tactic","description":"specific monetisation action for this app","impact":"High","effort":"Medium","timeframe":"Month 1"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Low","timeframe":"Month 2"}],"referral":[{"title":"specific tactic","description":"specific referral mechanic for this app's users","impact":"Medium","effort":"Low","timeframe":"Month 2"},{"title":"specific tactic","description":"specific action","impact":"High","effort":"Medium","timeframe":"Month 3"}]}`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. Every tactic must be specific to this exact app — no generic advice. No trailing commas.', 3500)
-      setTabCache('growth', raw.replace(/```json|```/g,'').trim())
-      toast('Growth playbook ready!')
+      if (cacheJSON('growth', raw, 'Growth playbook')) toast('Growth playbook ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('growth', false)
   }
@@ -440,8 +456,7 @@ Output ONLY valid JSON:
 {"strategy_type":"Freemium/Usage-based/Flat-rate/Tiered","strategy_rationale":"2 sentence explanation","tiers":[{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":true,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"}],"monetization_angles":[{"angle":"name","description":"1 sentence","revenue_potential":"High"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Low"}],"pricing_risks":["risk 1","risk 2","risk 3"],"benchmark_note":"1 sentence"}`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON.', 2000)
-      setTabCache('pricing', raw.replace(/```json|```/g,'').trim())
-      toast('Pricing plan ready!')
+      if (cacheJSON('pricing', raw, 'Pricing plan')) toast('Pricing plan ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('pricing', false)
   }
@@ -1002,8 +1017,45 @@ function SWOTTab({ data, loading, onGenerate }: { data?:string; loading?:boolean
   if (!data) return (
     <EmptyTab emoji="⚡" title="Strategic SWOT Analysis" desc="Strengths, Weaknesses, Opportunities, Threats — each rated High/Medium/Low with specific action points and owners." onGenerate={onGenerate} btnLabel="Run SWOT Analysis" />
   )
+  // Three distinct failure modes, previously collapsed into a single misleading
+  // "older format" message: unparseable output, a genuinely legacy-shaped
+  // payload, and an unexpected render error.
+  let d: any
   try {
-    const d = JSON.parse(data)
+    d = JSON.parse(data)
+  } catch (e) {
+    console.error('[swot] cached analysis is not valid JSON:', e, 'data:', data.slice(0, 300))
+    return (
+      <div style={{ textAlign:'center', padding:'32px 16px' }}>
+        <div style={{ fontSize:13, color:'var(--amber)', marginBottom:16 }}>
+          ⚠️ This analysis couldn't be read — the model returned malformed output. Regenerating should fix it.
+        </div>
+        <button className="gen-btn" style={{ margin:'0 auto' }} onClick={onGenerate}>
+          🔄 Regenerate SWOT
+        </button>
+      </div>
+    )
+  }
+
+  // Legacy payloads stored each quadrant as plain strings; the current format
+  // stores objects with point/rating/evidence/action.
+  const isLegacySwot = ['strengths','weaknesses','opportunities','threats'].some(
+    k => Array.isArray(d[k]) && d[k].length > 0 && typeof d[k][0] !== 'object'
+  )
+  if (isLegacySwot) {
+    return (
+      <div style={{ textAlign:'center', padding:'32px 16px' }}>
+        <div style={{ fontSize:13, color:'var(--amber)', marginBottom:16 }}>
+          ⚠️ This analysis was generated with an older format — please regenerate to get the new intelligent SWOT with ratings and action points.
+        </div>
+        <button className="gen-btn" style={{ margin:'0 auto' }} onClick={onGenerate}>
+          🔄 Regenerate SWOT
+        </button>
+      </div>
+    )
+  }
+
+  try {
     const ratingColor  = { High:'var(--green)', Medium:'var(--amber)', Low:'var(--text3)' } as Record<string,string>
     const ratingBg     = { High:'rgba(52,201,138,.1)', Medium:'rgba(245,166,35,.1)', Low:'rgba(90,90,114,.1)' } as Record<string,string>
     const ownerColor   = { founder:'#a78bfa', marketing:'#60a5fa', product:'#34c98a', dev:'#f5a623' } as Record<string,string>
@@ -1124,11 +1176,14 @@ function SWOTTab({ data, loading, onGenerate }: { data?:string; loading?:boolean
         <div style={{ textAlign:'right' }}><button className="vbtn" onClick={onGenerate}>🔄 Regenerate</button></div>
       </>
     )
-  } catch {
+  } catch (e) {
+    // Parse and legacy-shape are both handled above, so reaching here means the
+    // payload parsed and looks current but still broke the render.
+    console.error('[swot] render failed on a parseable, current-format payload:', e)
     return (
       <div style={{ textAlign:'center', padding:'32px 16px' }}>
         <div style={{ fontSize:13, color:'var(--amber)', marginBottom:16 }}>
-          ⚠️ This analysis was generated with an older format — please regenerate to get the new intelligent SWOT with ratings and action points.
+          ⚠️ Something went wrong displaying this analysis. Regenerating may fix it.
         </div>
         <button className="gen-btn" style={{ margin:'0 auto' }} onClick={onGenerate}>
           🔄 Regenerate SWOT
