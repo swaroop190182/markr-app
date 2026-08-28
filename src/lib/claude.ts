@@ -89,6 +89,32 @@ export function extractJSON(raw: string): string {
     .trim()
 }
 
+// ── Truncation detection ──────────────────────────────────────────────────────
+// A response cut off at the token cap and one mangled by a chatty provider both
+// fail JSON.parse; only the first is fixed by raising maxTokens, so keep them
+// distinguishable. Call this with the ORIGINAL raw string, not the extractJSON
+// output — extractJSON's trailing-prose strip rewrites a truncated payload to
+// end at its last closing brace, which hides the very evidence of truncation.
+export function looksTruncated(raw: string, err: unknown): boolean {
+  const body = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+  // No structure at all — a refusal or plain prose, never a truncated payload.
+  // Checked first because extractJSON reduces such a response to an empty
+  // string, and JSON.parse('') reports "Unexpected end of JSON input", which
+  // would otherwise read as truncation.
+  if (!/[{[]/.test(body)) return false
+
+  const msg = err instanceof Error ? err.message : ''
+  if (/unterminated|unexpected end of (json|input)/i.test(msg)) return true
+
+  // Unbalanced braces/brackets mean the payload stopped mid-structure.
+  let depth = 0
+  for (const ch of body) {
+    if (ch === '{' || ch === '[') depth++
+    else if (ch === '}' || ch === ']') depth--
+  }
+  return depth > 0
+}
+
 // ── Safe JSON parse ────────────────────────────────────────────────────────────
 export function safeParseJSON<T>(raw: string): T {
   return JSON.parse(extractJSON(raw)) as T
@@ -169,7 +195,9 @@ Keep ALL string values under 20 words. Output ONLY valid JSON, no markdown, no t
   const raw = await callClaude(
     prompt,
     'You are a senior QA engineer. Output ONLY valid JSON. Keep string values under 20 words. No markdown.',
-    4000,
+    // Up to 8 flows plus features_found, bugs_and_issues, ux_ratings and four
+    // string arrays — comfortably past 4000 on a feature-rich app.
+    8000,
     undefined,
     'haiku'  // Haiku is fast and cheap — JSON output quality is fine
   )

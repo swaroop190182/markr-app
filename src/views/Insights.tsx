@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, safeParseJSON, extractJSON } from '../lib/claude'
+import { callClaude, getTestContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -178,8 +178,15 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
     try {
       JSON.parse(cleaned)
     } catch (e) {
-      console.error(`[${k}] model returned malformed JSON — not persisting.`, e, 'raw:', raw.slice(0, 300))
-      toast(`${label} generation returned malformed output — please try again.`)
+      // Truncation (hit the token cap) vs. genuinely malformed output are
+      // different problems with different fixes — report them separately.
+      if (looksTruncated(raw, e)) {
+        console.error(`[${k}] response was cut off at the token cap — not persisting.`, e, `length: ${raw.length}`)
+        toast(`${label} response was cut off — try again.`)
+      } else {
+        console.error(`[${k}] model returned malformed JSON — not persisting.`, e, 'raw:', raw.slice(0, 300))
+        toast(`${label} generation returned malformed output — please try again.`)
+      }
       return false
     }
     setTabCache(k, cleaned)
@@ -244,7 +251,9 @@ RECENT NEWS RULE: For recentMoves, only include news announcements, launches, or
 JSON only, no markdown:
 {"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":"4.3/5","ratingSource":"G2","ratingCount":"~450 reviews","praise":"top praise under 10 words","complaints":"top complaint under 10 words","traction":"downloads or user count signal"},"funding":"Seed · $1.2M · 2022","fundingSource":"Crunchbase","employees":"10-50","employeesSource":"LinkedIn","userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"recentMoves":[{"headline":"specific event from last 6 months only","date":"March 2026","source":"TechCrunch"},{"headline":"another recent move — omit if none","date":"Q1 2026","source":"ProductHunt"}],"redditSentiment":"positive","redditQuote":"representative opinion from a real reddit discussion","phUpvotes":"~450","phYear":"2023","positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"}`
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 4000, undefined, 'sonnet', 'competitive')
+      // 5 competitors, each with strengths/weaknesses/reviews/funding/userLoves/
+      // userHates/recentMoves — the largest payload in the app.
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 8000, undefined, 'sonnet', 'competitive')
       const cleaned = extractJSON(raw)
       if (!cleaned) throw new Error('Empty response')
       const parsed = JSON.parse(cleaned)
@@ -374,7 +383,9 @@ Output ONLY valid JSON, no markdown:
   ]
 }`
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Be specific and honest — no generic consulting filler.', 3000)
+      // 16 rated items (point/rating/evidence/action/owner/timeframe) plus
+      // top_actions and scores — 3000 truncated this mid-JSON in practice.
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Be specific and honest — no generic consulting filler.', 8000)
       if (cacheJSON('swot', raw, 'SWOT')) toast('SWOT analysis ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('swot', false)
@@ -434,7 +445,8 @@ RULES — this must NOT be generic:
 Output ONLY valid JSON:
 {"top_priority":"single most impactful specific 30-day action for THIS app","acquisition":[{"title":"specific tactic name","description":"specific 1 sentence action referencing app features or competitors","impact":"High","effort":"Low","timeframe":"Week 1-2"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Medium","timeframe":"Week 2-4"}],"activation":[{"title":"specific tactic","description":"specific action referencing actual app feature","impact":"High","effort":"Low","timeframe":"Week 1"},{"title":"specific tactic","description":"specific action","impact":"High","effort":"Medium","timeframe":"Week 2-3"}],"retention":[{"title":"specific tactic","description":"specific action unique to this app category","impact":"High","effort":"Low","timeframe":"Ongoing"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Medium","timeframe":"Month 2"}],"revenue":[{"title":"specific tactic","description":"specific monetisation action for this app","impact":"High","effort":"Medium","timeframe":"Month 1"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Low","timeframe":"Month 2"}],"referral":[{"title":"specific tactic","description":"specific referral mechanic for this app's users","impact":"Medium","effort":"Low","timeframe":"Month 2"},{"title":"specific tactic","description":"specific action","impact":"High","effort":"Medium","timeframe":"Month 3"}]}`
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Every tactic must be specific to this exact app — no generic advice. No trailing commas.', 3500)
+      // 5 lanes x 2 tactics x 5 fields, plus top_priority.
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Every tactic must be specific to this exact app — no generic advice. No trailing commas.', 5000)
       if (cacheJSON('growth', raw, 'Growth playbook')) toast('Growth playbook ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('growth', false)
@@ -455,7 +467,8 @@ Output ONLY valid JSON:
 Output ONLY valid JSON:
 {"strategy_type":"Freemium/Usage-based/Flat-rate/Tiered","strategy_rationale":"2 sentence explanation","tiers":[{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":true,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"}],"monetization_angles":[{"angle":"name","description":"1 sentence","revenue_potential":"High"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Low"}],"pricing_risks":["risk 1","risk 2","risk 3"],"benchmark_note":"1 sentence"}`
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON.', 2000)
+      // 3 tiers with nested feature lists, 4 monetization angles, risks.
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON.', 3000)
       if (cacheJSON('pricing', raw, 'Pricing plan')) toast('Pricing plan ready!')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('pricing', false)
