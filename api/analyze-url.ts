@@ -52,28 +52,38 @@ function parseAbbrevCount(s: string): number | null {
 }
 
 async function fetchInstagram(handle: string): Promise<InstagramData | null> {
-  if (!process.env.RENDERER_URL || !process.env.RENDERER_SECRET) return null
+  if (!process.env.RENDERER_URL || !process.env.RENDERER_SECRET) {
+    console.log('[instagram] RENDERER_URL or RENDERER_SECRET not set — skipping fetch')
+    return null
+  }
 
-  const rendered = await fetch(`${process.env.RENDERER_URL}/render`, {
+  const rendererRes = await fetch(`${process.env.RENDERER_URL}/render`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-renderer-secret': process.env.RENDERER_SECRET,
     },
     body: JSON.stringify({ url: `https://www.instagram.com/${handle}/` }),
-  }).then(r => r.json())
+  })
+  console.log('[instagram] renderer response status:', rendererRes.status)
+  const rendered = await rendererRes.json()
 
   const html: string | undefined = rendered?.html
+  console.log('[instagram] html length:', html?.length ?? 0)
   if (!html) return null
 
   // Instagram's soft-404 for invalid/unavailable handles — never treat as a real profile.
-  if (html.includes('signed_404_page') || html.includes('httpErrorPage')) return null
+  if (html.includes('signed_404_page') || html.includes('httpErrorPage')) {
+    console.log('[instagram] soft-404 detected — handle invalid or unavailable:', handle)
+    return null
+  }
 
   // PRIMARY source — og:description meta tag: "107K Followers, 53 Following, 557 Posts - ..."
   // More stable across Instagram frontend changes than the embedded JSON blob.
   const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1]
               ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i)?.[1]
               ?? ''
+  console.log('[instagram] og:description found:', !!ogDesc, ogDesc ? `"${ogDesc.slice(0, 80)}"` : '')
 
   let followers: number | null = null
   let following: number | null = null
@@ -87,19 +97,25 @@ async function fetchInstagram(handle: string): Promise<InstagramData | null> {
     if (gm) following = parseAbbrevCount(gm[1])
     if (pm) posts = parseAbbrevCount(pm[1])
   }
+  console.log('[instagram] parsed from og:description — followers:', followers, 'following:', following, 'posts:', posts)
 
   // FALLBACK — embedded JSON — only when the meta tag is absent
   if (followers == null) {
     const fc = html.match(/"follower_count":(\d+)/)?.[1]
     if (fc) followers = parseInt(fc, 10)
+    console.log('[instagram] fell back to embedded JSON — follower_count:', fc)
   }
   if (following == null) {
     const fg = html.match(/"following_count":(\d+)/)?.[1]
     if (fg) following = parseInt(fg, 10)
   }
 
-  if (followers == null) return null
+  if (followers == null) {
+    console.log('[instagram] no follower count found by either method — returning null')
+    return null
+  }
 
+  console.log('[instagram] resolved:', { handle, followers, following, posts })
   return { handle, followers, following: following ?? 0, posts: posts ?? 0 }
 }
 
@@ -970,6 +986,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── Instagram fetch — never blocks or fails the landing page analysis ──────
+    console.log('[instagram] handle received:', instagram_handle)
     let instagram: InstagramData | null = null
     if (typeof instagram_handle === 'string' && instagram_handle.trim()) {
       try {
@@ -984,6 +1001,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const result = score(pages, url, renderedByHeadless, isJsSpa, htmlLength, instagram)
+    console.log('[instagram] merged into result.instagram:', result.instagram)
     ;(result as any).totalWords = totalWords
     if (result.confidence === 'js-app') {
       ;(result as any).jsAppMessage = 'This score may be incomplete. We could only read static HTML — buttons, pricing, and stats that load via JavaScript may not be reflected.'

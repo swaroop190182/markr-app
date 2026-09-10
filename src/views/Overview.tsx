@@ -94,12 +94,14 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
   useEffect(() => {
     if (!currentApp?.url || (currentApp as any)?.url_analysis) return
     setUaLoading(true)
+    console.log('[instagram] auto-fetch — currentApp.instagram_handle:', (currentApp as any).instagram_handle)
     fetch('/api/analyze-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
       body: JSON.stringify({ url: currentApp.url, instagram_handle: (currentApp as any).instagram_handle || undefined })
     }).then(r => r.ok ? r.json() : null).then(async result => {
       if (result && !result.error) {
+        console.log('[instagram] auto-fetch response — result.instagram:', result?.instagram)
         const capturedId = currentApp.id
         // Save URL analysis
         updateApp(capturedId, {
