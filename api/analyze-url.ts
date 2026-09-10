@@ -26,6 +26,83 @@ async function fetchSafe(url: string, timeout = 6000): Promise<string | null> {
   } catch { return null }
 }
 
+// ── Instagram profile fetch — via Railway renderer ────────────────────────────
+interface InstagramData {
+  handle: string
+  followers: number
+  following: number
+  posts: number
+}
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  return String(n)
+}
+
+// Parses Instagram's abbreviated counts ("107K", "1.2M", "557") into a number.
+function parseAbbrevCount(s: string): number | null {
+  const m = s.trim().match(/^([\d.,]+)\s*([KkMm]?)$/)
+  if (!m) return null
+  let n = parseFloat(m[1].replace(/,/g, ''))
+  if (Number.isNaN(n)) return null
+  if (/k/i.test(m[2])) n *= 1_000
+  if (/m/i.test(m[2])) n *= 1_000_000
+  return Math.round(n)
+}
+
+async function fetchInstagram(handle: string): Promise<InstagramData | null> {
+  if (!process.env.RENDERER_URL || !process.env.RENDERER_SECRET) return null
+
+  const rendered = await fetch(`${process.env.RENDERER_URL}/render`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-renderer-secret': process.env.RENDERER_SECRET,
+    },
+    body: JSON.stringify({ url: `https://www.instagram.com/${handle}/` }),
+  }).then(r => r.json())
+
+  const html: string | undefined = rendered?.html
+  if (!html) return null
+
+  // Instagram's soft-404 for invalid/unavailable handles — never treat as a real profile.
+  if (html.includes('signed_404_page') || html.includes('httpErrorPage')) return null
+
+  // PRIMARY source — og:description meta tag: "107K Followers, 53 Following, 557 Posts - ..."
+  // More stable across Instagram frontend changes than the embedded JSON blob.
+  const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1]
+              ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i)?.[1]
+              ?? ''
+
+  let followers: number | null = null
+  let following: number | null = null
+  let posts: number | null = null
+
+  if (ogDesc) {
+    const fm = ogDesc.match(/([\d.,]+\s*[KkMm]?)\s*Followers/i)
+    const gm = ogDesc.match(/([\d.,]+\s*[KkMm]?)\s*Following/i)
+    const pm = ogDesc.match(/([\d.,]+\s*[KkMm]?)\s*Posts/i)
+    if (fm) followers = parseAbbrevCount(fm[1])
+    if (gm) following = parseAbbrevCount(gm[1])
+    if (pm) posts = parseAbbrevCount(pm[1])
+  }
+
+  // FALLBACK — embedded JSON — only when the meta tag is absent
+  if (followers == null) {
+    const fc = html.match(/"follower_count":(\d+)/)?.[1]
+    if (fc) followers = parseInt(fc, 10)
+  }
+  if (following == null) {
+    const fg = html.match(/"following_count":(\d+)/)?.[1]
+    if (fg) following = parseInt(fg, 10)
+  }
+
+  if (followers == null) return null
+
+  return { handle, followers, following: following ?? 0, posts: posts ?? 0 }
+}
+
 // ── Extract content from HTML ─────────────────────────────────────────────────
 function extract(html: string) {
   const clean = (s: string) => s.replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()
@@ -371,7 +448,7 @@ const DIMENSION_WEIGHTS: Record<string, number> = {
 }
 
 // ── Score the app ─────────────────────────────────────────────────────────────
-function score(pages: Record<string, ReturnType<typeof extract>>, url: string, renderedByHeadless: boolean, isJsSpa: boolean, htmlLength: number) {
+function score(pages: Record<string, ReturnType<typeof extract>>, url: string, renderedByHeadless: boolean, isJsSpa: boolean, htmlLength: number, instagram: InstagramData | null = null) {
   const home     = pages.home
   const pricing  = pages.pricing
   const features = pages.features
@@ -552,8 +629,14 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
                  : isJSOnlyApp                        ? 1  // could not verify — half penalty
                  : 0
   const tTraction = hasNumbers                        ? 1 : 0
+  // Instagram follower count as a social proof signal: under 1,000 = minimal credit,
+  // 1,000-10,000 = moderate credit, above 10,000 = strong credit.
+  const tIG = instagram == null                       ? 0
+    : instagram.followers > 10000                     ? 2
+    : instagram.followers >= 1000                     ? 1
+    : 0.5
 
-  let trust = Math.min(10, 2 + tSP + tTeam + tLogo + tTraction)
+  let trust = Math.min(10, 2 + tSP + tTeam + tLogo + tTraction + tIG)
   // Rule: 10/10 requires both social proof and a team/about page
   if (trust >= 10 && !(hasSP && hasTeam)) trust = 9
 
@@ -567,7 +650,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     : hasFounderStory                 ? 'founder story found'
     : jsUnverifiable('team page'),
     hasLogos                          ? 'logo wall found' : jsUnverifiable('logo wall'),
-  ]
+    instagram                         ? `Instagram: ${formatCount(instagram.followers)} followers` : null,
+  ].filter(Boolean)
   const trustIssue = `${trustParts.join(', ')} in pages analyzed: ${crawledPages}`
 
   // ── 5. Conversion Readiness (0–10) ──────────────────────────────────────────
@@ -699,6 +783,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     { label: 'Pricing',          found: hasPricing,                            js: !hasPricing && isJSOnlyApp },
     { label: 'Social proof',     found: !!(hasSP || hasQuotes),                 js: !(hasSP || hasQuotes) && isJSOnlyApp },
     { label: 'Team / About',     found: hasTeam,                                js: !hasTeam && isJSOnlyApp },
+    { label: 'Instagram presence', found: !!instagram,                          js: false },
   ]
 
   // ── Bottleneck ───────────────────────────────────────────────────────────────
@@ -830,6 +915,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     confidenceReason,
     checkedSignals,
     pagesRead,
+    instagram,
     isJSApp: home.wordCount < 100,
     // TEMP DEBUG — remove after confirming renderer routing behaves as expected
     debug: {
@@ -851,7 +937,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  let { url } = req.body
+  let { url, instagram_handle } = req.body
   if (!url) return res.status(400).json({ error: 'URL required' })
 
   url = url.trim()
@@ -883,7 +969,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    const result = score(pages, url, renderedByHeadless, isJsSpa, htmlLength)
+    // ── Instagram fetch — never blocks or fails the landing page analysis ──────
+    let instagram: InstagramData | null = null
+    if (typeof instagram_handle === 'string' && instagram_handle.trim()) {
+      try {
+        instagram = await Promise.race([
+          fetchInstagram(instagram_handle.trim()),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 15000)),
+        ])
+      } catch (igErr) {
+        console.error('[analyze-url] Instagram fetch failed (non-fatal):', (igErr as Error).message)
+        instagram = null
+      }
+    }
+
+    const result = score(pages, url, renderedByHeadless, isJsSpa, htmlLength, instagram)
     ;(result as any).totalWords = totalWords
     if (result.confidence === 'js-app') {
       ;(result as any).jsAppMessage = 'This score may be incomplete. We could only read static HTML — buttons, pricing, and stats that load via JavaScript may not be reflected.'

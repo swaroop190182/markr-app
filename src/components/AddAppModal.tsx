@@ -5,6 +5,7 @@ import { callClaude, runProductTest } from '../lib/claude'
 import { toast } from './Toast'
 import type { AppData } from '../types'
 import { COLORS } from '../lib/data'
+import { normalizeInstagramHandle } from '../lib/instagram'
 
 type Step = 'pending' | 'active' | 'done' | 'skip'
 
@@ -26,6 +27,7 @@ export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: (
   const [appDesc,  setAppDesc]  = useState('')
   const [descErr,  setDescErr]  = useState(false)
   const [url,      setUrl]      = useState(prefilledUrl)  // pre-fill from landing page
+  const [instagramHandle, setInstagramHandle] = useState('')
   const [platform, setPlatform] = useState<string>('Web')
   const [stage,    setStage]    = useState<string>('Launch')
   const [category, setCategory] = useState<string>('Productivity')
@@ -57,12 +59,13 @@ export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: (
       let urlContext = ''
       let savedUrlAnalysis: any = null
       let detectedCategory = category
+      const normalizedHandle = normalizeInstagramHandle(instagramHandle)
       if (url) {
         try {
           const urlRes = await fetch('/api/analyze-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
+            body: JSON.stringify({ url, instagram_handle: normalizedHandle || undefined })
           })
           if (urlRes.ok) {
             const urlData = await urlRes.json()
@@ -162,6 +165,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         productTest,
         url_analysis: savedUrlAnalysis,
         primary_market: primaryMarket,
+        instagram_handle: normalizedHandle || null,
         analyzed: true
       }
       addApp(newApp)
@@ -204,6 +208,10 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
 
       <Field label="App URL ✦ AI reads this" hint="Landing page, App Store link, or any URL describing your app.">
         <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://yourapp.com" />
+      </Field>
+
+      <Field label="Instagram handle (optional)" hint="Pulls follower count into Trust scoring and strategy — bio/captions are never read.">
+        <input value={instagramHandle} onChange={e=>setInstagramHandle(e.target.value)} placeholder="@yourbrand or full URL" />
       </Field>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

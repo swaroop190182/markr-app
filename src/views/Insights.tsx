@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
+import { callClaude, getTestContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -304,8 +304,11 @@ JSON only, no markdown:
     }
     setLoad('bmc', true)
     const ptCtx = getTestContext(currentApp)
+    const igCtx = getInstagramContext(currentApp)
     try {
       const prompt = `Build a complete Business Model Canvas for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nValue propositions must reflect REAL features from product testing.' : ''}
+
+${igCtx}
 Output ONLY valid JSON:
 {"key_partners":["3-4 real partner types"],"key_activities":["3-4 core activities"],"key_resources":["3-4 key assets"],"value_propositions":["3-4 specific value props"],"customer_relationships":["2-3 relationship modes"],"channels":["3-4 channels"],"customer_segments":["2-3 specific segments"],"cost_structure":["3-4 major costs"],"revenue_streams":["2-3 revenue streams"],"unfair_advantage":"1 sentence"}`
 
@@ -325,8 +328,11 @@ Output ONLY valid JSON:
     setLoad('swot', true)
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
+    const igCtx = getInstagramContext(currentApp, 'Treat a large following as a Strength and a small one relative to post count as a Weakness — reference the actual numbers.')
     try {
       const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}${rcCtx}
+
+${igCtx}
 
 SCORING RULES — you MUST calculate each component score honestly based on actual evidence:
 - strength_score (0-25): High strength = +6pts, Medium = +4pts, Low = +2pts. Cap at 25.
@@ -401,6 +407,7 @@ Output ONLY valid JSON, no markdown:
     setLoad('growth', true)
     const ptCtx  = getTestContext(currentApp)
     const rcCtx  = getRecentContext()
+    const igCtx  = getInstagramContext(currentApp, 'Treat an existing audience as a distribution asset that changes which tactics apply.')
 
     // Pull existing analysis to cross-reference
     let existingCtx = ''
@@ -432,6 +439,8 @@ Target audience: ${currentApp.audience || 'Not specified'}
 Key features: ${(currentApp.features||[]).join(', ') || 'Not listed'}
 ${ptCtx}${rcCtx}${existingCtx}
 
+${igCtx}
+
 RULES — this must NOT be generic:
 1. Every tactic MUST reference specific features, competitor weaknesses, or SWOT findings above
 2. Acquisition tactics must name specific channels relevant to this app's audience (not just "social ads")
@@ -462,8 +471,11 @@ Output ONLY valid JSON:
     setLoad('pricing', true)
     const ptCtx = getTestContext(currentApp)
     const rcCtx = getRecentContext()
+    const igCtx = getInstagramContext(currentApp)
     try {
       const prompt = `Complete pricing strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nPricing must reflect real product quality from testing.' : ''}
+
+${igCtx}
 Output ONLY valid JSON:
 {"strategy_type":"Freemium/Usage-based/Flat-rate/Tiered","strategy_rationale":"2 sentence explanation","tiers":[{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":true,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"}],"monetization_angles":[{"angle":"name","description":"1 sentence","revenue_potential":"High"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Low"}],"pricing_risks":["risk 1","risk 2","risk 3"],"benchmark_note":"1 sentence"}`
 

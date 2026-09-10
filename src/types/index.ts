@@ -90,6 +90,7 @@ export interface AppData {
   analyzed?: boolean
   recent_context?: string | null  // user-provided recent data: reviews, metrics, feedback
   primary_market?: string | null  // user-set market override for competitor detection — 'Auto-detect' or a specific market
+  instagram_handle?: string | null  // bare handle (no @, no URL) — used to pull follower/post counts into analysis
   // Persisted analysis cache
   competitive_analysis?: string | null
   bmc_analysis?:         string | null
@@ -121,6 +122,14 @@ export interface AppData {
     growth_teaser: string
     pagesRead: string[]
     analyzed_at: string
+    // Instagram metrics — populated when instagram_handle is set and the renderer
+    // successfully resolves the profile. Bio and captions are never available.
+    instagram?: {
+      handle: string
+      followers: number
+      following: number
+      posts: number
+    } | null
   } | null
   // Pillar post suggestions (generated weekly)
   pillar_suggestions?:    Record<string, string[]> | null

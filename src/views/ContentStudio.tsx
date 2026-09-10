@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, safeParseJSON } from '../lib/claude'
+import { callClaude, getTestContext, getInstagramContext, safeParseJSON } from '../lib/claude'
 import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
 import type { AppData, AgentPost, ContentContext, PostHistoryEntry } from '../types'
@@ -689,6 +689,7 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     const styleConfig = POST_STYLES.find(s => s.id === style) ?? POST_STYLES[1]
 
     const derivedCtxBlock = deriveContentContext(currentApp, pillar, pillarSuggestions)
+    const igCtxBlock = getInstagramContext(currentApp, 'Calibrate tone to audience size, but do NOT claim knowledge of their existing content.')
 
     const ENDING_RULE = {
       morning: 'THIS POST (morning) MUST end with a STATEMENT — never a question.',
@@ -801,6 +802,7 @@ ${brandVoice}
 ${testCtx}
 ${testCtx ? `CRITICAL: Reference specific features and real UX details from the product test. Caption must feel like it was written by someone who has actually used ${currentApp.name} deeply.` : ''}
 ${derivedCtxBlock}
+${igCtxBlock}
 ${contentCtxBlock}
 ${screenshotInstruction}${historyBlock}${topFormatsBlock}${trendingBlock}${stratCtxBlock ? `━━━ CROSS-MODULE STRATEGY CONTEXT ━━━\n${stratCtxBlock}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : ''}
 

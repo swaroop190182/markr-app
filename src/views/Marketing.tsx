@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
-import { callClaude, extractJSON } from '../lib/claude'
+import { callClaude, extractJSON, getInstagramContext } from '../lib/claude'
 import { toast } from '../components/Toast'
 import GoToMarketTab from './insights/GoToMarket'
 
@@ -116,6 +116,8 @@ export default function Marketing() {
         })
       }
     }
+
+    lines.push(`\n${getInstagramContext(currentApp, 'If followers exceed 10,000, recommend converting the existing audience rather than building a new presence; if under 1,000, treat Instagram as a channel to build.')}`)
 
     return lines.filter(Boolean).join('\n')
   }

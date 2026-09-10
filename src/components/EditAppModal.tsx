@@ -4,6 +4,7 @@ import { useStore } from '../lib/store'
 import { callClaude, runProductTest } from '../lib/claude'
 import { toast } from './Toast'
 import type { AppData } from '../types'
+import { normalizeInstagramHandle } from '../lib/instagram'
 
 const PLATFORMS  = ['Web', 'Mobile', 'Both'] as const
 const STAGES     = ['Idea', 'Early', 'Launch', 'Growth'] as const
@@ -18,6 +19,9 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
 
   const [name,      setName]      = useState(app.name)
   const [url,       setUrl]       = useState(app.url ?? '')
+  const [instagramHandle, setInstagramHandle] = useState(app.instagram_handle ?? '')
+  const [showReanalyzePrompt, setShowReanalyzePrompt] = useState(false)
+  const [reanalyzing, setReanalyzing] = useState(false)
   const [platform,  setPlatform]  = useState<typeof PLATFORMS[number]>(app.platform as typeof PLATFORMS[number])
   const [stage,     setStage]     = useState<typeof STAGES[number]>(app.stage as typeof STAGES[number])
   const [category,  setCategory]  = useState(app.category)
@@ -38,6 +42,7 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
   const hasCreds = !!(testUser && (testPass || app.testCreds?.password))
 
   function saveOnly() {
+    const normalizedHandle = normalizeInstagramHandle(instagramHandle) || null
     updateApp(app.id, {
       name, url,
       platform: platform as AppData['platform'],
@@ -45,6 +50,7 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
       category, desc,
       recent_context: recentCtx || null,
       primary_market: primaryMarket,
+      instagram_handle: normalizedHandle,
       testCreds: testUser ? {
         user: testUser,
         password: testPass || app.testCreds?.password || '',
@@ -52,8 +58,44 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
         flows: testFlows
       } : app.testCreds
     })
-    onClose()
     toast(`✅ ${name} saved!`)
+
+    // Handle changed on an app that's already been analyzed — offer to fold
+    // Instagram data into the existing analysis instead of forcing a re-run.
+    const handleChanged = normalizedHandle !== (app.instagram_handle ?? null)
+    if (handleChanged && normalizedHandle && app.url_analysis) {
+      setShowReanalyzePrompt(true)
+    } else {
+      onClose()
+    }
+  }
+
+  async function reanalyzeUrl() {
+    setReanalyzing(true)
+    try {
+      const normalizedHandle = normalizeInstagramHandle(instagramHandle)
+      const r = await fetch('/api/analyze-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
+        body: JSON.stringify({ url, instagram_handle: normalizedHandle || undefined })
+      })
+      if (r.ok) {
+        const result = await r.json()
+        if (!result.error) {
+          await updateApp(app.id, { url_analysis: { ...result, analyzed_at: new Date().toISOString() } } as any)
+          toast('Re-analyzed with Instagram data ✓')
+        } else {
+          toast('Re-analysis failed: ' + result.error)
+        }
+      } else {
+        toast('Re-analysis failed — please try again')
+      }
+    } catch (e) {
+      toast('Re-analysis failed: ' + (e as Error).message)
+    }
+    setReanalyzing(false)
+    setShowReanalyzePrompt(false)
+    onClose()
   }
 
   async function saveAndReanalyze() {
@@ -145,6 +187,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         brand, pillars, features, audience, problem, diff,
         recent_context: recentCtx || null,
         primary_market: primaryMarket,
+        instagram_handle: normalizeInstagramHandle(instagramHandle) || null,
         testCreds: {
           user: testUser,
           password: effectivePass,
@@ -173,6 +216,9 @@ BRAND_VOICE: [3-4 sentences on voice]`,
       </Field>
       <Field label="App URL">
         <input value={url} onChange={e => setUrl(e.target.value)} />
+      </Field>
+      <Field label="Instagram handle (optional)" hint="Pulls follower count into Trust scoring and strategy — bio/captions are never read.">
+        <input value={instagramHandle} onChange={e => setInstagramHandle(e.target.value)} placeholder="@yourbrand or full URL" />
       </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Field label="Platform">
@@ -266,6 +312,21 @@ BRAND_VOICE: [3-4 sentences on voice]`,
           <ProgressStep label="Re-analyzing features & audience"       state={steps[1]} />
           <ProgressStep label="AI Readiness Assessment — simulating user session" state={steps[2]} />
           <ProgressStep label="Rebuilding content engine"              state={steps[3]} />
+        </div>
+      )}
+
+      {showReanalyzePrompt && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' as const, background: 'rgba(124,111,247,.08)', border: '1px solid rgba(124,111,247,.25)', borderRadius: 'var(--r)', padding: '10px 14px', marginTop: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--text)' }}>Re-analyze now to include Instagram data?</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="vbtn" onClick={onClose} disabled={reanalyzing}>Not now</button>
+            <button className="gen-btn" onClick={reanalyzeUrl} disabled={reanalyzing} style={{ fontSize: 11, padding: '6px 14px' }}>
+              {reanalyzing
+                ? <><span className="spinner" style={{ color: '#fff' }} /> Re-analyzing…</>
+                : 'Re-analyze now'
+              }
+            </button>
+          </div>
         </div>
       )}
 

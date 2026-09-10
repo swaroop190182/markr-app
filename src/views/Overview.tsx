@@ -3,6 +3,7 @@ import { useStore } from '../lib/store'
 import { Card, CardHeader } from '../components/ui'
 import { callClaude, extractJSON } from '../lib/claude'
 import { supabase } from '../lib/supabase'
+import { formatInstagramCount } from '../lib/instagram'
 import DeliverySettings from './DeliverySettings'
 
 
@@ -96,7 +97,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
     fetch('/api/analyze-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
-      body: JSON.stringify({ url: currentApp.url })
+      body: JSON.stringify({ url: currentApp.url, instagram_handle: (currentApp as any).instagram_handle || undefined })
     }).then(r => r.ok ? r.json() : null).then(async result => {
       if (result && !result.error) {
         const capturedId = currentApp.id
@@ -111,6 +112,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             growth_teaser: result.growth_teaser,
             pagesRead: result.pagesRead ?? [],
             closestCompetitor: result.closestCompetitor ?? null,
+            instagram: result.instagram ?? null,
             analyzed_at: new Date().toISOString()
           }
         } as any)
@@ -691,6 +693,11 @@ Return ONLY this JSON, no markdown:
                         <div style={{ height:'100%', width:`${d.score*10}%`, background:c, borderRadius:3 }} />
                       </div>
                       <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5 }}>{d.issue}</div>
+                      {d.label === 'Trust' && ua.instagram && (
+                        <div style={{ fontSize:11, color:'var(--accent2)', marginTop:3 }}>
+                          📸 {formatInstagramCount(ua.instagram.followers)} followers · {formatInstagramCount(ua.instagram.posts)} posts
+                        </div>
+                      )}
                       {d.score < 8 && (
                         <div style={{ fontSize:11, color:c, lineHeight:1.5, marginTop:3, paddingLeft:8, borderLeft:`2px solid ${c}` }}>
                           {fixes[d.label] ?? ''}
@@ -990,7 +997,7 @@ Return ONLY this JSON, no markdown:
                       fetch('/api/analyze-url', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
-                        body: JSON.stringify({ url: currentApp.url })
+                        body: JSON.stringify({ url: currentApp.url, instagram_handle: (currentApp as any).instagram_handle || undefined })
                       }).then(r => r.ok ? r.json() : null).then(result => {
                         if (result && !result.error) {
                           updateApp(capturedId, { url_analysis: { ...result, analyzed_at: new Date().toISOString() } } as any)

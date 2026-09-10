@@ -180,6 +180,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           analyzed:    row.analyzed ?? false,
           recent_context: row.recent_context ?? null,
           primary_market: row.primary_market ?? 'Auto-detect',
+          instagram_handle: row.instagram_handle ?? null,
           // URL Analysis
           url_analysis:            row.url_analysis ?? null,
           competitor_url_analysis: row.competitor_url_analysis ?? null,
@@ -244,6 +245,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         product_test:  newApp.productTest ?? null,
         analyzed:      newApp.analyzed ?? false,
         primary_market: newApp.primary_market ?? 'Auto-detect',
+        instagram_handle: newApp.instagram_handle ?? null,
       })
       .select()
       .single()
@@ -282,6 +284,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.color       !== undefined && { color:           updates.color }),
         ...(updates.recent_context !== undefined && { recent_context: updates.recent_context }),
         ...(updates.primary_market !== undefined && { primary_market: updates.primary_market }),
+        ...(updates.instagram_handle !== undefined && { instagram_handle: updates.instagram_handle }),
         // Analysis cache
         ...(updates.competitive_analysis !== undefined && { competitive_analysis: updates.competitive_analysis }),
         ...(updates.bmc_analysis         !== undefined && { bmc_analysis:         updates.bmc_analysis }),

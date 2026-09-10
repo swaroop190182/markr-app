@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { CopyButton } from '../components/ui'
-import { callClaude, extractJSON } from '../lib/claude'
+import { callClaude, extractJSON, getInstagramContext } from '../lib/claude'
 import { toast } from '../components/Toast'
 
 export default function Strategy() {
@@ -60,6 +60,8 @@ export default function Strategy() {
     }
     if (competitive?.winCond) lines.push(`WIN CONDITION: ${competitive.winCond}`)
     if (competitive?.wspace)  lines.push(`MARKET WHITESPACE: ${competitive.wspace}`)
+
+    lines.push(`\n${getInstagramContext(currentApp)}`)
 
     return lines.filter(Boolean).join('\n')
   }

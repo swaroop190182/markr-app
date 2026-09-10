@@ -172,6 +172,21 @@ export function getTestContext(app: AppData): string {
   ].filter(Boolean).join('\n')
 }
 
+// ── Instagram context injected into strategy prompts ──────────────────────────
+// Bio and captions are never available from the renderer — every caller gets the
+// same no-fabrication warning whenever a handle is present, on top of whatever
+// module-specific guidance it passes in.
+export function getInstagramContext(app: AppData, guidance?: string): string {
+  const ig = app.url_analysis?.instagram
+  const presence = `INSTAGRAM PRESENCE: ${ig ? `${ig.followers} followers, ${ig.posts} posts, following ${ig.following}` : 'No Instagram handle provided'}`
+  if (!ig) return presence
+  return [
+    presence,
+    guidance ?? '',
+    'CRITICAL: Bio and captions are NOT available for this account — never assume or fabricate anything about their posting style, brand voice, or existing content.',
+  ].filter(Boolean).join('\n')
+}
+
 // ── Run product test — uses Sonnet for complex reasoning ──────────────────────
 export async function runProductTest(app: AppData, testPass: string): Promise<ProductTest> {
   const creds = app.testCreds!
