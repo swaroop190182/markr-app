@@ -65,7 +65,7 @@ function isPillarRelevant(pillar: string, app: { name?: string | null; category?
 }
 
 export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
-  const { apps, currentApp, setView, plan, updateApp } = useStore()
+  const { apps, currentApp, setView, plan, updateApp, loading: appsLoading } = useStore()
   const [insight,    setInsight]    = useState<string | null>(null)
   const [loading,    setLoading]    = useState(false)
   const [uaLoading,    setUaLoading]    = useState(false)
@@ -92,6 +92,10 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
 
   // Auto-fetch URL analysis if app has URL but no analysis
   useEffect(() => {
+    // Wait for the store to finish hydrating from Supabase — firing on a
+    // half-loaded currentApp (e.g. FALLBACK_APP, or a stale pre-hydration
+    // render) sends instagram_handle: null even when the DB has a real value.
+    if (appsLoading) return
     if (!currentApp?.url || (currentApp as any)?.url_analysis) return
     setUaLoading(true)
     console.log('[instagram] auto-fetch — currentApp.instagram_handle:', (currentApp as any).instagram_handle)
@@ -153,7 +157,7 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
         }
       }
     }).catch(() => {}).finally(() => setUaLoading(false))
-  }, [currentApp?.id])
+  }, [currentApp?.id, appsLoading])
 
   // Reset local UI state when switching apps
   useEffect(() => {
