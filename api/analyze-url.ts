@@ -969,23 +969,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { pages, renderedByHeadless, isJsSpa, htmlLength } = await fullScrape(url)
 
-    // Confidence check — total words scraped across all pages
-    const totalWords = Object.values(pages).reduce((sum, p) => sum + p.wordCount, 0)
-    const hasRichContent = totalWords > 200 || (pages.home.bestTitle && pages.home.bestDesc)
-
-    if (!hasRichContent) {
-      return res.status(200).json({
-        blocked: true,
-        url,
-        message: "We couldn't read enough content from this site to give an accurate score.",
-        reason: totalWords < 50
-          ? "This site appears to have bot protection (Cloudflare, etc.) or serves content only to browsers."
-          : "This site uses heavy JavaScript rendering with no meta tags — not enough content to analyze.",
-        suggestion: "Try analyzing your own app's landing page URL for the most accurate results."
-      })
-    }
-
-    // ── Instagram fetch — never blocks or fails the landing page analysis ──────
+    // ── Instagram fetch — independent of landing-page content richness. This
+    // must run before the hasRichContent gate below: it was previously placed
+    // after it, so a site that failed the richness check (and returned early)
+    // silently ate the Instagram fetch too, even though the two are unrelated.
     console.log('[instagram] handle received:', instagram_handle)
     let instagram: InstagramData | null = null
     if (typeof instagram_handle === 'string' && instagram_handle.trim()) {
@@ -998,6 +985,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error('[analyze-url] Instagram fetch failed (non-fatal):', (igErr as Error).message)
         instagram = null
       }
+    }
+
+    // Confidence check — total words scraped across all pages
+    const totalWords = Object.values(pages).reduce((sum, p) => sum + p.wordCount, 0)
+    const hasRichContent = totalWords > 200 || (pages.home.bestTitle && pages.home.bestDesc)
+
+    if (!hasRichContent) {
+      return res.status(200).json({
+        blocked: true,
+        url,
+        instagram,
+        message: "We couldn't read enough content from this site to give an accurate score.",
+        reason: totalWords < 50
+          ? "This site appears to have bot protection (Cloudflare, etc.) or serves content only to browsers."
+          : "This site uses heavy JavaScript rendering with no meta tags — not enough content to analyze.",
+        suggestion: "Try analyzing your own app's landing page URL for the most accurate results."
+      })
     }
 
     const result = score(pages, url, renderedByHeadless, isJsSpa, htmlLength, instagram)

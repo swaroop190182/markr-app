@@ -98,11 +98,12 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
     if (appsLoading) return
     if (!currentApp?.url || (currentApp as any)?.url_analysis) return
     setUaLoading(true)
-    console.log('[instagram] auto-fetch — currentApp.instagram_handle:', (currentApp as any).instagram_handle)
+    const requestBody = JSON.stringify({ url: currentApp.url, instagram_handle: (currentApp as any).instagram_handle || undefined })
+    console.log('[instagram] auto-fetch — full request body:', requestBody)
     fetch('/api/analyze-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
-      body: JSON.stringify({ url: currentApp.url, instagram_handle: (currentApp as any).instagram_handle || undefined })
+      body: requestBody
     }).then(r => r.ok ? r.json() : null).then(async result => {
       if (result && !result.error) {
         console.log('[instagram] auto-fetch response — result.instagram:', result?.instagram)
