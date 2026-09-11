@@ -72,18 +72,18 @@ async function fetchInstagram(handle: string): Promise<InstagramData | null> {
   console.log('[instagram] html length:', html?.length ?? 0)
   if (!html) return null
 
-  // Instagram's soft-404 for invalid/unavailable handles — never treat as a real profile.
-  if (html.includes('signed_404_page') || html.includes('httpErrorPage')) {
-    console.log('[instagram] soft-404 detected — handle invalid or unavailable:', handle)
-    return null
-  }
-
   // PRIMARY source — og:description meta tag: "107K Followers, 53 Following, 557 Posts - ..."
   // More stable across Instagram frontend changes than the embedded JSON blob.
+  // Parse FIRST, positively — a real profile page is confirmed by actually finding
+  // follower data, not by the absence of substrings. "signed_404_page"/"httpErrorPage"
+  // showed up as false positives on valid, fully-populated profile pages (853KB of
+  // telemetry/route config apparently references these page-type names even when
+  // the requested profile itself rendered fine) — a negative substring match on the
+  // whole HTML blob is too broad to use as a rejection gate.
   const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1]
               ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i)?.[1]
               ?? ''
-  console.log('[instagram] og:description found:', !!ogDesc, ogDesc ? `"${ogDesc.slice(0, 80)}"` : '')
+  console.log('[instagram] og:description found:', !!ogDesc, ogDesc ? `"${ogDesc}"` : '')
 
   let followers: number | null = null
   let following: number | null = null
@@ -110,8 +110,11 @@ async function fetchInstagram(handle: string): Promise<InstagramData | null> {
     if (fg) following = parseInt(fg, 10)
   }
 
+  // Only NOW — after actually failing to extract any follower data — treat the
+  // soft-404 markers as an explanation. They're diagnostic here, not a gate.
   if (followers == null) {
-    console.log('[instagram] no follower count found by either method — returning null')
+    const looksLikeSoft404 = html.includes('signed_404_page') || html.includes('httpErrorPage')
+    console.log('[instagram] no follower count found by either method — looksLikeSoft404:', looksLikeSoft404, '— returning null')
     return null
   }
 
