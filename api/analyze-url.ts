@@ -951,10 +951,18 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  console.log('[analyze-url] handler entered, method:', req.method, 'body keys:', Object.keys(req.body || {}))
+
+  if (req.method !== 'POST') {
+    console.log('[analyze-url] exit: method not POST —', req.method)
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
   let { url, instagram_handle } = req.body
-  if (!url) return res.status(400).json({ error: 'URL required' })
+  if (!url) {
+    console.log('[analyze-url] exit: missing url in body')
+    return res.status(400).json({ error: 'URL required' })
+  }
 
   url = url.trim()
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url
@@ -962,12 +970,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isInternal = req.headers['x-internal-call'] === 'markr_internal'
   const clientIp = ((req.headers['x-forwarded-for'] as string) || '').split(',')[0].trim() || 'unknown'
   const WHITELISTED_IPS = ['127.0.0.1', '::1', '49.207.50.194']
+  console.log('[analyze-url] isInternal:', isInternal, 'clientIp:', clientIp)
   if (!isInternal && !WHITELISTED_IPS.includes(clientIp) && !checkIpLimit(clientIp)) {
+    console.log('[analyze-url] exit: rate limited — clientIp:', clientIp)
     return res.status(429).json({ error: 'You\'ve analyzed 3 URLs today — come back tomorrow or sign up for unlimited access.' })
   }
 
   try {
+    console.log('[analyze-url] calling fullScrape for:', url)
     const { pages, renderedByHeadless, isJsSpa, htmlLength } = await fullScrape(url)
+    console.log('[analyze-url] fullScrape succeeded, pages:', Object.keys(pages))
 
     // ── Instagram fetch — independent of landing-page content richness. This
     // must run before the hasRichContent gate below: it was previously placed
@@ -1031,8 +1043,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json(result)
   } catch (e) {
     const err = e as Error
-    console.error('analyze-url error:', err.message, err.stack)
-    res.status(422).json({ 
+    console.error('[analyze-url] exit: caught exception —', err.message, err.stack)
+    res.status(422).json({
       error: err.message,
       detail: process.env.NODE_ENV !== 'production' ? err.stack : undefined
     })
