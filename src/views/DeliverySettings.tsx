@@ -26,7 +26,9 @@ export default function DeliverySettings() {
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle()
-    if (data) setPref({ enabled: data.enabled, frequency: data.frequency, app_id: data.app_id })
+    if (data) setPref({ enabled: data.enabled, frequency: data.frequency,
+      // Deleted app → fall back to the current app so re-enabling never saves a dead id
+      app_id: apps.some(a => a.id === data.app_id) ? data.app_id : (currentApp?.id ?? null) })
     setLoading(false)
   }
 

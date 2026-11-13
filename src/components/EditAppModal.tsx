@@ -17,7 +17,7 @@ type Step = 'pending' | 'active' | 'done' | 'skip'
 
 // Inner component receives the resolved app — no undefined risk
 function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
-  const { updateApp, canUseProductTest } = useStore()
+  const { updateApp, removeApp, canUseProductTest } = useStore()
 
   const [name,      setName]      = useState(app.name)
   const [url,       setUrl]       = useState(app.url ?? '')
@@ -52,6 +52,20 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
       founder_brief,
       ...(competitorListsChanged(app.founder_brief, founder_brief) && { competitive_analyzed_at: null }),
     }
+  }
+
+  // ── Delete (danger zone) ───────────────────────────────────────────────────
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting,    setDeleting]    = useState(false)
+  const canDelete = confirmText === app.name   // exact, case-sensitive, no trimming
+
+  async function deleteApp() {
+    if (!canDelete) return
+    setDeleting(true)
+    const ok = await removeApp(app.id)   // store toasts on failure
+    if (ok) { toast(`"${app.name}" deleted`); onClose() }
+    else setDeleting(false)
   }
 
   function saveOnly() {
@@ -348,14 +362,46 @@ BRAND_VOICE: [3-4 sentences on voice]`,
       )}
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
-        <button className="vbtn" onClick={onClose} disabled={running}>Cancel</button>
-        <button className="vbtn" onClick={saveOnly} disabled={running} style={{ color: 'var(--text)' }}>Save Only</button>
-        <button className="gen-btn" onClick={saveAndReanalyze} disabled={running} style={{ fontSize: 12, padding: '7px 16px' }}>
+        <button className="vbtn" onClick={onClose} disabled={running || deleting}>Cancel</button>
+        <button className="vbtn" onClick={saveOnly} disabled={running || deleting} style={{ color: 'var(--text)' }}>Save Only</button>
+        <button className="gen-btn" onClick={saveAndReanalyze} disabled={running || deleting} style={{ fontSize: 12, padding: '7px 16px' }}>
           {running
             ? <><span className="spinner" style={{ color: '#fff' }} /> Running…</>
             : <><i className="ti ti-refresh" style={{ fontSize: 13 }} /> Save &amp; Re-run Analysis</>
           }
         </button>
+      </div>
+
+      {/* Danger zone */}
+      <div style={{ marginTop:22, border:'1px solid rgba(229,85,85,.35)', borderRadius:'var(--r)', padding:'12px 14px', background:'rgba(229,85,85,.04)' }}>
+        <div style={{ fontSize:11, fontWeight:700, color:'var(--red, #e55)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 }}>Danger zone</div>
+        {!confirmOpen ? (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' as const }}>
+            <div style={{ fontSize:12, color:'var(--text2)' }}>Permanently delete this app and everything Markr generated for it.</div>
+            <button className="vbtn" onClick={() => setConfirmOpen(true)} disabled={running}
+              style={{ color:'var(--red, #e55)', borderColor:'rgba(229,85,85,.4)' }}>Delete app</button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:10 }}>
+              This <strong>permanently deletes "{app.name}"</strong> and all its analyses, screenshots and content.
+              Its score history is removed, and if email delivery uses this app, delivery will be turned off. This can't be undone.
+            </div>
+            <Field label={`Type "${app.name}" to confirm`}>
+              <input value={confirmText} onChange={e => setConfirmText(e.target.value)} disabled={deleting}
+                autoComplete="off" spellCheck={false} placeholder={app.name} />
+            </Field>
+            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button className="vbtn" disabled={deleting} onClick={() => { setConfirmOpen(false); setConfirmText('') }}>Cancel</button>
+              <button onClick={deleteApp} disabled={!canDelete || deleting}
+                style={{ padding:'7px 16px', borderRadius:8, border:'none', fontSize:12, fontWeight:700, color:'#fff',
+                         background:'var(--red, #e55)', cursor:(!canDelete || deleting) ? 'default' : 'pointer',
+                         opacity:(!canDelete || deleting) ? .5 : 1, fontFamily:'DM Sans, sans-serif' }}>
+                {deleting ? 'Deleting…' : 'Delete forever'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   )

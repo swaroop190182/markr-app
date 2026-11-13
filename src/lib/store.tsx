@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import type { AppData, ViewType, ContentContext, ScreenshotVision, ScreenshotImage } from '../types'
 import { COLORS } from './data'
 import { supabase } from './supabase'
+import { toast } from '../components/Toast'
 
 // ── Plan config ────────────────────────────────────────────────────────────────
 const PRO_EMAILS = ['swaroop.raghu@gmail.com', 'swaroop.82@gmail.com']  // admin override: appLimit=10
@@ -90,7 +91,7 @@ interface AppStore {
   setCurrentApp: (id: number) => void
   addApp: (app: AppData) => Promise<void>
   updateApp: (id: number, updates: Partial<AppData>) => Promise<void>
-  removeApp: (id: number) => Promise<void>
+  removeApp: (id: number) => Promise<boolean>   // true = deleted
   loadScreenshotImages: (id: number) => Promise<ScreenshotImage[] | null>  // null = fetch failed
   saveScreenshots: (id: number, vision: ScreenshotVision | null, images: ScreenshotImage[], contentContext?: ContentContext) => Promise<void>
 }
@@ -339,19 +340,49 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
   }, [userId])
 
   // ── Remove app ────────────────────────────────────────────────────────────
-  const removeApp = useCallback(async (id: number) => {
-    setApps(prev => {
-      const next = prev.filter(a => a.id !== id)
-      if (currentAppId === id && next.length > 0) setCurrentAppId(next[0].id)
-      return next
-    })
-    const { error } = await supabase
+  // Database first; state only changes after the delete is confirmed.
+  const removeApp = useCallback(async (id: number): Promise<boolean> => {
+    // .select() returns the deleted rows — an empty result means RLS/ownership
+    // blocked it, which supabase does NOT report as an error.
+    const { data: deleted, error } = await supabase
       .from('markr_apps')
       .delete()
       .eq('id', id)
       .eq('user_id', userId)
-    if (error) console.error('removeApp error:', error)
-  }, [currentAppId, userId])
+      .select('id')
+    if (error || !deleted?.length) {
+      console.error('removeApp error:', error ?? 'no row deleted')
+      toast(`Couldn't delete app${error ? `: ${error.message}` : ' — it may already be gone. Reload and try again.'}`, 5000)
+      return false
+    }
+
+    // Never leave currentAppId pointing at a deleted app; 0 → FALLBACK_APP → empty state
+    setApps(prev => {
+      const next = prev.filter(a => a.id !== id)
+      setCurrentAppId(cur => (cur === id || !next.some(a => a.id === cur)) ? (next[0]?.id ?? 0) : cur)
+      return next
+    })
+
+    // Best-effort cleanup of data keyed by this app id — logged, never blocks the delete
+    const { error: shErr } = await supabase
+      .from('markr_score_history').delete().eq('app_id', id).eq('user_id', userId)
+    if (shErr) console.warn('removeApp: score history cleanup failed:', shErr.message)
+
+    const { data: pref, error: dpReadErr } = await supabase
+      .from('markr_delivery_prefs').select('enabled').eq('user_id', userId).eq('app_id', id).maybeSingle()
+    if (dpReadErr) console.warn('removeApp: delivery prefs read failed:', dpReadErr.message)
+    else if (pref) {
+      const { error: dpErr } = await supabase
+        .from('markr_delivery_prefs')
+        .update({ enabled: false, updated_at: new Date().toISOString() })
+        .eq('user_id', userId).eq('app_id', id)
+      if (dpErr) console.warn('removeApp: delivery prefs update failed:', dpErr.message)
+      else if (pref.enabled) toast('Email delivery turned off — choose an app in Delivery settings to turn it back on.', 6000)
+    }
+
+    try { localStorage.removeItem(`markr_feedback_${id}`) } catch { /* ignore */ }
+    return true
+  }, [userId])
 
   // ── Screenshots ───────────────────────────────────────────────────────────
   // Fetch only the large image column — called when the screenshot setup UI opens
