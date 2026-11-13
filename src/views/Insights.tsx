@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, getVisionContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
+import { callClaude, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
+import { readCompetitive, filterExcluded, orderFocusFirst } from '../lib/founder'
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -106,13 +107,16 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
   // Load persisted analysis from app on mount / app change
   useEffect(() => {
     const saved: Record<string,string> = {}
-    if (currentApp.competitive_analysis) saved['competitive'] = currentApp.competitive_analysis
+    if (currentApp.competitive_analysis) {
+      const c = readCompetitive(currentApp)   // exclusions applied
+      saved['competitive'] = c ? JSON.stringify(c) : currentApp.competitive_analysis
+    }
     if (currentApp.bmc_analysis)         saved['bmc']         = currentApp.bmc_analysis
     if (currentApp.swot_analysis)        saved['swot']        = currentApp.swot_analysis
     if (currentApp.growth_analysis)      saved['growth']      = currentApp.growth_analysis
     if (currentApp.pricing_analysis)     saved['pricing']     = currentApp.pricing_analysis
     setCache(saved)
-  }, [currentApp.id])
+  }, [currentApp.id, currentApp.founder_brief])
 
   const setLoad = (k: string, v: boolean) => setLoading(p => ({ ...p, [k]: v }))
   const setFStep = (k: string, s: string) => setFullSteps(p => ({ ...p, [k]: s }))
@@ -217,6 +221,22 @@ ${rc.trim()}
     setLoad('competitive', true)
     const rcCtx = getRecentContext()
     const vCtx  = getVisionContext(currentApp)
+    const fCtx     = getFounderContext(currentApp)
+    const focus    = currentApp.founder_brief?.focus_competitors ?? []
+    const excluded = currentApp.founder_brief?.excluded_competitors ?? []
+    const focusBlock = focus.length ? `
+
+FOUNDER-SPECIFIED COMPETITORS — analyze these FIRST, in this order, as the first ${focus.length} entries in "comps". This overrides the LOCAL/GLOBAL quota below:
+${focus.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+- Give each its honest type ("local" or "global").
+- If you don't recognize the product behind a URL, use the domain as its name, mark details as unverified, and never invent features, pricing or positioning for it. For such entries set "unverified": true and use "Unverified" for any field you cannot support.
+${focus.length < 5 ? `- Then fill the remaining ${5 - focus.length} slot(s) using the discovery rules below.` : '- All 5 slots are founder-specified — do NOT auto-discover any others.'}` : ''
+    const excludeBlock = excluded.length ? `
+
+NEVER include these as competitors, or their rebrands/sub-products: ${excluded.join(', ')}` : ''
+    const priorityLine = focus.length
+      ? `PRIORITY for the ${5 - focus.length} auto-discovered slot(s): local competitors first (type:"local"), then global (type:"global").`
+      : `PRIORITY: list 2-3 LOCAL competitors first (type:"local"), then 2-3 GLOBAL ones (type:"global"). Total must be exactly 5 unless you explicitly noted in mktPos that genuine local competitors don't exist.`
     try {
       const ua = (currentApp as any).url_analysis
       const userMarket = currentApp.primary_market
@@ -235,7 +255,7 @@ CRITICAL: Base your competitor selection on what this product ACTUALLY DOES base
 
       const prompt = `Find 5 real direct competitors for this specific product. Prioritise local/regional competitors first.
 
-${appContext}${rcCtx}${vCtx ? '\n'+vCtx+'\nUse the visible features and pricing above to judge which products truly compete on the same core function and price point.' : ''}
+${appContext}${rcCtx}${fCtx}${vCtx ? '\n'+vCtx+'\nUse the visible features and pricing above to judge which products truly compete on the same core function and price point.' : ''}${focusBlock}${excludeBlock}
 
 CRITICAL — MARKET RELEVANCE:
 This product operates primarily in: ${detectedMarket}
@@ -243,7 +263,7 @@ This product operates primarily in: ${detectedMarket}
 - If you cannot name real competitors in ${detectedMarket}, say so explicitly rather than substituting global ones.
 - Only after local competitors should you list global players, clearly labelled as global.
 
-PRIORITY: list 2-3 LOCAL competitors first (type:"local"), then 2-3 GLOBAL ones (type:"global"). Total must be exactly 5 unless you explicitly noted in mktPos that genuine local competitors don't exist.
+${priorityLine}
 
 For each competitor draw on your training knowledge across ALL sources: Crunchbase, LinkedIn, G2, Capterra, Reddit, ProductHunt, TechCrunch, and app store data. Provide specific numbers where you know them (funding amounts, employee counts, review counts, upvotes).
 
@@ -261,6 +281,10 @@ JSON only, no markdown:
       if (!parsed.comps || !Array.isArray(parsed.comps) || parsed.comps.length === 0) {
         throw new Error('No competitors — keys: ' + Object.keys(parsed).join(', '))
       }
+
+      // Founder brief is enforced in code, not just in the prompt
+      parsed.comps = orderFocusFirst(filterExcluded(parsed.comps, currentApp), currentApp)
+      if (parsed.comps.length === 0) throw new Error('Every competitor returned was on your excluded list — try again')
 
       // Enrich each competitor with live App Store data via iTunes Search API (parallel)
       parsed.comps = await Promise.all(parsed.comps.map(async (comp: any) => {
@@ -306,9 +330,10 @@ JSON only, no markdown:
     setLoad('bmc', true)
     const ptCtx = getTestContext(currentApp)
     const vCtx  = getVisionContext(currentApp)
+    const fCtx  = getFounderContext(currentApp)
     const igCtx = getInstagramContext(currentApp)
     try {
-      const prompt = `Build a complete Business Model Canvas for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nValue propositions must reflect REAL features from product testing.' : ''}${vCtx ? '\n'+vCtx+'\nValue propositions and revenue streams must match features and pricing visible in the screenshots.' : ''}
+      const prompt = `Build a complete Business Model Canvas for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nValue propositions must reflect REAL features from product testing.' : ''}${fCtx}${vCtx ? '\n'+vCtx+'\nValue propositions and revenue streams must match features and pricing visible in the screenshots.' : ''}
 
 ${igCtx}
 Output ONLY valid JSON:
@@ -330,10 +355,11 @@ Output ONLY valid JSON:
     setLoad('swot', true)
     const ptCtx = getTestContext(currentApp)
     const vCtx  = getVisionContext(currentApp)
+    const fCtx  = getFounderContext(currentApp)
     const rcCtx = getRecentContext()
     const igCtx = getInstagramContext(currentApp, 'Treat a large following as a Strength and a small one relative to post count as a Weakness — reference the actual numbers.')
     try {
-      const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}${vCtx ? '\n'+vCtx+'\nUse visible trust signals as Strength evidence and visible friction points / UI issues as Weakness evidence — cite them.' : ''}${rcCtx}
+      const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}${fCtx}${vCtx ? '\n'+vCtx+'\nUse visible trust signals as Strength evidence and visible friction points / UI issues as Weakness evidence — cite them.' : ''}${rcCtx}
 
 ${igCtx}
 
@@ -410,6 +436,7 @@ Output ONLY valid JSON, no markdown:
     setLoad('growth', true)
     const ptCtx  = getTestContext(currentApp)
     const vCtx   = getVisionContext(currentApp)
+    const fCtx   = getFounderContext(currentApp)
     const rcCtx  = getRecentContext()
     const igCtx  = getInstagramContext(currentApp, 'Treat an existing audience as a distribution asset that changes which tactics apply.')
 
@@ -441,7 +468,7 @@ Output ONLY valid JSON, no markdown:
 App description: ${currentApp.desc || 'Not provided'}
 Target audience: ${currentApp.audience || 'Not specified'}
 Key features: ${(currentApp.features||[]).join(', ') || 'Not listed'}
-${ptCtx}${vCtx}${rcCtx}${existingCtx}
+${ptCtx}${fCtx}${vCtx}${rcCtx}${existingCtx}
 
 ${igCtx}
 
@@ -476,10 +503,11 @@ Output ONLY valid JSON:
     setLoad('pricing', true)
     const ptCtx = getTestContext(currentApp)
     const vCtx  = getVisionContext(currentApp)
+    const fCtx  = getFounderContext(currentApp)
     const rcCtx = getRecentContext()
     const igCtx = getInstagramContext(currentApp)
     try {
-      const prompt = `Complete pricing strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nPricing must reflect real product quality from testing.' : ''}${vCtx ? '\n'+vCtx+'\nIf current prices or trial terms are visible above, treat them as the CURRENT pricing — critique and build on them rather than inventing from scratch. Mention them in benchmark_note.' : ''}
+      const prompt = `Complete pricing strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nPricing must reflect real product quality from testing.' : ''}${fCtx}${vCtx ? '\n'+vCtx+'\nIf current prices or trial terms are visible above, treat them as the CURRENT pricing — critique and build on them rather than inventing from scratch. Mention them in benchmark_note.' : ''}
 
 ${igCtx}
 Output ONLY valid JSON:
@@ -720,6 +748,15 @@ Output ONLY valid JSON:
 }
 
 // ── COMPETITIVE TAB ──────────────────────────────────────────────────────────
+// Shown on founder-specified competitors the model couldn't identify from their URL
+function UnverifiedBadge() {
+  return (
+    <span title="Markr couldn't verify details for this URL." style={{ fontSize:9, padding:'2px 6px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'.04em', background:'rgba(245,166,35,.12)', color:'var(--amber)', cursor:'help' }}>
+      Unverified
+    </span>
+  )
+}
+
 function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; loading?:boolean; onGenerate:()=>void; appName:string }) {
   const [view, setView] = useState<'cards'|'table'>(() => {
     try { return (localStorage.getItem('markr_compView') as 'cards'|'table') ?? 'cards' } catch { return 'cards' }
@@ -791,6 +828,7 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                           <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                             {c.name}
                             {c.type && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, background: c.type==='local' ? 'rgba(52,201,138,.15)' : 'rgba(124,111,247,.15)', color: c.type==='local' ? 'var(--green)' : 'var(--accent)' }}>{c.type==='local' ? 'Local' : 'Global'}</span>}
+                            {c.unverified === true && <UnverifiedBadge />}
                           </div>
                           {c.price && <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>{c.price}</div>}
                         </td>
@@ -833,7 +871,8 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                       color: c.type==='local' ? 'var(--green)' : 'var(--accent)',
                     }}>{c.type==='local' ? 'Local' : 'Global'}</span>
                   )}
-                  {c.cat && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'var(--surface3)', color:'var(--text3)' }}>{c.cat}</span>}
+                  {c.unverified === true && <UnverifiedBadge />}
+                  {c.cat &&<span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'var(--surface3)', color:'var(--text3)' }}>{c.cat}</span>}
                   {c.url && <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize:10, color:'var(--text3)', textDecoration:'none' }}>{c.url.replace(/^https?:\/\/(www\.)?/,'').split('/')[0]}</a>}
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>

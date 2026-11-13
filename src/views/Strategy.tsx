@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { CopyButton } from '../components/ui'
-import { callClaude, extractJSON, getInstagramContext, getVisionContext } from '../lib/claude'
+import { callClaude, extractJSON, getInstagramContext, getVisionContext, getFounderContext } from '../lib/claude'
+import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
 
 export default function Strategy() {
@@ -31,8 +32,7 @@ export default function Strategy() {
   function buildContext() {
     const ua          = currentApp.url_analysis
     const ctx         = (currentApp as any).content_context
-    let   competitive: any = null
-    try { if (currentApp.competitive_analysis) competitive = JSON.parse(currentApp.competitive_analysis) } catch {}
+    const competitive: any = readCompetitive(currentApp)   // exclusions applied
 
     const lines: string[] = []
     lines.push(`APP NAME: ${currentApp.name}`)
@@ -61,6 +61,8 @@ export default function Strategy() {
     if (competitive?.winCond) lines.push(`WIN CONDITION: ${competitive.winCond}`)
     if (competitive?.wspace)  lines.push(`MARKET WHITESPACE: ${competitive.wspace}`)
 
+    const fCtx = getFounderContext(currentApp)
+    if (fCtx) lines.push(fCtx)
     const vCtx = getVisionContext(currentApp)
     if (vCtx) lines.push(vCtx)
 
@@ -78,8 +80,7 @@ export default function Strategy() {
       const targetUser = ctx?.typical_user || 'target user'
       const problem    = ctx?.before_state  || 'their problem'
 
-      let competitive: any = null
-      try { if (currentApp.competitive_analysis) competitive = JSON.parse(currentApp.competitive_analysis) } catch {}
+      const competitive: any = readCompetitive(currentApp)   // exclusions applied
       const compName     = competitive?.comps?.[0]?.name || 'alternatives'
       const compWeakness = competitive?.comps?.[0]?.userHates?.[0]
         || competitive?.comps?.[0]?.positioningGap

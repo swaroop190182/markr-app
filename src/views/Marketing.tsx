@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { callClaude, extractJSON, getInstagramContext } from '../lib/claude'
+import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
 import GoToMarketTab from './insights/GoToMarket'
 
@@ -50,8 +51,8 @@ export default function Marketing() {
     let competitive: any = null
     let swot:        any = null
     let growth:      any = null
-    try { if (currentApp.competitive_analysis) competitive = JSON.parse(currentApp.competitive_analysis) } catch {}
-    try { if (currentApp.swot_analysis)        swot        = JSON.parse(currentApp.swot_analysis)        } catch {}
+    competitive = readCompetitive(currentApp)   // exclusions applied
+    try { if (currentApp.swot_analysis)       swot        = JSON.parse(currentApp.swot_analysis)        } catch {}
     try { if (currentApp.growth_analysis)      growth      = JSON.parse(currentApp.growth_analysis)      } catch {}
 
     const dimScore    = (label: string) => ua?.dimensions?.find((d: any) => d.label === label)?.score ?? null
@@ -146,7 +147,7 @@ export default function Marketing() {
       if (ua?.bottleneck)
         mandatory.push(`#1 bottleneck is "${ua.bottleneck.label}": ${ua.bottleneck.issue} — the formula must address fixing this before any scaling.`)
       let competitive: any = null
-      try { if (currentApp.competitive_analysis) competitive = JSON.parse(currentApp.competitive_analysis) } catch {}
+      competitive = readCompetitive(currentApp)   // exclusions applied
       const topGap = competitive?.comps?.[0]?.positioningGap
       if (topGap) mandatory.push(`Top competitor gap: "${topGap}" — at least one channel's firstAction must exploit this positioning.`)
       if (competitive?.winCond) mandatory.push(`Win condition: "${competitive.winCond}" — eternal principles should reference this.`)
@@ -208,7 +209,7 @@ Return JSON only, no markdown:
       const oppLabel = topOpp?.title ?? (typeof topOpp === 'string' ? topOpp : '')
       if (oppLabel) mandatory.push(`Top SWOT opportunity: "${oppLabel}" — exploit in formula.`)
       let competitive: any = null
-      try { if (currentApp.competitive_analysis) competitive = JSON.parse(currentApp.competitive_analysis) } catch {}
+      competitive = readCompetitive(currentApp)   // exclusions applied
       if (competitive?.winCond) mandatory.push(`Win condition: "${competitive.winCond}" — reference in eternal principles.`)
 
       const prompt = `You are a marketing expert. Use the CONTEXT below to build an updated category playbook, failure patterns, step-by-step formula, and eternal principles for this app. Be specific — cite real companies, real numbers, real market conditions as of today.

@@ -6,6 +6,8 @@ import { toast } from './Toast'
 import type { AppData } from '../types'
 import { COLORS } from '../lib/data'
 import { normalizeInstagramHandle } from '../lib/instagram'
+import FounderBriefFields, { draftFromBrief, type FounderBriefDraft } from './FounderBriefFields'
+import { normalizeFounderBrief } from '../lib/founder'
 
 type Step = 'pending' | 'active' | 'done' | 'skip'
 
@@ -38,6 +40,7 @@ export default function AddAppModal({ onClose, prefilledUrl = '' }: { onClose: (
   const [testPass,  setTestPass]  = useState('')
   const [loginUrl,  setLoginUrl]  = useState('')
   const [testFlows, setTestFlows] = useState('')
+  const [briefDraft, setBriefDraft] = useState<FounderBriefDraft>(draftFromBrief(null))
 
   const [running,   setRunning]  = useState(false)
   const [steps,     setSteps]    = useState<Step[]>(['pending','pending','pending','pending'])
@@ -166,6 +169,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         url_analysis: savedUrlAnalysis,
         primary_market: primaryMarket,
         instagram_handle: normalizedHandle || null,
+        founder_brief: normalizeFounderBrief(briefDraft),
         analyzed: true
       }
       addApp(newApp)
@@ -226,6 +230,8 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         <textarea value={extra} onChange={e=>setExtra(e.target.value)} rows={2}
           placeholder="Target audience, tone, competitors, unique angle…" />
       </Field>
+
+      <FounderBriefFields value={briefDraft} onChange={setBriefDraft} />
 
       {/* Test credentials accordion */}
       <div style={{ border: '1px solid rgba(124,111,247,.3)', borderRadius: 'var(--r)', overflow: 'hidden', marginBottom: 4 }}>

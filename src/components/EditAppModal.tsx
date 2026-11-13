@@ -5,6 +5,8 @@ import { callClaude, runProductTest } from '../lib/claude'
 import { toast } from './Toast'
 import type { AppData } from '../types'
 import { normalizeInstagramHandle } from '../lib/instagram'
+import FounderBriefFields, { draftFromBrief, type FounderBriefDraft } from './FounderBriefFields'
+import { normalizeFounderBrief, competitorListsChanged } from '../lib/founder'
 
 const PLATFORMS  = ['Web', 'Mobile', 'Both'] as const
 const STAGES     = ['Idea', 'Early', 'Launch', 'Growth'] as const
@@ -41,6 +43,17 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
 
   const hasCreds = !!(testUser && (testPass || app.testCreds?.password))
 
+  const [briefDraft, setBriefDraft] = useState<FounderBriefDraft>(draftFromBrief(app.founder_brief))
+
+  // Normalized brief + reset competitive's 7-day gate when focus/excluded lists change
+  function briefUpdates(): Partial<AppData> {
+    const founder_brief = normalizeFounderBrief(briefDraft)
+    return {
+      founder_brief,
+      ...(competitorListsChanged(app.founder_brief, founder_brief) && { competitive_analyzed_at: null }),
+    }
+  }
+
   function saveOnly() {
     const normalizedHandle = normalizeInstagramHandle(instagramHandle) || null
     updateApp(app.id, {
@@ -51,6 +64,7 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
       recent_context: recentCtx || null,
       primary_market: primaryMarket,
       instagram_handle: normalizedHandle,
+      ...briefUpdates(),
       testCreds: testUser ? {
         user: testUser,
         password: testPass || app.testCreds?.password || '',
@@ -188,6 +202,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         recent_context: recentCtx || null,
         primary_market: primaryMarket,
         instagram_handle: normalizeInstagramHandle(instagramHandle) || null,
+        ...briefUpdates(),
         testCreds: {
           user: testUser,
           password: effectivePass,
@@ -245,6 +260,8 @@ BRAND_VOICE: [3-4 sentences on voice]`,
       <Field label="Description">
         <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} />
       </Field>
+
+      <FounderBriefFields value={briefDraft} onChange={setBriefDraft} defaultOpen={!!app.founder_brief} />
 
       {/* Recent Context */}
       <div style={{ background:'rgba(124,111,247,.05)', border:'1px solid rgba(124,111,247,.2)', borderRadius:'var(--r)', padding:'12px 14px', marginBottom:14 }}>

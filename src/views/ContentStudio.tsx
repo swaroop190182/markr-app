@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, getVisionContext, getInstagramContext, safeParseJSON } from '../lib/claude'
+import { callClaude, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON } from '../lib/claude'
+import { readCompetitive } from '../lib/founder'
 import { compressImage, analyzeScreenshot, summarizeProduct, guessLabel } from '../lib/vision'
 import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
@@ -164,7 +165,7 @@ function deriveContentContext(
 
 function buildContentStrategyContext(currentApp: any, ua: any) {
   const swot        = currentApp?.swot_analysis        ? JSON.parse(currentApp.swot_analysis)        : null
-  const competitive = currentApp?.competitive_analysis ? JSON.parse(currentApp.competitive_analysis) : null
+  const competitive = readCompetitive(currentApp)   // exclusions applied; also no longer throws on bad JSON
   const growth      = currentApp?.growth_analysis      ? JSON.parse(currentApp.growth_analysis)      : null
   const gtm         = currentApp?.gtm_analysis         ? JSON.parse(currentApp.gtm_analysis)         : null
 
@@ -831,10 +832,11 @@ HARD RULES — violating any of these makes the output invalid:
 HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
 
     // Saved structured vision analysis — no per-generation vision call
-    const visionCtx = getVisionContext(currentApp)
-    const screenshotInstruction = visionCtx
+    const founderCtx = getFounderContext(currentApp, 'content')
+    const visionCtx  = getVisionContext(currentApp)
+    const screenshotInstruction = (founderCtx ? `${founderCtx}\n` : '') + (visionCtx
       ? `${visionCtx}\nReference these specific UI details to make captions feel authentic and grounded in the real product.\n`
-      : ''
+      : '')
 
     // Post history — inject last 5 to prevent repetition
     const postHistory = (currentApp.post_history as PostHistoryEntry[] | null) ?? []
@@ -972,10 +974,11 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     const ctx          = (currentApp as any).content_context as ContentContext | null | undefined
 
     // Saved structured vision analysis — no per-generation vision call
-    const visionCtx = getVisionContext(currentApp)
-    const screenshotNote = visionCtx
+    const founderCtx = getFounderContext(currentApp, 'content')
+    const visionCtx  = getVisionContext(currentApp)
+    const screenshotNote = (founderCtx ? `\n${founderCtx}` : '') + (visionCtx
       ? `\n${visionCtx}\nReference these specific UI details to make content feel authentic and grounded in the real product.`
-      : ''
+      : '')
 
     // Post history injection
     const historyBlock  = postHistory.length > 0

@@ -162,6 +162,8 @@ export interface AppData {
   // Per-screenshot vision analysis + combined summary (text only). Images live in
   // the separate screenshot_images column and are never part of AppData.
   screenshot_vision?: ScreenshotVision | null
+  // Founder-stated intent — injected as the goal that evidence is compared against
+  founder_brief?: FounderBrief | null
 }
 
 export type ScreenLabel = 'home' | 'onboarding' | 'paywall' | 'results' | 'other'
@@ -199,6 +201,15 @@ export interface ScreenshotImage {
   id: string
   label: ScreenLabel
   image: string                     // JPEG data URL, ≤1024px wide
+}
+
+// Stored in markr_apps.founder_brief. All fields optional; an empty brief is saved as null.
+export interface FounderBrief {
+  intended_audience?: string        // ≤200 chars
+  focus_competitors?: string[]      // names or URLs, max 5 — analyzed first in Competitive
+  excluded_competitors?: string[]   // names or URLs, max 10 — never listed as competitors
+  vision?: string                   // ≤200 chars
+  mission?: string                  // ≤200 chars
 }
 
 export interface ContentContext {

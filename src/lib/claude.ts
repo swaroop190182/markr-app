@@ -219,6 +219,49 @@ export function getVisionContext(app: AppData): string {
   return build(2, 1)
 }
 
+// ── Founder intent — the goal that evidence (landing page, screenshots) is compared against ──
+// 'analysis' (default): full brief + gap instruction. 'content': audience/vision/mission only,
+// never mentions gaps or competitors — for Content Studio posts. Hard cap ~800 chars.
+const FOUNDER_CHAR_CAP = 800
+
+export function getFounderContext(app: AppData, mode: 'analysis' | 'content' = 'analysis'): string {
+  const b = app.founder_brief
+  if (!b) return ''
+  const focus = b.focus_competitors ?? [], excl = b.excluded_competitors ?? []
+  const hasText = !!(b.intended_audience || b.vision || b.mission)
+  const hasComps = mode === 'analysis' && (focus.length > 0 || excl.length > 0)
+  if (!hasText && !hasComps) return ''
+
+  const cut = (s: string | undefined, n: number) =>
+    !s ? '' : s.length <= n ? s : s.slice(0, n - 1).trimEnd() + '…'
+  const list = (xs: string[], n: number, each: number) =>
+    xs.slice(0, n).map(x => cut(x, each)).join(', ') + (xs.length > n ? ` (+${xs.length - n} more)` : '')
+
+  const footer = mode === 'content'
+    ? 'Write toward the intended audience and vision; never mention gaps or competitors by name.'
+    : 'Compare against the evidence (landing page, screenshots) and explicitly call out gaps between intent and what the product currently shows.'
+
+  // text = max chars per audience/vision/mission, exN = excluded names shown, each = max chars per name
+  const build = (text: number, exN: number, each: number) => [
+    '\n━━━ FOUNDER INTENT (the goal) ━━━',
+    b.intended_audience ? `AUDIENCE: ${cut(b.intended_audience, text)}` : '',
+    b.vision            ? `VISION: ${cut(b.vision, text)}`              : '',
+    b.mission           ? `MISSION: ${cut(b.mission, text)}`            : '',
+    mode === 'analysis' && focus.length ? `FOCUS COMPETITORS: ${list(focus, 5, each)}` : '',
+    mode === 'analysis' && excl.length  ? `EXCLUDED COMPETITORS (never mention): ${list(excl, exN, each)}` : '',
+    footer,
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+  ].filter(Boolean).join('\n')
+
+  // Degrade: shorten vision/mission/audience → shorten names → show fewer excluded names
+  const levels: Array<[number, number, number]> = [[200, 10, 120], [140, 10, 60], [100, 5, 40], [70, 3, 30], [50, 1, 25]]
+  for (const [t, n, e] of levels) {
+    const out = build(t, n, e)
+    if (out.length <= FOUNDER_CHAR_CAP) return out
+  }
+  return build(40, 1, 20).slice(0, FOUNDER_CHAR_CAP)
+}
+
 // ── Instagram context injected into strategy prompts ──────────────────────────
 // Bio and captions are never available from the renderer — every caller gets the
 // same no-fabrication warning whenever a handle is present, on top of whatever

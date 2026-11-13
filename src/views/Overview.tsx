@@ -4,6 +4,7 @@ import { Card, CardHeader } from '../components/ui'
 import { callClaude, extractJSON } from '../lib/claude'
 import { supabase } from '../lib/supabase'
 import { formatInstagramCount } from '../lib/instagram'
+import { matchesCompetitor, domainOf } from '../lib/founder'
 import DeliverySettings from './DeliverySettings'
 
 
@@ -294,16 +295,27 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
 
     try {
       // ── Step 1: resolve competitor name+url ────────────────────────────────────
-      let topComp: { name: string; url: string } | null = ua?.closestCompetitor ?? null
-      console.log('[competitor] step 1 — closestCompetitor from ua:', topComp)
+      const brief    = currentApp?.founder_brief
+      const excluded = brief?.excluded_competitors ?? []
+      const isExcluded = (c: { name?: string; url?: string } | null | undefined) =>
+        !!c && excluded.some(e => matchesCompetitor(c, e))
+      const toHttps = (s: string) => /^https?:\/\//i.test(s) ? s.replace(/^http:/i, 'https:') : `https://${s}`
+
+      // Founder's first focus competitor wins if it's a URL; never use an excluded one
+      const focusUrl = (brief?.focus_competitors ?? []).find(f => !/\s/.test(f) && isValidUrl(toHttps(f)))
+      let topComp: { name: string; url: string } | null = focusUrl
+        ? { name: domainOf(focusUrl), url: toHttps(focusUrl) }
+        : (isExcluded(ua?.closestCompetitor) ? null : ua?.closestCompetitor ?? null)
+      console.log('[competitor] step 1 — closestCompetitor from', focusUrl ? 'founder brief:' : 'ua:', topComp)
 
       const askClaude = async (strict: boolean) => {
         const appDesc = ua?.headline || currentApp?.desc || currentApp?.name || ''
         const strictLine = strict
           ? '\nCRITICAL: url MUST start with "https://" and be a real working domain — no paths, no guesses.'
           : ''
+        const excludeLine = excluded.length ? `\nNEVER return any of these: ${excluded.join(', ')}` : ''
         return callClaude(
-          `Find the single closest direct competitor for this app.\nApp: "${appDesc}" (URL: ${currentApp?.url || ''})\nReturn ONLY JSON: {"name":"CompetitorName","url":"https://competitor.com"}${strictLine}`,
+          `Find the single closest direct competitor for this app.\nApp: "${appDesc}" (URL: ${currentApp?.url || ''})\nReturn ONLY JSON: {"name":"CompetitorName","url":"https://competitor.com"}${strictLine}${excludeLine}`,
           'Output ONLY valid JSON with name (string) and url (string). No markdown.',
           150
         )
@@ -315,6 +327,7 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
         try {
           topComp = JSON.parse(extractJSON(raw))
           console.log('[competitor] step 1b — Claude returned:', topComp)
+          if (isExcluded(topComp)) { console.log('[competitor] step 1b — excluded by founder brief'); topComp = null }
         } catch (e) {
           console.log('[competitor] step 1b — JSON parse failed:', raw, e)
         }
@@ -328,6 +341,7 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
         try {
           topComp = JSON.parse(extractJSON(raw2))
           console.log('[competitor] step 2 retry — Claude returned:', topComp)
+          if (isExcluded(topComp)) { console.log('[competitor] step 2 retry — excluded by founder brief'); topComp = null }
         } catch (e) {
           console.log('[competitor] step 2 retry — JSON parse failed:', raw2, e)
         }
@@ -373,7 +387,7 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
         const urlMatches = caText.match(/https?:\/\/(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s)"'>]*)?/g) ?? []
         const myHost = (() => { try { return new URL(currentApp!.url).hostname } catch { return '' } })()
         const altUrl = urlMatches.find(u => {
-          try { return new URL(u).hostname !== myHost } catch { return false }
+          try { return new URL(u).hostname !== myHost && !isExcluded({ url: u }) } catch { return false }
         })
         if (altUrl) {
           setCompStatus('Trying alternate competitor…')

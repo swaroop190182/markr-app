@@ -106,7 +106,7 @@ const APP_COLUMNS = [
   'competitive_analysis', 'bmc_analysis', 'swot_analysis', 'growth_analysis',
   'pricing_analysis', 'gtm_analysis', 'positioning_analysis',
   'content_studio_cache', 'strategy_cache', 'post_style', 'content_context',
-  'post_history', 'screenshot_vision',
+  'post_history', 'screenshot_vision', 'founder_brief',
   'competitive_analyzed_at', 'bmc_analyzed_at', 'swot_analyzed_at',
   'growth_analyzed_at', 'pricing_analyzed_at', 'gtm_analyzed_at',
   'positioning_analyzed_at',
@@ -218,6 +218,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           content_context:      row.content_context ?? null,
           post_history:         row.post_history ?? null,
           screenshot_vision:    row.screenshot_vision ?? null,
+          founder_brief:        row.founder_brief ?? null,
           // Analysis timestamps
           competitive_analyzed_at: row.competitive_analyzed_at ?? null,
           bmc_analyzed_at:         row.bmc_analyzed_at ?? null,
@@ -268,6 +269,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         analyzed:      newApp.analyzed ?? false,
         primary_market: newApp.primary_market ?? 'Auto-detect',
         instagram_handle: newApp.instagram_handle ?? null,
+        founder_brief: newApp.founder_brief ?? null,
       })
       .select()
       .single()
@@ -321,6 +323,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.content_context      !== undefined && { content_context:      updates.content_context }),
         ...(updates.post_history         !== undefined && { post_history:         updates.post_history }),
         ...(updates.screenshot_vision    !== undefined && { screenshot_vision:    updates.screenshot_vision }),
+        ...(updates.founder_brief        !== undefined && { founder_brief:        updates.founder_brief }),
         ...(updates.competitive_analyzed_at !== undefined && { competitive_analyzed_at: updates.competitive_analyzed_at }),
         ...(updates.bmc_analyzed_at         !== undefined && { bmc_analyzed_at:         updates.bmc_analyzed_at }),
         ...(updates.swot_analyzed_at        !== undefined && { swot_analyzed_at:        updates.swot_analyzed_at }),
