@@ -1,4 +1,4 @@
-import type { AppData, ProductTest } from '../types'
+import type { AppData, ProductTest, ScreenLabel } from '../types'
 import { supabase } from './supabase'
 
 // ── Get auth token for API calls ───────────────────────────────────────────────
@@ -15,7 +15,7 @@ export async function callClaude(
   onChunk?: (chunk: string) => void,
   useModel: 'haiku' | 'sonnet' = 'haiku',
   feature = 'general',
-  images?: string[]  // base64 data-URLs, up to 3 — sent to Anthropic vision API
+  images?: string[]  // base64 data-URLs — sent to Anthropic vision API
 ): Promise<string> {
   const token = await getToken()
 
@@ -170,6 +170,53 @@ export function getTestContext(app: AppData): string {
     pt.onboarding_verdict ? `ONBOARDING: ${pt.onboarding_verdict}` : '',
     '━━━ ALL OUTPUTS MUST REFLECT THESE REAL PRODUCT FINDINGS ━━━',
   ].filter(Boolean).join('\n')
+}
+
+// ── Screenshot vision context — reads ONLY app.screenshot_vision (no images) ──
+// Built from analyses saved once at upload. Compact by design: target ≤ ~1,200 chars.
+const VISION_ORDER: ScreenLabel[] = ['home', 'onboarding', 'results', 'paywall', 'other']
+const VISION_CHAR_CAP = 1200
+
+export function getVisionContext(app: AppData): string {
+  const sv = app.screenshot_vision
+  const entries = (sv?.screenshots ?? [])
+    .filter(e => e.analysis)
+    .sort((a, b) => VISION_ORDER.indexOf(a.label) - VISION_ORDER.indexOf(b.label))
+  if (!entries.length) return ''
+
+  const q = (xs: string[]) => xs.map(x => `"${x}"`).join(', ')
+  // Fields in priority order — lowest priority last, dropped first under the cap
+  const lineFor = (e: typeof entries[number], level: number): string => {
+    const a = e.analysis!, c = a.extracted_copy
+    const parts = [
+      c.headline               ? `"${c.headline}"`                          : '',
+      c.pricing.length         ? `pricing: ${q(c.pricing)}`                 : '',
+      c.ctas.length            ? `CTAs: ${q(c.ctas)}`                       : '',
+      a.friction_points.length ? `friction: ${a.friction_points.join('; ')}` : '',
+      a.trust_signals.length   ? `trust: ${a.trust_signals.join('; ')}`     : '',
+      level < 2 && a.features_visible.length ? `features: ${a.features_visible.join(', ')}` : '',
+      level < 1 && a.ui_issues.length        ? `ui: ${a.ui_issues.join('; ')}`              : '',
+    ].filter(Boolean)
+    return `[${e.label}] ${parts.join(' · ')}`
+  }
+
+  const build = (level: number, n: number) => [
+    `\n━━━ PRODUCT UI (from ${entries.length} real screenshot${entries.length > 1 ? 's' : ''}) ━━━`,
+    sv?.product_understanding ? `PRODUCT: ${sv.product_understanding}` : '',
+    ...entries.slice(0, n).map(e => lineFor(e, level)),
+    '━━━ Only reference UI listed here — never invent screens, copy, or prices. ━━━',
+  ].filter(Boolean).join('\n')
+
+  // Degrade: drop ui_issues → drop features → drop trailing screens
+  for (const level of [0, 1, 2]) {
+    const out = build(level, entries.length)
+    if (out.length <= VISION_CHAR_CAP) return out
+  }
+  for (let n = entries.length - 1; n >= 1; n--) {
+    const out = build(2, n)
+    if (out.length <= VISION_CHAR_CAP) return out
+  }
+  return build(2, 1)
 }
 
 // ── Instagram context injected into strategy prompts ──────────────────────────

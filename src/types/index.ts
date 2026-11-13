@@ -159,6 +159,46 @@ export interface AppData {
   content_context?: ContentContext | null
   // Post history — last 30 generated posts for context injection
   post_history?: PostHistoryEntry[] | null
+  // Per-screenshot vision analysis + combined summary (text only). Images live in
+  // the separate screenshot_images column and are never part of AppData.
+  screenshot_vision?: ScreenshotVision | null
+}
+
+export type ScreenLabel = 'home' | 'onboarding' | 'paywall' | 'results' | 'other'
+export const SCREEN_LABELS: ScreenLabel[] = ['home', 'onboarding', 'paywall', 'results', 'other']
+
+export interface ScreenshotAnalysis {
+  screen_type: string               // model's read, ≤4 words
+  features_visible: string[]        // ≤5
+  extracted_copy: {
+    headline: string | null         // verbatim
+    ctas: string[]                  // verbatim button text, ≤3
+    pricing: string[]               // verbatim price/trial text, ≤3
+  }
+  ui_issues: string[]               // ≤3
+  trust_signals: string[]           // ≤3
+  friction_points: string[]         // ≤3
+}
+
+// Stored in markr_apps.screenshot_vision — small, loaded with the app
+export interface ScreenshotVisionEntry {
+  id: string                        // matches ScreenshotImage.id
+  label: ScreenLabel                // user-set; authoritative over screen_type
+  analysis: ScreenshotAnalysis | null
+  analyzed_at: string | null
+}
+
+export interface ScreenshotVision {
+  screenshots: ScreenshotVisionEntry[]   // max 6
+  product_understanding: string | null
+  updated_at: string
+}
+
+// Stored in markr_apps.screenshot_images — large, loaded only by the setup UI
+export interface ScreenshotImage {
+  id: string
+  label: ScreenLabel
+  image: string                     // JPEG data URL, ≤1024px wide
 }
 
 export interface ContentContext {
@@ -166,7 +206,8 @@ export interface ContentContext {
   real_result:  string
   user_quote:   string
   before_state: string
-  screenshots?: string[]  // base64-encoded, up to 3
+  /** @deprecated legacy 512px images — migrated to screenshot_images on next save */
+  screenshots?: string[]
   top_performing_formats?: string[]  // formats the user marked as high-engagement
 }
 

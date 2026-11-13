@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
+import { callClaude, getTestContext, getVisionContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -216,6 +216,7 @@ ${rc.trim()}
     }
     setLoad('competitive', true)
     const rcCtx = getRecentContext()
+    const vCtx  = getVisionContext(currentApp)
     try {
       const ua = (currentApp as any).url_analysis
       const userMarket = currentApp.primary_market
@@ -234,7 +235,7 @@ CRITICAL: Base your competitor selection on what this product ACTUALLY DOES base
 
       const prompt = `Find 5 real direct competitors for this specific product. Prioritise local/regional competitors first.
 
-${appContext}${rcCtx}
+${appContext}${rcCtx}${vCtx ? '\n'+vCtx+'\nUse the visible features and pricing above to judge which products truly compete on the same core function and price point.' : ''}
 
 CRITICAL — MARKET RELEVANCE:
 This product operates primarily in: ${detectedMarket}
@@ -304,9 +305,10 @@ JSON only, no markdown:
     }
     setLoad('bmc', true)
     const ptCtx = getTestContext(currentApp)
+    const vCtx  = getVisionContext(currentApp)
     const igCtx = getInstagramContext(currentApp)
     try {
-      const prompt = `Build a complete Business Model Canvas for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nValue propositions must reflect REAL features from product testing.' : ''}
+      const prompt = `Build a complete Business Model Canvas for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nValue propositions must reflect REAL features from product testing.' : ''}${vCtx ? '\n'+vCtx+'\nValue propositions and revenue streams must match features and pricing visible in the screenshots.' : ''}
 
 ${igCtx}
 Output ONLY valid JSON:
@@ -327,10 +329,11 @@ Output ONLY valid JSON:
     }
     setLoad('swot', true)
     const ptCtx = getTestContext(currentApp)
+    const vCtx  = getVisionContext(currentApp)
     const rcCtx = getRecentContext()
     const igCtx = getInstagramContext(currentApp, 'Treat a large following as a Strength and a small one relative to post count as a Weakness — reference the actual numbers.')
     try {
-      const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}${rcCtx}
+      const prompt = `You are a sharp strategic advisor. Create an intelligent, actionable SWOT for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nStrengths and Weaknesses MUST reference specific features from product test.' : ''}${vCtx ? '\n'+vCtx+'\nUse visible trust signals as Strength evidence and visible friction points / UI issues as Weakness evidence — cite them.' : ''}${rcCtx}
 
 ${igCtx}
 
@@ -406,6 +409,7 @@ Output ONLY valid JSON, no markdown:
     }
     setLoad('growth', true)
     const ptCtx  = getTestContext(currentApp)
+    const vCtx   = getVisionContext(currentApp)
     const rcCtx  = getRecentContext()
     const igCtx  = getInstagramContext(currentApp, 'Treat an existing audience as a distribution asset that changes which tactics apply.')
 
@@ -437,7 +441,7 @@ Output ONLY valid JSON, no markdown:
 App description: ${currentApp.desc || 'Not provided'}
 Target audience: ${currentApp.audience || 'Not specified'}
 Key features: ${(currentApp.features||[]).join(', ') || 'Not listed'}
-${ptCtx}${rcCtx}${existingCtx}
+${ptCtx}${vCtx}${rcCtx}${existingCtx}
 
 ${igCtx}
 
@@ -449,6 +453,7 @@ RULES — this must NOT be generic:
 5. Revenue tactics must align with the pricing model and customer segments
 6. Each title should be a specific action (e.g. "Partner with Indian pediatricians for Tiny Tummies" not "Influencer Marketing")
 7. NO generic tactics — if it could apply to any app, rewrite it
+8. If PRODUCT UI is provided, activation and revenue tactics must address the specific onboarding/paywall friction points listed there
 
 2 tactics per lane. Each description max 25 words.
 Output ONLY valid JSON:
@@ -470,10 +475,11 @@ Output ONLY valid JSON:
     }
     setLoad('pricing', true)
     const ptCtx = getTestContext(currentApp)
+    const vCtx  = getVisionContext(currentApp)
     const rcCtx = getRecentContext()
     const igCtx = getInstagramContext(currentApp)
     try {
-      const prompt = `Complete pricing strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nPricing must reflect real product quality from testing.' : ''}
+      const prompt = `Complete pricing strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nPricing must reflect real product quality from testing.' : ''}${vCtx ? '\n'+vCtx+'\nIf current prices or trial terms are visible above, treat them as the CURRENT pricing — critique and build on them rather than inventing from scratch. Mention them in benchmark_note.' : ''}
 
 ${igCtx}
 Output ONLY valid JSON:

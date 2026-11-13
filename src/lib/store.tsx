@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import type { AppData, ViewType, ContentContext } from '../types'
+import type { AppData, ViewType, ContentContext, ScreenshotVision, ScreenshotImage } from '../types'
 import { COLORS } from './data'
 import { supabase } from './supabase'
 
@@ -91,7 +91,26 @@ interface AppStore {
   addApp: (app: AppData) => Promise<void>
   updateApp: (id: number, updates: Partial<AppData>) => Promise<void>
   removeApp: (id: number) => Promise<void>
+  loadScreenshotImages: (id: number) => Promise<ScreenshotImage[] | null>  // null = fetch failed
+  saveScreenshots: (id: number, vision: ScreenshotVision | null, images: ScreenshotImage[], contentContext?: ContentContext) => Promise<void>
 }
+
+// Explicit column list — deliberately excludes screenshot_images (large base64),
+// which is fetched on demand via loadScreenshotImages(). Every column here must
+// match a row.* read in the mapper in loadApps().
+const APP_COLUMNS = [
+  'id', 'name', 'platform', 'color', 'stage', 'category', 'url', 'description',
+  'brand_voice', 'pillars', 'features', 'audience', 'problem', 'differentiator',
+  'test_creds', 'product_test', 'analyzed', 'recent_context', 'primary_market',
+  'instagram_handle', 'url_analysis', 'competitor_url_analysis',
+  'competitive_analysis', 'bmc_analysis', 'swot_analysis', 'growth_analysis',
+  'pricing_analysis', 'gtm_analysis', 'positioning_analysis',
+  'content_studio_cache', 'strategy_cache', 'post_style', 'content_context',
+  'post_history', 'screenshot_vision',
+  'competitive_analyzed_at', 'bmc_analyzed_at', 'swot_analyzed_at',
+  'growth_analyzed_at', 'pricing_analyzed_at', 'gtm_analyzed_at',
+  'positioning_analyzed_at',
+].join(',')
 
 const StoreContext = createContext<AppStore | null>(null)
 
@@ -153,14 +172,15 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
     try {
       const { data, error } = await supabase
         .from('markr_apps')
-        .select('*')
+        .select(APP_COLUMNS)
         .eq('user_id', userId)
         .order('created_at', { ascending: true })
 
       if (error) throw error
 
       if (data && data.length > 0) {
-        const loaded: AppData[] = data.map(row => ({
+        // Computed select string → supabase-js can't infer row types; rows were `any` under select('*') too
+        const loaded: AppData[] = (data as unknown as Record<string, any>[]).map(row => ({
           id:          row.id,
           name:        row.name,
           platform:    row.platform,
@@ -197,6 +217,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           post_style:           row.post_style ?? null,
           content_context:      row.content_context ?? null,
           post_history:         row.post_history ?? null,
+          screenshot_vision:    row.screenshot_vision ?? null,
           // Analysis timestamps
           competitive_analyzed_at: row.competitive_analyzed_at ?? null,
           bmc_analyzed_at:         row.bmc_analyzed_at ?? null,
@@ -204,6 +225,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
           growth_analyzed_at:      row.growth_analyzed_at ?? null,
           pricing_analyzed_at:     row.pricing_analyzed_at ?? null,
           gtm_analyzed_at:         row.gtm_analyzed_at ?? null,
+          positioning_analyzed_at: row.positioning_analyzed_at ?? null,
         }))
         setApps(loaded)
         setCurrentAppId(loaded[0].id)
@@ -298,6 +320,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
         ...(updates.post_style           !== undefined && { post_style:           updates.post_style }),
         ...(updates.content_context      !== undefined && { content_context:      updates.content_context }),
         ...(updates.post_history         !== undefined && { post_history:         updates.post_history }),
+        ...(updates.screenshot_vision    !== undefined && { screenshot_vision:    updates.screenshot_vision }),
         ...(updates.competitive_analyzed_at !== undefined && { competitive_analyzed_at: updates.competitive_analyzed_at }),
         ...(updates.bmc_analyzed_at         !== undefined && { bmc_analyzed_at:         updates.bmc_analyzed_at }),
         ...(updates.swot_analyzed_at        !== undefined && { swot_analyzed_at:        updates.swot_analyzed_at }),
@@ -327,11 +350,47 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
     if (error) console.error('removeApp error:', error)
   }, [currentAppId, userId])
 
+  // ── Screenshots ───────────────────────────────────────────────────────────
+  // Fetch only the large image column — called when the screenshot setup UI opens
+  // Returns null on error so callers never mistake a failed fetch for "no images"
+  // and overwrite stored screenshots with an empty list.
+  const loadScreenshotImages = useCallback(async (id: number): Promise<ScreenshotImage[] | null> => {
+    const { data, error } = await supabase
+      .from('markr_apps')
+      .select('screenshot_images')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single()
+    if (error) { console.error('loadScreenshotImages error:', error); return null }
+    return (data?.screenshot_images as ScreenshotImage[] | null) ?? []
+  }, [userId])
+
+  // Write analysis + images in one row update so the two columns can't drift.
+  // Optional contentContext lets the setup form clear legacy screenshots in the same write.
+  const saveScreenshots = useCallback(async (
+    id: number, vision: ScreenshotVision | null, images: ScreenshotImage[], contentContext?: ContentContext
+  ) => {
+    setApps(prev => prev.map(a => a.id === id
+      ? { ...a, screenshot_vision: vision, ...(contentContext && { content_context: contentContext }) }
+      : a))
+    const { error } = await supabase
+      .from('markr_apps')
+      .update({
+        screenshot_vision: vision,
+        screenshot_images: images.length ? images : null,
+        ...(contentContext && { content_context: contentContext }),
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+    if (error) console.error('saveScreenshots error:', error)
+  }, [userId])
+
   return (
     <StoreContext.Provider value={{
       apps, currentApp, view, loading,
       plan, userEmail, canAddApp, canUseProductTest, trialExpired, daysLeftInTrial,
-      setView, setCurrentApp, addApp, updateApp, removeApp
+      setView, setCurrentApp, addApp, updateApp, removeApp,
+      loadScreenshotImages, saveScreenshots,
     }}>
       {children}
     </StoreContext.Provider>

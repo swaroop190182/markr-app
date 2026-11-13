@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { CopyButton } from '../components/ui'
-import { callClaude, extractJSON, getInstagramContext } from '../lib/claude'
+import { callClaude, extractJSON, getInstagramContext, getVisionContext } from '../lib/claude'
 import { toast } from '../components/Toast'
 
 export default function Strategy() {
@@ -61,6 +61,9 @@ export default function Strategy() {
     if (competitive?.winCond) lines.push(`WIN CONDITION: ${competitive.winCond}`)
     if (competitive?.wspace)  lines.push(`MARKET WHITESPACE: ${competitive.wspace}`)
 
+    const vCtx = getVisionContext(currentApp)
+    if (vCtx) lines.push(vCtx)
+
     lines.push(`\n${getInstagramContext(currentApp)}`)
 
     return lines.filter(Boolean).join('\n')
@@ -119,6 +122,7 @@ Rules:
 - Target user: "${targetUser}", Problem: "${problem}", Competitor: "${compName}", Weakness: "${compWeakness}"
 - primaryMessage must be shorter and more benefit-driven than the current headline
 - proofPoint must cite something specific from context (score, quote, or competitive fact)
+- If PRODUCT UI is in context: primaryMessage must be stronger than the real in-app headline shown there too, and proofPoint may cite a visible trust signal
 - voiceGuide adjectives must reflect the app category (${currentApp.category}) and target user
 - say/notSay examples must be concrete and brand-specific — not generic marketing phrases`
 

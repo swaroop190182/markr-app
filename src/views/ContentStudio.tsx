@@ -1,10 +1,12 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, getInstagramContext, safeParseJSON } from '../lib/claude'
+import { callClaude, getTestContext, getVisionContext, getInstagramContext, safeParseJSON } from '../lib/claude'
+import { compressImage, analyzeScreenshot, summarizeProduct, guessLabel } from '../lib/vision'
 import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
-import type { AppData, AgentPost, ContentContext, PostHistoryEntry } from '../types'
+import type { AppData, AgentPost, ContentContext, PostHistoryEntry, ScreenLabel, ScreenshotAnalysis, ScreenshotImage, ScreenshotVision } from '../types'
+import { SCREEN_LABELS } from '../types'
 
 type ChannelId = 'instagram' | 'linkedin' | 'twitter' | 'youtube' | 'facebook' | 'whatsapp' | 'email' | 'reddit'
 type SlotKey = 'morning' | 'midday' | 'evening'
@@ -395,54 +397,73 @@ Write 3 posts for ${channel} about ${ctx.headline}. Make each post platform-appr
   }
 }
 
-async function compressImage(file: File): Promise<string> {
-  return new Promise(resolve => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      const MAX = 512
-      const scale = Math.min(1, MAX / img.width)
-      const canvas = document.createElement('canvas')
-      canvas.width  = Math.round(img.width  * scale)
-      canvas.height = Math.round(img.height * scale)
-      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/jpeg', 0.50))
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); resolve('') }
-    img.src = url
-  })
+const MAX_SHOTS = 6
+type ShotItem = {
+  id: string; label: ScreenLabel; image: string
+  analysis: ScreenshotAnalysis | null; analyzed_at: string | null
+  status: 'analyzing' | 'ok' | 'failed'; labelTouched: boolean; legacy?: boolean
 }
 
-async function describeScreenshots(screenshots: string[]): Promise<string> {
-  if (!screenshots.length) return ''
-  try {
-    return await callClaude(
-      'Describe each app screenshot in 2-3 sentences focusing on: what feature is shown, what UI elements are visible, what copy or text appears, and what user action is being demonstrated. Be specific and concise.',
-      'You are a precise UI analyst. Describe what you see in the screenshots clearly and concisely.',
-      400,
-      undefined,
-      'haiku',
-      'content',
-      screenshots,
-    )
-  } catch { return '' }
-}
-
-function ContentContextSetup({ existing, onSave, onCancel }: {
+function ContentContextSetup({ existing, onSaved, onCancel }: {
   existing?: ContentContext | null
-  onSave: (ctx: ContentContext) => void
+  onSaved: () => void
   onCancel: () => void
 }) {
+  const { currentApp, updateApp, loadScreenshotImages, saveScreenshots } = useStore()
   const [form, setForm] = useState<ContentContext>({
     typical_user: existing?.typical_user ?? '',
     real_result:  existing?.real_result  ?? '',
     user_quote:   existing?.user_quote   ?? '',
     before_state: existing?.before_state ?? '',
   })
-  const [screenshots, setScreenshots] = useState<string[]>(existing?.screenshots ?? [])
-  const [uploading,   setUploading]   = useState(false)
-  const [saving,      setSaving]      = useState(false)
+  const [shots,     setShots]     = useState<ShotItem[]>([])
+  const [imgState,  setImgState]  = useState<'loading' | 'ready' | 'error'>('loading')
+  const [uploading, setUploading] = useState(false)
+  const [saving,    setSaving]    = useState(false)
+
+  // Load images only now that the setup UI is open; join with saved analyses by id
+  useEffect(() => {
+    let alive = true
+    loadScreenshotImages(currentApp.id).then(images => {
+      if (!alive) return
+      if (images === null) { setImgState('error'); return }
+      const byId = new Map((currentApp.screenshot_vision?.screenshots ?? []).map(e => [e.id, e]))
+      let items: ShotItem[] = images.map(img => {
+        const e = byId.get(img.id)
+        return {
+          id: img.id, label: e?.label ?? img.label, image: img.image,
+          analysis: e?.analysis ?? null, analyzed_at: e?.analyzed_at ?? null,
+          status: e?.analysis ? 'ok' : 'failed', labelTouched: true,
+        }
+      })
+      // Legacy 512px screenshots from content_context — seed as unanalyzed
+      if (!items.length && existing?.screenshots?.length) {
+        items = existing.screenshots.slice(0, MAX_SHOTS).map(image => ({
+          id: crypto.randomUUID(), label: 'other' as ScreenLabel, image, analysis: null, analyzed_at: null,
+          status: 'failed' as const, labelTouched: false, legacy: true,
+        }))
+      }
+      setShots(items)
+      setImgState('ready')
+    })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentApp.id])
+
+  const patch = (id: string, p: Partial<ShotItem>) =>
+    setShots(prev => prev.map(s => s.id === id ? { ...s, ...p } : s))
+
+  async function runAnalysis(id: string, image: string, hint?: ScreenLabel) {
+    patch(id, { status: 'analyzing' })
+    const analysis = await analyzeScreenshot(image, hint)
+    setShots(prev => prev.map(s => s.id !== id ? s : {
+      ...s,
+      analysis,
+      status: analysis ? 'ok' : 'failed',
+      analyzed_at: analysis ? new Date().toISOString() : null,
+      label: s.labelTouched ? s.label : guessLabel(analysis),
+    }))
+  }
 
   const field = (key: keyof ContentContext, label: string, placeholder: string, required = true, multiline = false) => (
     <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -470,19 +491,48 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
   )
 
   async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []).slice(0, 3 - screenshots.length)
+    const files = Array.from(e.target.files ?? []).slice(0, MAX_SHOTS - shots.length)
+    e.target.value = ''
     if (!files.length) return
     setUploading(true)
-    const compressed = (await Promise.all(files.map(compressImage))).filter(Boolean)
-    setScreenshots(prev => [...prev, ...compressed].slice(0, 3))
+    const images = (await Promise.all(files.map(compressImage))).filter(Boolean)
+    const added: ShotItem[] = images.map(image => ({
+      id: crypto.randomUUID(), label: 'other', image, analysis: null, analyzed_at: null,
+      status: 'analyzing', labelTouched: false,
+    }))
+    setShots(prev => [...prev, ...added].slice(0, MAX_SHOTS))
     setUploading(false)
-    e.target.value = ''
+    added.forEach(s => runAnalysis(s.id, s.image))   // once per screenshot, in parallel
   }
 
   async function submit() {
     setSaving(true)
-    onSave({ ...form, ...(screenshots.length > 0 ? { screenshots } : {}) })
+    // Keep top_performing_formats; drop the legacy screenshots field
+    const { screenshots: _legacy, ...rest } = { ...(existing ?? {}), ...form } as ContentContext
+    const ctx = rest as ContentContext
+    if (imgState !== 'ready') {
+      // Couldn't load images — never touch the screenshot columns
+      await updateApp(currentApp.id, { content_context: ctx })
+      setSaving(false); onSaved(); return
+    }
+    const entries = shots.map(s => ({ id: s.id, label: s.label, analysis: s.analysis, analyzed_at: s.analyzed_at }))
+    const prev = currentApp.screenshot_vision
+    const sig  = (xs: { id: string; analyzed_at: string | null; label: string }[]) =>
+      xs.map(x => `${x.id}:${x.analyzed_at}:${x.label}`).sort().join('|')
+    const changed = !prev || sig(prev.screenshots) !== sig(entries)
+    const summary = !entries.some(e => e.analysis) ? null
+      : (changed || !prev?.product_understanding) ? await summarizeProduct(currentApp, entries)
+      : prev.product_understanding
+    const vision: ScreenshotVision | null = entries.length
+      ? { screenshots: entries, product_understanding: summary, updated_at: new Date().toISOString() }
+      : null
+    const images: ScreenshotImage[] = shots.map(s => ({ id: s.id, label: s.label, image: s.image }))
+    await saveScreenshots(currentApp.id, vision, images, ctx)
+    setSaving(false); onSaved()
   }
+
+  const anyAnalyzing = shots.some(s => s.status === 'analyzing')
+  const busy = saving || uploading || imgState === 'loading' || anyAnalyzing
 
   return (
     <div style={{ maxWidth:540, margin:'0 auto', padding:'8px 0 24px' }}>
@@ -506,24 +556,46 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
         {/* Screenshots */}
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           <label style={{ fontSize:12, fontWeight:600, color:'var(--text2)' }}>
-            5. App screenshots <span style={{ color:'var(--text3)', fontWeight:400 }}>(optional · up to 3)</span>
+            5. App screenshots <span style={{ color:'var(--text3)', fontWeight:400 }}>(optional · up to {MAX_SHOTS})</span>
           </label>
           <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.55 }}>
-            Claude references specific UI elements visible in screenshots — makes posts feel authentic and specific.
+            Each screenshot is analyzed once on upload — Markr reads headlines, CTAs, pricing, trust signals and friction, and uses them across Content Studio and Insights.
           </div>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-start' }}>
-            {screenshots.map((src, i) => (
-              <div key={i} style={{ position:'relative', flexShrink:0 }}>
-                <img src={src} alt={`Screenshot ${i+1}`}
-                  style={{ width:80, height:60, objectFit:'cover', borderRadius:6, border:'1px solid var(--surface3)', display:'block' }} />
-                <button
-                  onClick={() => setScreenshots(s => s.filter((_, j) => j !== i))}
-                  style={{ position:'absolute', top:-7, right:-7, width:18, height:18, borderRadius:'50%', background:'var(--red,#e55)', color:'#fff', border:'2px solid var(--surface)', fontSize:11, lineHeight:1, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, padding:0 }}
-                >×</button>
+          {imgState === 'loading' && <div style={{ fontSize:11, color:'var(--text3)' }}>Loading screenshots…</div>}
+          {imgState === 'error'   && <div style={{ fontSize:11, color:'var(--amber)' }}>Couldn't load screenshots — your text changes will still save.</div>}
+          {imgState === 'ready' && (
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-start' }}>
+            {shots.map((s, i) => (
+              <div key={s.id} style={{ display:'flex', flexDirection:'column', gap:4, width:96, flexShrink:0 }}>
+                <div style={{ position:'relative' }}>
+                  <img src={s.image} alt={`Screenshot ${i+1}`}
+                    style={{ width:96, height:72, objectFit:'cover', borderRadius:6, border:'1px solid var(--surface3)', display:'block', opacity: s.status === 'analyzing' ? .5 : 1 }} />
+                  {s.status === 'analyzing' && (
+                    <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:600, color:'var(--text)' }}>Analyzing…</div>
+                  )}
+                  <button
+                    onClick={() => setShots(prev => prev.filter(x => x.id !== s.id))}
+                    style={{ position:'absolute', top:-7, right:-7, width:18, height:18, borderRadius:'50%', background:'var(--red,#e55)', color:'#fff', border:'2px solid var(--surface)', fontSize:11, lineHeight:1, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, padding:0 }}
+                  >×</button>
+                </div>
+                <select
+                  value={s.label}
+                  onChange={e => patch(s.id, { label: e.target.value as ScreenLabel, labelTouched: true })}
+                  style={{ fontSize:10, padding:'2px 4px', borderRadius:4, border:'1px solid var(--surface3)', background:'var(--surface2)', color:'var(--text2)', fontFamily:'DM Sans, sans-serif' }}
+                >
+                  {SCREEN_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+                {s.status === 'failed' && (
+                  <button
+                    onClick={() => runAnalysis(s.id, s.image, s.label)}
+                    style={{ fontSize:10, padding:0, border:'none', background:'none', color:'var(--accent)', cursor:'pointer', textAlign:'left', fontFamily:'DM Sans, sans-serif' }}
+                  >{s.legacy ? 'Analyze' : 'Retry analysis'}</button>
+                )}
+                {s.legacy && <span style={{ fontSize:9, color:'var(--text3)', lineHeight:1.3 }}>low-res — re-upload for best results</span>}
               </div>
             ))}
-            {screenshots.length < 3 && (
-              <label style={{ width:80, height:60, borderRadius:6, border:'1px dashed var(--surface3)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:uploading?'wait':'pointer', gap:3, background:'var(--surface2)', flexShrink:0 }}>
+            {shots.length < MAX_SHOTS && (
+              <label style={{ width:96, height:72, borderRadius:6, border:'1px dashed var(--surface3)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:uploading?'wait':'pointer', gap:3, background:'var(--surface2)', flexShrink:0 }}>
                 <input type="file" accept="image/*" multiple style={{ display:'none' }} disabled={uploading} onChange={handleFiles} />
                 {uploading
                   ? <span style={{ fontSize:11, color:'var(--text3)' }}>…</span>
@@ -535,15 +607,16 @@ function ContentContextSetup({ existing, onSave, onCancel }: {
               </label>
             )}
           </div>
+          )}
         </div>
 
         <div style={{ display:'flex', gap:10, marginTop:4 }}>
           <button
             onClick={submit}
-            disabled={saving || uploading}
-            style={{ flex:1, padding:'11px 0', borderRadius:9, background:'linear-gradient(135deg,#e26faf,#c4559a)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:(saving||uploading)?'default':'pointer', opacity:(saving||uploading)?.6:1, fontFamily:'DM Sans, sans-serif' }}
+            disabled={busy}
+            style={{ flex:1, padding:'11px 0', borderRadius:9, background:'linear-gradient(135deg,#e26faf,#c4559a)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:busy?'default':'pointer', opacity:busy?.6:1, fontFamily:'DM Sans, sans-serif' }}
           >
-            {saving ? 'Saving…' : (existing ? 'Save changes' : 'Save context')}
+            {saving ? 'Saving…' : anyAnalyzing ? 'Analyzing screenshots…' : (existing ? 'Save changes' : 'Save context')}
           </button>
           <button onClick={onCancel} style={{ padding:'11px 18px', borderRadius:9, background:'var(--surface2)', color:'var(--text2)', border:'none', fontSize:13, cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>
             Cancel
@@ -643,8 +716,7 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
     updateApp(currentApp.id, { post_style: id } as any)
   }
 
-  async function saveContentContext(ctx: ContentContext) {
-    await updateApp(currentApp.id, { content_context: ctx } as any)
+  function handleContextSaved() {
     setEditingContext(false)
     toast('Content context saved ✓')
   }
@@ -706,7 +778,6 @@ ${ENDING_RULE}
 VIOLATION CHECK: Before returning JSON, check whether your caption ends with "?". If it does and this is not the evening slot, rewrite the ending as a statement or tip.`
 
     const ctx = (currentApp as any).content_context as ContentContext | null | undefined
-    const screenshots = ctx?.screenshots ?? []
     const sanitize = (s: string) => s?.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, '').trim() ?? ''
     const contentCtxBlock = ctx ? `
 ━━━ USER CONTEXT (real quotes and examples — layer on top of app context) ━━━
@@ -759,10 +830,10 @@ HARD RULES — violating any of these makes the output invalid:
 5. Your CTA/closing line MUST be meaningfully different from every other post's closing line.` : `
 HARD RULE: Do NOT use the "Just did X, what\'s your Y?" pattern.`
 
-    // Describe screenshots via a separate vision call, then use text — keeps main payload small
-    const screenshotDesc = screenshots.length > 0 ? await describeScreenshots(screenshots) : ''
-    const screenshotInstruction = screenshotDesc
-      ? `\nAPP SCREENSHOTS — visual analysis of the product:\n${screenshotDesc}\nReference these specific UI details to make captions feel authentic and grounded in the real product.\n`
+    // Saved structured vision analysis — no per-generation vision call
+    const visionCtx = getVisionContext(currentApp)
+    const screenshotInstruction = visionCtx
+      ? `${visionCtx}\nReference these specific UI details to make captions feel authentic and grounded in the real product.\n`
       : ''
 
     // Post history — inject last 5 to prevent repetition
@@ -899,12 +970,11 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     const ch          = CHANNELS.find(c => c.id === activeChannel)
     const label       = ch?.label ?? activeChannel
     const ctx          = (currentApp as any).content_context as ContentContext | null | undefined
-    const screenshots  = ctx?.screenshots ?? []
 
-    // Describe screenshots via a separate vision call — keeps main payload small
-    const screenshotDesc = screenshots.length > 0 ? await describeScreenshots(screenshots) : ''
-    const screenshotNote = screenshotDesc
-      ? `\n\nAPP SCREENSHOTS — visual analysis of the product:\n${screenshotDesc}\nReference these specific UI details to make content feel authentic and grounded in the real product.`
+    // Saved structured vision analysis — no per-generation vision call
+    const visionCtx = getVisionContext(currentApp)
+    const screenshotNote = visionCtx
+      ? `\n${visionCtx}\nReference these specific UI details to make content feel authentic and grounded in the real product.`
       : ''
 
     // Post history injection
@@ -974,7 +1044,7 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
     return (
       <ContentContextSetup
         existing={contentContext}
-        onSave={saveContentContext}
+        onSaved={handleContextSaved}
         onCancel={() => setEditingContext(false)}
       />
     )
@@ -1070,14 +1140,13 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
             {contentContext.real_result  && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5 }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Result:</span> {contentContext.real_result}</div>}
             {contentContext.before_state && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, gridColumn:'span 2' }}><span style={{ color:'var(--text2)', fontWeight:500 }}>Before:</span> {contentContext.before_state}</div>}
             {contentContext.user_quote   && <div style={{ fontSize:11, color:'var(--text3)', lineHeight:1.5, gridColumn:'span 2', fontStyle:'italic' }}>"{contentContext.user_quote}"</div>}
-            {contentContext.screenshots && contentContext.screenshots.length > 0 && (
+            {(currentApp.screenshot_vision?.screenshots.length ?? 0) > 0 && (
               <div style={{ gridColumn:'span 2', display:'flex', gap:6, flexWrap:'wrap', marginTop:2, alignItems:'center' }}>
                 <span style={{ fontSize:10, color:'var(--text3)', fontWeight:600 }}>📷</span>
-                {contentContext.screenshots.map((src, i) => (
-                  <img key={i} src={src} alt={`Screenshot ${i+1}`}
-                    style={{ width:44, height:32, objectFit:'cover', borderRadius:4, border:'1px solid var(--surface3)' }} />
-                ))}
-                <span style={{ fontSize:10, color:'var(--accent2)', fontWeight:600 }}>Screenshots active</span>
+                <span style={{ fontSize:10, color:'var(--text2)' }}>
+                  {currentApp.screenshot_vision!.screenshots.map(s => s.label).join(' · ')}
+                </span>
+                <span style={{ fontSize:10, color:'var(--accent2)', fontWeight:600 }}>Screenshot analysis active</span>
               </div>
             )}
           </div>
