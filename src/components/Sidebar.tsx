@@ -24,17 +24,18 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
 
   return (
     <div
-      className="flex flex-col overflow-y-auto flex-shrink-0"
+      className="flex flex-col flex-shrink-0"
       style={{
         width: 220, minWidth: 220,
+        height: '100%', minHeight: 0,   // fill .app-sidebar; only the app list scrolls
         background: 'var(--surface)',
         borderRight: '1px solid var(--border)',
       }}
     >
-      {/* Logo */}
+      {/* Logo — fixed */}
       <div
         className="flex items-center gap-2.5"
-        style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)' }}
+        style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}
       >
         <div
           className="flex items-center justify-center text-white font-black text-base"
@@ -56,8 +57,8 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
         </div>
       </div>
 
-      {/* Nav */}
-      <div style={{ padding: '12px 8px 6px' }}>
+      {/* Nav — fixed */}
+      <div style={{ padding: '12px 8px 6px', flexShrink: 0 }}>
         {NAV_ITEMS.map(item => (
           <div
             key={item.view}
@@ -114,15 +115,16 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
         )}
       </div>
 
-      {/* Apps */}
-      <div style={{ padding: '12px 8px 6px', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+      {/* Apps — "My Apps" header fixed; list + Add app is the only scrolling region */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--border)', marginTop: 4 }}>
         <div style={{
           fontSize: 10, color: 'var(--text3)', letterSpacing: '.08em',
-          textTransform: 'uppercase', padding: '0 8px 6px'
+          textTransform: 'uppercase', padding: '12px 16px 6px', flexShrink: 0
         }}>
           My Apps
         </div>
 
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 8px 6px' }}>
         {apps.map(app => (
           <div
             key={app.id}
@@ -186,9 +188,11 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
             </a>
           </div>
         )}
+        </div>
+      </div>
 
-        {/* Trial / plan status */}
-        <div style={{ padding: '4px 10px', marginBottom: 4 }}>
+      {/* Trial / plan status — fixed */}
+      <div style={{ padding: '4px 18px', marginBottom: 4, flexShrink: 0 }}>
           {plan === 'free' && !trialExpired && daysLeftInTrial <= 7 && (
             <div style={{ background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--amber)', marginBottom: 3 }}>
@@ -214,10 +218,10 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
           <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700, background: plan === 'pro' ? 'rgba(52,201,138,.12)' : 'rgba(124,111,247,.1)', color: plan === 'pro' ? 'var(--green)' : 'var(--accent2)', border: `1px solid ${plan === 'pro' ? 'rgba(52,201,138,.25)' : 'rgba(124,111,247,.2)'}` }}>
             {plan === 'pro' ? '✓ Pro' : plan === 'analysis' ? '✓ Analysis' : plan === 'content' ? '✓ Content' : `Free · ${daysLeftInTrial}d left`}
           </span>
-        </div>
       </div>
 
-      <div style={{ marginTop: 'auto', padding: '10px 8px', borderTop: '1px solid var(--border)' }}>
+      {/* User / plan footer — fixed */}
+      <div style={{ padding: '10px 8px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ padding: '6px 10px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div style={{ fontSize: 11, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex:1 }}>{userEmail}</div>
           <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700, flexShrink:0, background: plan === 'pro' ? 'rgba(52,201,138,.12)' : 'rgba(124,111,247,.1)', color: plan === 'pro' ? 'var(--green)' : 'var(--accent2)', border: `1px solid ${plan === 'pro' ? 'rgba(52,201,138,.25)' : 'rgba(124,111,247,.2)'}` }}>
