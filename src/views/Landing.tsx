@@ -4,6 +4,22 @@ import { supabase } from '../lib/supabase'
 const D = "'Inter', sans-serif"
 const B = "'Inter', sans-serif"
 
+// TODO: replace with the real Product Hunt launch URL. Until then the badge shows a visible TODO and doesn't link anywhere.
+const PRODUCT_HUNT_URL = '[TODO: Product Hunt URL]'
+const PH_TODO = PRODUCT_HUNT_URL.startsWith('[TODO')
+
+// "Why Markr" comparison table — [feature, others, markr]
+const COMPARISON_ROWS: [string, string, string][] = [
+  ['Diagnoses your landing page across 5 dimensions', '✗ Generic scoring',      '✓ Evidence-based findings per dimension'],
+  ['Reads your product screens',                      '✗ Homepage only',        '✓ Up to 6 labelled screenshots'],
+  ['Measures against what you intend',                '✗ Generic benchmarks',   '✓ Your founder brief'],
+  ['Competitive intelligence',                        '✗ Not included',         '✓ AI-researched local and global rivals, starting with the ones you name'],
+  ['Technical readiness checks',                      '✗ Not included',         '✓ Automated checks for speed, SEO, accessibility and trust signals, with a readiness score'],
+  ['Multi-channel content engine',                    '✗ Instagram only',       '✓ Instagram, LinkedIn, X, YouTube Shorts, Facebook, WhatsApp, email and Reddit'],
+  ['Go-to-Market strategy',                           '✗ Not included',         '✓ Channel recommendations, budget planner, launch readiness, outreach templates'],
+  ['Score history & improvement tracking',            '✗ One-time audit',       '✓ Track score changes over time — see your growth'],
+]
+
 function VideoEmbed() {
   return (
     <iframe
@@ -201,22 +217,18 @@ export default function Landing() {
         <div style={{ position:'absolute', top:'15%', left:'50%', transform:'translateX(-50%)', width:800, height:500, borderRadius:'50%', background:'radial-gradient(ellipse, rgba(124,111,247,.08) 0%, transparent 65%)', pointerEvents:'none' }} />
 
         {/* Badge */}
-        <div style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'5px 14px', borderRadius:20, border:'1px solid rgba(124,111,247,.3)', background:'rgba(124,111,247,.08)', fontSize:12, fontWeight:500, color:'#a599ff', marginBottom:24, letterSpacing:'.01em', fontFamily:D }}>
+        <a href={PH_TODO ? undefined : PRODUCT_HUNT_URL} target="_blank" rel="noopener noreferrer"
+          style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'5px 14px', borderRadius:20, border:'1px solid rgba(124,111,247,.3)', background:'rgba(124,111,247,.08)', fontSize:12, fontWeight:500, color:'#a599ff', marginBottom:24, letterSpacing:'.01em', fontFamily:D, textDecoration:'none' }}>
           ✦ Launched on Product Hunt · Free to try
-        </div>
+          {PH_TODO && <span style={{ color:'#f5a623', fontWeight:700 }}>{PRODUCT_HUNT_URL}</span>}
+        </a>
 
         {/* Headline */}
         <h1 style={{ fontFamily:D, fontSize:'clamp(24px,4vw,56px)', fontWeight:800, lineHeight:1.0, margin:'0 0 20px', letterSpacing:'-0.02em', color:'#f5f5f7', whiteSpace:'nowrap' }}>
           Grow the app you already built.
         </h1>
         <p style={{ fontFamily:D, fontSize:'clamp(15px,1.4vw,18px)', fontWeight:400, lineHeight:1.6, margin:'0 0 20px', letterSpacing:'-0.01em', maxWidth:520, color:'rgba(255,255,255,.5)', textAlign:'left' }}>
-          Landing page audit · competitive intelligence · multi-channel marketing<br/>Everything a solo founder needs to go from built to bought.
-        </p>
-
-        
-
-        <p style={{ fontFamily:D, fontSize:15, fontWeight:400, color:'rgba(255,255,255,.4)', maxWidth:460, lineHeight:1.65, margin:'0 0 20px' }}>
-          Paste your URL. Get a free audit in 60 seconds — no signup needed.
+          Markr reads your landing page, sees your product through your screenshots, and checks both against what you're trying to build — then tells you what to fix first and what to post.
         </p>
 
         {/* URL input */}
@@ -236,7 +248,7 @@ export default function Landing() {
         {/* Fix 1: Expectation setting right below CTA */}
         {state === 'idle' && (
           <div style={{ fontSize:12, color:'rgba(255,255,255,.4)', marginBottom:16, fontFamily:D, textAlign:'center' }}>
-            Takes 2 minutes · No signup · See where users drop off instantly
+            Free audit in about a minute · No signup
           </div>
         )}
 
@@ -244,11 +256,11 @@ export default function Landing() {
         {state === 'idle' && (
           <div style={{ display:'flex', alignItems:'center', gap:0, maxWidth:520, width:'100%', marginBottom:32, borderRadius:8, overflow:'hidden', border:'1px solid rgba(255,255,255,.06)' }}>
             {[
-              { step:'1', label:'Paste URL', sub:'We fetch your site', color:'#7c6ff7' },
+              { step:'1', label:'Paste URL',        sub:'we read your site',  color:'#7c6ff7' },
               { step:'→', label:'', sub:'', color:'transparent' },
-              { step:'2', label:'We analyze', sub:'5 dimensions scored', color:'#a78bfa' },
+              { step:'2', label:'5 scores',         sub:'with the evidence',  color:'#a78bfa' },
               { step:'→', label:'', sub:'', color:'transparent' },
-              { step:'3', label:'You get insights', sub:'+ content templates', color:'#34c98a' },
+              { step:'3', label:'Your biggest fix', sub:'and what to do',     color:'#34c98a' },
             ].map((s,i) => s.step === '→'
               ? <div key={i} style={{ fontSize:14, color:'rgba(255,255,255,.2)', padding:'0 4px', background:'rgba(255,255,255,.02)' }}>→</div>
               : <div key={i} style={{ flex:1, padding:'10px 12px', background:'rgba(255,255,255,.02)', textAlign:'center' as const }}>
@@ -340,6 +352,19 @@ export default function Landing() {
                   }
                 </div>
               </div>
+
+              {/* JavaScript / low-coverage notice — point to screenshot vision */}
+              {(result.isJSApp === true || (result.coverage ?? result.confidencePercent ?? 100) < 60) && (
+                <div style={{ padding:'12px 20px', borderBottom:'1px solid rgba(255,255,255,.07)', background:'rgba(245,166,35,.06)' }}>
+                  <div style={{ fontSize:13, color:'rgba(255,255,255,.75)', lineHeight:1.6, fontFamily:D }}>
+                    Your site loads with JavaScript, so parts of it are invisible to crawlers. Sign up and upload a few screenshots — Markr reads your actual screens instead.
+                  </div>
+                  <a href={`/login?url=${encodeURIComponent(url)}`}
+                    style={{ display:'inline-block', marginTop:6, fontSize:12, fontWeight:600, color:'#f5a623', textDecoration:'underline', fontFamily:D }}>
+                    Sign up and upload screenshots →
+                  </a>
+                </div>
+              )}
 
               {/* Pages analyzed */}
               {result.pagesRead && result.pagesRead.length > 0 && (
@@ -519,21 +544,24 @@ export default function Landing() {
           <div style={{ textAlign:'center', marginBottom:48 }}>
             <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>How it works</div>
             <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,38px)', fontWeight:700, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7' }}>
-              From URL to content plan in 2 minutes
+              From URL to growth plan
             </h2>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, fontSize:13, color:'rgba(255,255,255,.4)', fontFamily:D }}>
-              <span style={{ color:'#7c6ff7' }}>Step 1:</span> We detect drop-off
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', flexWrap:'wrap' as const, gap:6, fontSize:13, color:'rgba(255,255,255,.4)', fontFamily:D }}>
+              <span style={{ color:'#7c6ff7' }}>Step 1:</span> Score your page
               <span style={{ color:'rgba(255,255,255,.2)', margin:'0 4px' }}>·</span>
-              <span style={{ color:'#a78bfa' }}>Step 2:</span> We generate content
+              <span style={{ color:'#34c98a' }}>Step 2:</span> Show your product
               <span style={{ color:'rgba(255,255,255,.2)', margin:'0 4px' }}>·</span>
-              <span style={{ color:'#34c98a' }}>Step 3:</span> You fix it and grow
+              <span style={{ color:'#e26faf' }}>Step 3:</span> Share your intent
+              <span style={{ color:'rgba(255,255,255,.2)', margin:'0 4px' }}>·</span>
+              <span style={{ color:'#a599ff' }}>Step 4:</span> Get the gaps & plan
             </div>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2 }} className="how-steps">
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:2 }} className="how-steps">
             {[
-              { n:'01', color:'#7c6ff7', title:'Paste your URL', outcome:'Markr reads your app like a real user — features, positioning, target audience, friction points.', icon:'🔗' },
-              { n:'02', color:'#34c98a', title:'AI runs deep analysis', outcome:'Competitive landscape, SWOT, growth playbook, pricing strategy, BMC — all generated and saved.', icon:'⚡' },
-              { n:'03', color:'#e26faf', title:'Content arrives daily', outcome:'3 Instagram posts — morning, midday, evening — optimised for saves, shares and comments. In your inbox by 6:30am.', icon:'📬' },
+              { n:'01', color:'#7c6ff7', icon:'🔗', title:'Paste your URL',               outcome:'Markr scores your landing page on clarity, user journey, emotional pull, trust and conversion, with the evidence behind every score.' },
+              { n:'02', color:'#34c98a', icon:'📸', title:'Show it your product',         outcome:'Upload up to 6 screenshots: home, onboarding, paywall, results. Markr reads the headlines, buttons, pricing and friction on each screen once, and remembers it.' },
+              { n:'03', color:'#e26faf', icon:'🧭', title:"Tell it what you're building", outcome:"A short founder brief: who it's for, your vision and mission, the competitors that matter and the ones that don't." },
+              { n:'04', color:'#a599ff', icon:'⚡', title:'Get the gaps and the plan',    outcome:'Competitive, SWOT, BMC, pricing, positioning and go-to-market, each comparing your intent with what your page and product actually show. Then content for 8 channels.' },
             ].map((s,i)=>(
               <div key={s.n} style={{ padding:'28px 24px', background: i===1 ? 'rgba(52,201,138,.04)' : 'rgba(255,255,255,.02)', border:`1px solid ${i===1?'rgba(52,201,138,.15)':'rgba(255,255,255,.06)'}`, borderRadius:12, position:'relative' }}>
                 <div style={{ fontSize:11, fontWeight:700, color:s.color, letterSpacing:'.1em', marginBottom:12 }}>{s.n}</div>
@@ -551,65 +579,99 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── WHY IT'S DIFFERENT ── */}
+      <section id="different" style={{ padding:'80px 6%', background:'rgba(255,255,255,.015)', borderTop:'1px solid rgba(255,255,255,.06)' }}>
+        <div style={{ maxWidth:900, margin:'0 auto' }}>
+          <div style={{ textAlign:'center', marginBottom:40 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Why it's different</div>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(22px,3vw,36px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7', maxWidth:700, marginLeft:'auto', marginRight:'auto' }}>
+              Most tools tell you what's on your page. Markr tells you what's missing from it.
+            </h2>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }} className="how-steps">
+            {[
+              { icon:'📸', title:'Sees your product',  desc:"Reads your real screens, not just your homepage, including apps a crawler can't read." },
+              { icon:'🧭', title:'Knows your intent',  desc:'Your audience, vision and chosen competitors guide every analysis.' },
+              { icon:'🔍', title:'Shows the gap',      desc:"Points out exactly where your product doesn't yet say what you mean." },
+            ].map(c => (
+              <div key={c.title} style={{ padding:'24px 22px', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:12 }}>
+                <div style={{ fontSize:22, marginBottom:10 }}>{c.icon}</div>
+                <div style={{ fontFamily:D, fontSize:15, fontWeight:700, color:'#f0f0f5', marginBottom:8 }}>{c.title}</div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,.5)', lineHeight:1.7 }}>{c.desc}</div>
+              </div>
+            ))}
+          </div>
+          {/* Example strip */}
+          <div style={{ marginTop:16, display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' as const, padding:'14px 18px', borderRadius:10, border:'1px dashed rgba(124,111,247,.35)', background:'rgba(124,111,247,.05)' }}>
+            <span style={{ fontSize:10, fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase' as const, color:'#a599ff', padding:'2px 10px', borderRadius:20, background:'rgba(124,111,247,.15)', fontFamily:D, flexShrink:0 }}>Example</span>
+            <span style={{ fontSize:13, color:'#f5a623', fontFamily:D }}>[TODO: real gap line from Emrise SWOT or Positioning]</span>
+          </div>
+        </div>
+      </section>
+
       {/* ── REAL EXAMPLE ── */}
       <section style={{ padding:'80px 6%', background:'rgba(124,111,247,.04)', borderTop:'1px solid rgba(124,111,247,.1)' }}>
         <div style={{ maxWidth:860, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:48 }}>
-            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Real output — no fluff</div>
+            <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Real results — our own app</div>
             <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.8vw,34px)', fontWeight:700, margin:'0 0 10px', letterSpacing:'-0.02em', color:'#f5f5f7' }}>
-              This is what Markr actually found
+              We ran Markr on Emrise first
             </h2>
-            <p style={{ fontSize:14, color:'rgba(255,255,255,.4)', maxWidth:460, margin:'0 auto', fontFamily:D }}>
-              Real analysis from a real app — Emrise, a wellness app for founders.
+            <p style={{ fontSize:14, color:'rgba(255,255,255,.4)', maxWidth:520, margin:'0 auto', fontFamily:D }}>
+              Emrise is an emotional reset app for moments of overwhelm. Built by Markr's founder and audited 68 times while we fixed it.
             </p>
           </div>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }} className="how-steps">
-            {/* Step 1 — Insight */}
+            {/* Before */}
             <div style={{ background:'rgba(220,38,38,.06)', border:'1px solid rgba(220,38,38,.2)', borderRadius:'12px 0 0 12px', padding:'24px 22px' }}>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
                 <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(220,38,38,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>🔍</div>
-                <div style={{ fontSize:11, fontWeight:700, color:'#fca5a5', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>What Markr found</div>
+                <div style={{ fontSize:11, fontWeight:700, color:'#fca5a5', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>Before</div>
               </div>
-              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:8, fontFamily:D }}>Emotional Pull: 3/10</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:8, fontFamily:D }}>User Journey 4/10</div>
               <div style={{ fontSize:13, color:'rgba(255,255,255,.6)', lineHeight:1.7, fontFamily:D }}>
-                The page uses "we/our" 14× vs "you/your" 3×. It talks about the product — not the person using it. A founder visiting this page doesn't feel seen.
-              </div>
-              <div style={{ marginTop:12, padding:'8px 12px', background:'rgba(220,38,38,.08)', borderRadius:8, fontSize:12, color:'#fca5a5', fontFamily:D }}>
-                ⚠️ This is why visitors browse but don't convert
+                No action-oriented CTA found across all pages — users don't know what to do.
               </div>
             </div>
 
-            {/* Step 2 — Content */}
+            {/* What changed */}
             <div style={{ background:'rgba(124,111,247,.08)', border:'1px solid rgba(124,111,247,.25)', borderTop:'3px solid #7c6ff7', padding:'24px 22px' }}>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(124,111,247,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>✍️</div>
-                <div style={{ fontSize:11, fontWeight:700, color:'#a599ff', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>What to post</div>
+                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(124,111,247,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>🛠️</div>
+                <div style={{ fontSize:11, fontWeight:700, color:'#a599ff', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>What changed</div>
               </div>
-              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:10, fontFamily:D }}>Generated caption:</div>
-              <div style={{ fontSize:13, color:'rgba(255,255,255,.8)', lineHeight:1.8, fontStyle:'italic', fontFamily:D, padding:'10px 14px', background:'rgba(255,255,255,.04)', borderRadius:8, borderLeft:'3px solid #7c6ff7' }}>
-                "Most founders don't burn out from overwork. They burn out from building in silence — no feedback, no traction, no sign it's working. This app was built for that moment. 🧘"
+              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:10, fontFamily:D }}>One clear CTA</div>
+              <div style={{ display:'inline-block', fontSize:13, fontWeight:600, color:'#f0f0f5', padding:'6px 12px', borderRadius:8, background:'rgba(124,111,247,.18)', fontFamily:D }}>
+                Get Emrise free on Google Play
               </div>
-              <div style={{ marginTop:10, display:'flex', flexWrap:'wrap' as const, gap:4 }}>
-                {['#founders','#buildinpublic','#solofounder','#mentalhealth','#startuplife'].map(h=>(
-                  <span key={h} style={{ fontSize:10, padding:'2px 8px', borderRadius:20, background:'rgba(124,111,247,.12)', color:'#a599ff', fontFamily:D }}>{h}</span>
-                ))}
+              <div style={{ fontSize:13, color:'rgba(255,255,255,.6)', lineHeight:1.7, marginTop:10, fontFamily:D }}>
+                plus a how-it-works path.
               </div>
             </div>
 
-            {/* Step 3 — Why it works */}
+            {/* After */}
             <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.2)', borderRadius:'0 12px 12px 0', padding:'24px 22px' }}>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(52,201,138,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>💡</div>
-                <div style={{ fontSize:11, fontWeight:700, color:'#34c98a', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>Why it works</div>
+                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(52,201,138,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>📈</div>
+                <div style={{ fontSize:11, fontWeight:700, color:'#34c98a', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>After</div>
               </div>
-              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:8, fontFamily:D }}>Optimised for saves</div>
-              <div style={{ fontSize:13, color:'rgba(255,255,255,.6)', lineHeight:1.7, fontFamily:D }}>
-                Speaks directly to the founder's emotional state — not the product. "Burning out from building in silence" mirrors exactly what Emrise's audience feels. Saves-optimised content validates, it doesn't sell.
-              </div>
-              <div style={{ marginTop:12, padding:'8px 12px', background:'rgba(52,201,138,.08)', borderRadius:8, fontSize:12, color:'#34c98a', fontFamily:D }}>
-                ✓ This is Markr understanding your app — not generic AI
-              </div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#f0f0f5', marginBottom:8, fontFamily:D }}>User Journey 10/10 · Overall 4.8 → 6</div>
+            </div>
+          </div>
+
+          <div style={{ textAlign:'center', marginTop:14, fontSize:12, color:'rgba(255,255,255,.45)', fontFamily:D }}>
+            Overall is still 6/10 — Trust is the next fix. Markr shows that too.
+          </div>
+
+          {/* What to post */}
+          <div style={{ marginTop:16, background:'rgba(124,111,247,.08)', border:'1px solid rgba(124,111,247,.25)', borderTop:'3px solid #7c6ff7', borderRadius:12, padding:'20px 22px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+              <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(124,111,247,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>✍️</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'#a599ff', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>What to post</div>
+            </div>
+            <div style={{ fontSize:13, color:'#f5a623', lineHeight:1.8, fontStyle:'italic', fontFamily:D, padding:'10px 14px', background:'rgba(255,255,255,.04)', borderRadius:8, borderLeft:'3px solid #7c6ff7' }}>
+              [TODO: real Emrise Instagram post from Content Studio]
             </div>
           </div>
 
@@ -617,7 +679,7 @@ export default function Landing() {
             <a href="/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'13px 28px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:14, fontWeight:600, textDecoration:'none', fontFamily:B, boxShadow:'0 4px 20px rgba(124,111,247,.3)' }}>
               Get this for your app →
             </a>
-            <div style={{ marginTop:10, fontSize:12, color:'rgba(255,255,255,.3)', fontFamily:D }}>Free to start · Your first analysis in 2 minutes</div>
+            <div style={{ marginTop:10, fontSize:12, color:'rgba(255,255,255,.3)', fontFamily:D }}>Free to start · Your first score in about a minute</div>
           </div>
         </div>
       </section>
@@ -633,14 +695,14 @@ export default function Landing() {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }} className="features-grid">
             {[
-              { emoji:'🎯', name:'Landing Page Audit',        desc:"Score your page across 5 dimensions with specific evidence. Know exactly what's broken." },
-              { emoji:'⚔️', name:'Competitive Intelligence',  desc:'Local and global rivals analyzed. App Store ratings, funding data, Reddit sentiment — all in one view.' },
-              { emoji:'📊', name:'Growth Strategy Suite',     desc:'SWOT, BMC, Growth playbook, and Pricing strategy — grounded in your actual scores.' },
-              { emoji:'🗺️', name:'Go-to-Market Plan',         desc:'Channel recommendations, budget allocation, launch readiness, and outreach templates — specific to your app.' },
-              { emoji:'✍️', name:'Multi-Channel Content',     desc:'Daily content for Instagram, LinkedIn, Twitter, YouTube, WhatsApp, Email, and Reddit — in your brand voice.' },
-              { emoji:'🔗', name:'Shareable Scorecards',      desc:'Every analysis generates a public link. Share your score, get feedback, drive new users.' },
-              { emoji:'📈', name:'Score History',             desc:"Track improvement over time. See what's working and what to fix next." },
-              { emoji:'🤖', name:'AI Copy Recommendations',   desc:'Rewritten headlines, CTAs, and priority fixes — specific to your app, not generic advice.' },
+              { emoji:'🎯', name:'Landing page audit',       desc:'5 dimensions, the evidence for every score, and how much of your page we could read.' },
+              { emoji:'📸', name:'Screenshot vision',        desc:'Reads your real screens: headlines, buttons, pricing, friction. Works for JavaScript apps.' },
+              { emoji:'🧭', name:'Founder brief',            desc:'Your audience, vision and mission. Every analysis is measured against it.' },
+              { emoji:'⚔️', name:'Competitive intelligence', desc:"Your chosen competitors first, the rest discovered. AI-researched; anything Markr can't verify is flagged." },
+              { emoji:'📊', name:'Strategy suite',           desc:'SWOT, BMC, growth, pricing and positioning, grounded in your scores and screens.' },
+              { emoji:'🗺️', name:'Go-to-market plan',        desc:'Channel picks, budget split, launch readiness and outreach templates.' },
+              { emoji:'✍️', name:'Content in 8 channels',    desc:'Instagram, LinkedIn, X, YouTube Shorts, Facebook, WhatsApp, email and Reddit. References your real screens; never names competitors.' },
+              { emoji:'📈', name:'History & scorecards',     desc:'Track your score over time and share a public scorecard link.' },
             ].map(f => (
               <div key={f.name}
                 style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:12, padding:'22px 18px', transition:'border-color .2s, background .2s' }}
@@ -676,15 +738,8 @@ export default function Landing() {
               <div style={{ padding:'12px 20px', fontSize:11, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'.06em', borderLeft:'1px solid rgba(255,255,255,.06)' }}>Others</div>
               <div style={{ padding:'12px 20px', fontSize:11, fontWeight:700, color:'#a599ff', letterSpacing:'.06em', borderLeft:'1px solid rgba(255,255,255,.06)', background:'rgba(124,111,247,.06)' }}>Markr</div>
             </div>
-            {[
-              ['Diagnoses your landing page across 5 dimensions', '✗ Generic scoring',   '✓ Evidence-based findings per dimension'],
-              ['Competitive intelligence',              '✗ Not included',       '✓ Local + global rivals, App Store ratings, funding data, Reddit sentiment'],
-              ['AI Readiness Assessment',                '✗ Not included',       '✓ Scores how well your app communicates its value'],
-              ['Multi-channel content engine',          '✗ Instagram only',     '✓ Instagram, LinkedIn, Twitter, YouTube, WhatsApp, Email, Reddit'],
-              ['Go-to-Market strategy',                 '✗ Not included',       '✓ Channel recommendations, budget planner, launch readiness, outreach templates'],
-              ['Score history & improvement tracking',  '✗ One-time audit',     '✓ Track score changes over time — see your growth'],
-            ].map(([feat, other, markr], i) => (
-              <div key={feat} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', borderBottom: i < 5 ? '1px solid rgba(255,255,255,.04)':'none' }}>
+            {COMPARISON_ROWS.map(([feat, other, markr], i) => (
+              <div key={feat} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', borderBottom: i < COMPARISON_ROWS.length - 1 ? '1px solid rgba(255,255,255,.04)':'none' }}>
                 <div style={{ padding:'13px 20px', fontSize:13, color:'rgba(255,255,255,.6)' }}>{feat}</div>
                 <div style={{ padding:'13px 20px', fontSize:12, color:'rgba(255,255,255,.3)', borderLeft:'1px solid rgba(255,255,255,.04)' }}>{other}</div>
                 <div style={{ padding:'13px 20px', fontSize:12, color:'#34c98a', fontWeight:600, borderLeft:'1px solid rgba(255,255,255,.04)', background:'rgba(124,111,247,.04)' }}>{markr}</div>
@@ -777,19 +832,19 @@ export default function Landing() {
               <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>S</div>
               <div>
                 <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint & Emrise</div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint, Emrise & Tiny Tummies <span style={{ color:'#f5a623', fontWeight:600 }}>[TODO: confirm list]</span></div>
               </div>
             </div>
           </div>
           {/* Stats */}
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {[
-              { n:'3', label:'Apps built before Markr', sub:'Each one taught me what Markr now does automatically', color:'#7c6ff7' },
-              { n:'6mo', label:'Average time founders waste', sub:'On guessing strategy before finding their first 100 users', color:'#e26faf' },
-              { n:'2min', label:'To get your first insight', sub:'Paste your URL — Markr does the rest', color:'#34c98a' },
+              { n:'[TODO: number]', label:'Apps built before Markr', sub:'Each one taught me what Markr now does automatically', color:'#7c6ff7' },
+              { n:'68',             label:'Audits of Emrise alone',  sub:'Every insight tested on our own apps first',           color:'#e26faf' },
+              { n:'~1 min',         label:'To your first score',     sub:'Paste your URL — Markr does the rest',                 color:'#34c98a' },
             ].map(s=>(
               <div key={s.label} style={{ padding:'18px 20px', background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:12 }}>
-                <div style={{ fontFamily:D, fontSize:28, fontWeight:800, color:s.color, lineHeight:1, marginBottom:6 }}>{s.n}</div>
+                <div style={{ fontFamily:D, fontSize: s.n.startsWith('[TODO') ? 14 : 28, fontWeight:800, color: s.n.startsWith('[TODO') ? '#f5a623' : s.color, lineHeight:1, marginBottom:6 }}>{s.n}</div>
                 <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', marginBottom:4, fontFamily:D }}>{s.label}</div>
                 <div style={{ fontSize:12, color:'rgba(255,255,255,.4)', lineHeight:1.5 }}>{s.sub}</div>
               </div>
@@ -843,13 +898,13 @@ export default function Landing() {
               <div>
                 <div style={{ fontSize:24, color:'#a599ff', marginBottom:8, lineHeight:1 }}>"</div>
                 <div style={{ fontSize:14, color:'rgba(255,255,255,.75)', lineHeight:1.8, fontStyle:'italic', marginBottom:16 }}>
-                  I run Tiny Tummies — a meal planning app for young Indian mothers. I thought I had a decent landing page. Markr told me otherwise in 60 seconds: User Journey 4/10, Trust 4/10. No mentor, no agency had flagged this. I've since revised the landing page based on the feedback and I'm now collecting testimonials to fix the trust gap. I didn't know what I didn't know — until Markr showed me.
+                  I run Tiny Tummies — a meal planning app for young Indian mothers. I thought I had a decent landing page. Markr told me otherwise in about a minute: User Journey 4/10, Trust 4/10. No mentor, no agency had flagged this. I've since revised the landing page based on the feedback and I'm now collecting testimonials to fix the trust gap. I didn't know what I didn't know — until Markr showed me.
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>S</div>
                   <div>
                     <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
-                    <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Tiny Tummies, Emrise & Mindprint</div>
+                    <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint, Emrise & Tiny Tummies <span style={{ color:'#f5a623', fontWeight:600 }}>[TODO: confirm list]</span></div>
                   </div>
                 </div>
               </div>
@@ -891,18 +946,17 @@ export default function Landing() {
         <div style={{ maxWidth:960, margin:'0 auto' }}>
           <div style={{ textAlign:'center', marginBottom:40 }}>
             <div style={{ fontSize:11, fontWeight:600, color:'#7c6ff7', letterSpacing:'.08em', textTransform:'uppercase' as const, marginBottom:10, fontFamily:D }}>Who uses Markr</div>
-            <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.8vw,32px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>Built for every stage of the founder journey</h2>
+            <h2 style={{ fontFamily:D, fontSize:'clamp(20px,2.8vw,32px)', fontWeight:700, margin:0, letterSpacing:'-0.02em', color:'#f5f5f7' }}>Built for founders — and the people who help them</h2>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }} className="persona-grid">
             {([
-              { role:'Solo Founder',    quote:'I finally know why my app isn\'t converting.',          desc:'Full landing page audit with specific fixes in 60 seconds.' },
-              { role:'Mentor & Coach',  quote:'I prep every mentee session with Markr data.',          desc:'Score any founder\'s page before your next call.' },
-              { role:'Accelerator',     quote:'We audited 20 cohort startups in one afternoon.',       desc:'Benchmark your entire batch. Track improvement weekly.' },
-            ] as const).map(({ role, quote, desc }) => (
+              { role:'Solo founders',      desc:"Find out why visitors don't convert, and what to post while you fix it." },
+              { role:'Mentors & coaches',  desc:"Score a founder's page before your next session." },
+              { role:'Small studios',      desc:'Run up to 3 apps from one account.' },
+            ] as const).map(({ role, desc }) => (
               <div key={role} style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, padding:'28px 24px', display:'flex', flexDirection:'column', gap:14 }}>
                 <div style={{ fontSize:10, fontWeight:700, letterSpacing:'.1em', textTransform:'uppercase' as const, color:'#7c6ff7', fontFamily:D }}>{role}</div>
-                <div style={{ fontSize:'clamp(15px,1.6vw,18px)', fontWeight:600, color:'#f5f5f7', lineHeight:1.45, fontFamily:D }}>"{quote}"</div>
-                <div style={{ fontSize:13, color:'rgba(255,255,255,.5)', lineHeight:1.6 }}>{desc}</div>
+                <div style={{ fontSize:'clamp(15px,1.6vw,18px)', fontWeight:600, color:'#f5f5f7', lineHeight:1.45, fontFamily:D }}>{desc}</div>
               </div>
             ))}
           </div>
@@ -922,7 +976,7 @@ export default function Landing() {
               <div style={{ fontFamily:D, fontSize:15, fontWeight:700, color:'#f0f0f5', marginBottom:6 }}>Free</div>
               <div style={{ fontFamily:D, fontSize:28, fontWeight:800, color:'#f0f0f5', marginBottom:2 }}>$0</div>
               <div style={{ fontSize:10, fontWeight:600, color:'rgba(255,255,255,.3)', textTransform:'uppercase' as const, letterSpacing:'.06em', marginBottom:16 }}>forever</div>
-              {(['Score your landing page', '1 app', "See what's broken"] as const).map(item => (
+              {(['Landing page score for 1 app', 'Evidence for every dimension', 'Shareable scorecard'] as const).map(item => (
                 <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.6)', marginBottom:8, lineHeight:1.5 }}>
                   <span style={{ color:'#34c98a', flexShrink:0 }}>✓</span>{item}
                 </div>
@@ -939,7 +993,7 @@ export default function Landing() {
               <div style={{ fontFamily:D, fontSize:28, fontWeight:800, color:'#34c98a', marginBottom:2 }}>$10</div>
               <div style={{ fontSize:10, fontWeight:600, color:'#34c98a', textTransform:'uppercase' as const, letterSpacing:'.06em', marginBottom: localPrice(10) ? 2 : 16 }}>one-time · no subscription</div>
               {localPrice(10) && <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', marginBottom:14 }}>{localPrice(10)}</div>}
-              {(['Full growth audit for your app', 'Competitive intelligence', 'SWOT, BMC, Growth & Pricing strategy', 'AI copy recommendations', 'Shareable scorecard · 1 app', 'Results saved permanently'] as const).map(item => (
+              {(['Everything in Free', 'Competitive intelligence', 'SWOT, BMC, growth & pricing strategy', 'AI copy rewrites (headlines, CTAs, priority fixes)', '1 app, results saved permanently'] as const).map(item => (
                 <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.6)', marginBottom:8, lineHeight:1.5 }}>
                   <span style={{ color:'#34c98a', flexShrink:0 }}>✓</span>{item}
                 </div>
@@ -956,7 +1010,7 @@ export default function Landing() {
               <div style={{ fontFamily:D, fontSize:32, fontWeight:800, color:'#a599ff', marginBottom:2 }}>$14</div>
               <div style={{ fontSize:10, fontWeight:600, color:'#a599ff', textTransform:'uppercase' as const, letterSpacing:'.06em', marginBottom: localPrice(14) ? 2 : 16 }}>/month · cancel anytime</div>
               {localPrice(14) && <div style={{ fontSize:11, color:'rgba(255,255,255,.3)', marginBottom:14 }}>{localPrice(14)}/month</div>}
-              {(['Everything in Analysis Pack', '3 daily Instagram posts every morning', 'Weekly content refresh', '3 apps', 'Daily email delivery'] as const).map(item => (
+              {(['Everything in Analysis Pack', 'Up to 3 apps', 'Screenshot vision & founder brief', 'Positioning & go-to-market plan', 'Content for 8 channels with daily email delivery', 'Technical readiness checks', '50 AI runs a day'] as const).map(item => (
                 <div key={item} style={{ display:'flex', gap:8, fontSize:12, color:'rgba(255,255,255,.75)', marginBottom:9, lineHeight:1.5 }}>
                   <span style={{ color:'#a599ff', flexShrink:0 }}>✓</span>{item}
                 </div>
@@ -977,14 +1031,14 @@ export default function Landing() {
             Ready to stop guessing?
           </h2>
           <p style={{ fontSize:16, color:'rgba(255,255,255,.45)', marginBottom:28, lineHeight:1.65 }}>
-            Get your first insights in 2 minutes and wake up to 3 ready-to-post captions tomorrow morning.
+            Get your first score in about a minute and wake up to 3 ready-to-post captions tomorrow morning.
           </p>
           <a href="/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'14px 32px', borderRadius:9, background:'linear-gradient(135deg,#7c6ff7,#9b8af4)', color:'#fff', fontSize:15, fontWeight:600, textDecoration:'none', fontFamily:B, boxShadow:'0 4px 20px rgba(124,111,247,.3)', transition:'opacity .15s' }}
             onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='.85'}
             onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
             Get my growth insights →
           </a>
-          <div style={{ marginTop:14, fontSize:11, color:'rgba(255,255,255,.25)' }}>Free to start · No credit card · 2 min setup</div>
+          <div style={{ marginTop:14, fontSize:11, color:'rgba(255,255,255,.25)' }}>Free to start · No credit card · About a minute to your first score</div>
         </div>
       </section>
 
