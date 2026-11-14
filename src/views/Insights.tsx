@@ -3,6 +3,11 @@ import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
 import { readCompetitive, filterExcluded, orderFocusFirst } from '../lib/founder'
+import { itunesNameMatches, applyFacts, findFactsEntry, competitorWebsite, sourceDomain } from '../lib/competitors'
+
+// Pass 2 (live sources) runs competitors in batches to stay inside the 60s API limit.
+// Tune from the [web_search] timing log on the Vercel preview.
+const FACTS_BATCH = 3
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -101,6 +106,7 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('competitive')
   const [cache, setCache] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
+  const [factsChecking, setFactsChecking] = useState(false)   // competitive pass 2 (live sources) in progress
   const [runningFull, setRunningFull] = useState(false)
   const [fullSteps, setFullSteps] = useState<Record<string,string>>({})
 
@@ -120,7 +126,7 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
 
   const setLoad = (k: string, v: boolean) => setLoading(p => ({ ...p, [k]: v }))
   const setFStep = (k: string, s: string) => setFullSteps(p => ({ ...p, [k]: s }))
-  const setTabCache = (k: string, data: string) => {
+  const setTabCache = (k: string, data: string, opts?: { skipCompetitorUrlAnalysis?: boolean }) => {
     setCache(p => ({ ...p, [k]: data }))
     const fieldMap: Record<string, string> = {
       competitive: 'competitive_analysis',
@@ -142,22 +148,23 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
         if (field) updateApp(currentApp.id, { [field]: data, ...(tsField ? { [tsField]: now } : {}) } as any)
 
     // After competitive analysis saves — run URL analysis on top competitor
-    if (k === 'competitive') {
+    if (k === 'competitive' && !opts?.skipCompetitorUrlAnalysis) {
       try {
-        const parsed = JSON.parse(data)
+        const parsed  = JSON.parse(data)
         const topComp = parsed.comps?.[0]
-        if (topComp?.url && topComp.url.startsWith('http')) {
+        const topUrl  = topComp ? competitorWebsite(topComp) : null   // App Store site → verified site → model URL
+        if (topUrl) {
           // Run in background — non-blocking
           fetch('/api/analyze-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-internal-call': 'markr_internal' },
-            body: JSON.stringify({ url: topComp.url })
+            body: JSON.stringify({ url: topUrl })
           }).then(r => r.ok ? r.json() : null).then(compAnalysis => {
             if (compAnalysis && !compAnalysis.error) {
               updateApp(currentApp.id, {
                 competitor_url_analysis: {
                   name: topComp.name,
-                  url: topComp.url,
+                  url: topUrl,
                   overall: compAnalysis.overall,
                   headline: compAnalysis.headline,
                   dimensions: compAnalysis.dimensions,
@@ -234,6 +241,10 @@ ${focus.length < 5 ? `- Then fill the remaining ${5 - focus.length} slot(s) usin
     const excludeBlock = excluded.length ? `
 
 NEVER include these as competitors, or their rebrands/sub-products: ${excluded.join(', ')}` : ''
+    const hasBrief = !!currentApp.founder_brief
+    const intentGapsRule = hasBrief ? `
+
+INTENT GAPS (required): "intentGaps" = 1–3 short sentences naming specific gaps between the FOUNDER INTENT above and what the landing page/screenshots show, or [] if there are none.` : ''
     const priorityLine = focus.length
       ? `PRIORITY for the ${5 - focus.length} auto-discovered slot(s): local competitors first (type:"local"), then global (type:"global").`
       : `PRIORITY: list 2-3 LOCAL competitors first (type:"local"), then 2-3 GLOBAL ones (type:"global"). Total must be exactly 5 unless you explicitly noted in mktPos that genuine local competitors don't exist.`
@@ -265,10 +276,10 @@ This product operates primarily in: ${detectedMarket}
 
 ${priorityLine}
 
-FACTS RULE: "funding", "employees", "reviews.rating", "reviews.ratingCount" and "reviews.traction" must be null unless you are certain of the exact value. Never estimate, round, or guess — null is the expected answer for most small or local companies.
+FACTS RULE: "funding", "employees", "reviews.rating", "reviews.ratingCount" and "reviews.traction" must be null unless you are certain of the exact value. Never estimate, round, or guess — null is the expected answer for most small or local companies.${intentGapsRule}
 
 JSON only, no markdown:
-{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":null,"ratingCount":null,"traction":null},"funding":null,"employees":null,"userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"}`
+{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":null,"ratingCount":null,"traction":null},"funding":null,"employees":null,"userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"${hasBrief ? ',"intentGaps":["gap 1"]' : ''}}`
 
       // 5 competitors, each with strengths/weaknesses/userLoves/userHates and
       // positioning fields — the largest payload in the app.
@@ -284,16 +295,21 @@ JSON only, no markdown:
       parsed.comps = orderFocusFirst(filterExcluded(parsed.comps, currentApp), currentApp)
       if (parsed.comps.length === 0) throw new Error('Every competitor returned was on your excluded list — try again')
 
+      parsed.intentGaps = hasBrief && Array.isArray(parsed.intentGaps)
+        ? parsed.intentGaps.filter((g: unknown) => typeof g === 'string' && g.trim()).slice(0, 3)
+        : undefined
+
       // Enrich each competitor with live App Store data via iTunes Search API (parallel)
       parsed.comps = await Promise.all(parsed.comps.map(async (comp: any) => {
         try {
           const res = await fetch(
-            `https://itunes.apple.com/search?term=${encodeURIComponent(comp.name)}&entity=software&limit=1`,
+            `https://itunes.apple.com/search?term=${encodeURIComponent(comp.name)}&entity=software&limit=3`,
             { signal: AbortSignal.timeout(4000) }
           )
           if (!res.ok) return comp
           const data = await res.json()
-          const hit  = data.results?.[0]
+          // Name search can return an unrelated app — only trust a hit whose title/seller matches
+          const hit  = (data.results ?? []).find((h: any) => itunesNameMatches(comp.name, h))
           if (!hit) return comp
           const monthsAgo = hit.currentVersionReleaseDate
             ? Math.max(0, Math.floor((Date.now() - new Date(hit.currentVersionReleaseDate).getTime()) / (1000 * 60 * 60 * 24 * 30.5)))
@@ -305,6 +321,8 @@ JSON only, no markdown:
               ratingCount:  hit.userRatingCount ?? null,
               price:        hit.price === 0 ? 'Free' : hit.price ? `$${hit.price}` : null,
               updatedMonths: monthsAgo,
+              sellerUrl:    typeof hit.sellerUrl === 'string' ? hit.sellerUrl : null,
+              trackViewUrl: typeof hit.trackViewUrl === 'string' ? hit.trackViewUrl : null,
             },
           }
         } catch {
@@ -312,10 +330,64 @@ JSON only, no markdown:
         }
       }))
 
-      setTabCache('competitive', JSON.stringify(parsed))
-      toast('Competitive intelligence ready!')
+      // Pass 1 is saved immediately — pass 2 can never lose it
+      setTabCache('competitive', JSON.stringify(parsed), { skipCompetitorUrlAnalysis: true })
+      setLoad('competitive', false)
+      toast('Competitive intelligence ready — checking live sources…')
+
+      // Pass 2: sourced facts via server-side web search
+      setFactsChecking(true)
+      try {
+        const { comps, note } = await addLiveFacts(parsed.comps)
+        parsed.comps = comps
+        if (note) parsed.facts_note = note; else delete parsed.facts_note
+      } finally {
+        setFactsChecking(false)
+      }
+      setTabCache('competitive', JSON.stringify(parsed))   // final save + URL analysis on verified site
+      toast(parsed.facts_note ? 'Live source check incomplete — see note' : 'Live sources checked ✓')
     } catch(e) { toast('Error: '+(e as Error).message) }
     setLoad('competitive', false)
+  }
+
+  // ── COMPETITIVE pass 2: sourced facts ──────────────────────────────────────
+  const FACTS_SYSTEM = 'You are a careful researcher. Use web search. Output ONLY valid JSON, no markdown.'
+  const factsPrompt = (batch: any[]) => `For each competitor below, use web search to find: official website, current pricing, total funding raised, team size.
+
+${batch.map((c, i) => `${i + 1}. ${c.name}${c.url ? ` — ${c.url}` : ''}`).join('\n')}
+
+RULES:
+- Only include a value that a search result you retrieved directly states. Put that result's exact URL in source_url.
+- If no result directly supports a value, use null. Never estimate, infer, round, or combine figures.
+- Use the competitor names exactly as written above, in the same order.
+
+Output ONLY JSON (website, pricing, funding and team_size may each be null):
+{"competitors":[{"name":"…","website":{"value":"https://…","source_url":"https://…"},"pricing":{"value":"…","source_url":"https://…"},"funding":{"value":"…","source_url":"https://…"},"team_size":{"value":"…","source_url":"https://…"}}]}`
+
+  // Sequential batches: each call counts against the daily limit, and the
+  // rate-limit counter is read-then-write, so parallel calls could undercount.
+  async function addLiveFacts(comps: any[]): Promise<{ comps: any[]; note: string | null }> {
+    const out = [...comps]
+    const failures: string[] = []
+    const batches = Math.ceil(comps.length / FACTS_BATCH)
+    for (let i = 0; i < comps.length; i += FACTS_BATCH) {
+      const batch = comps.slice(i, i + FACTS_BATCH)
+      try {
+        const raw = await callClaude(factsPrompt(batch), FACTS_SYSTEM, 4000, undefined, 'haiku', 'competitive_facts', undefined, { webSearch: { maxUses: 8 } })
+        const result  = JSON.parse(raw)   // already source-checked on the server
+        const entries = Array.isArray(result.competitors) ? result.competitors : []
+        const checkedAt = typeof result.checked_at === 'string' ? result.checked_at : new Date().toISOString()
+        batch.forEach((c, j) => { out[i + j] = applyFacts(c, findFactsEntry(entries, c, j), checkedAt) })
+      } catch (e) {
+        failures.push((e as Error).message)
+      }
+    }
+    return {
+      comps: out,
+      note: failures.length
+        ? `Live source check skipped for ${failures.length === batches ? 'all' : 'some'} competitors — ${failures[0]}`
+        : null,
+    }
   }
 
   // ── BMC ──────────────────────────────────────────────────────────────────────
@@ -721,7 +793,7 @@ Output ONLY valid JSON:
         ) : (
           <>
             {activeTab === 'competitive' && (
-              <CompetitiveTab data={cache.competitive} loading={loading.competitive} onGenerate={genCompetitive} appName={currentApp.name} />
+              <CompetitiveTab data={cache.competitive} loading={loading.competitive} checking={factsChecking} onGenerate={genCompetitive} appName={currentApp.name} />
             )}
             {activeTab === 'bmc' && (
               <BMCTab data={cache.bmc} loading={loading.bmc} onGenerate={genBMC} appName={currentApp.name} />
@@ -775,7 +847,36 @@ function NotVerified() {
   return <span style={{ fontSize:11, color:'var(--text3)' }}>Not verified</span>
 }
 
-function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; loading?:boolean; onGenerate:()=>void; appName:string }) {
+const fmtChecked = (iso: string) => {
+  try { return new Date(iso).toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' }) } catch { return '' }
+}
+
+function NotFound() {
+  return <span style={{ fontSize:11, color:'var(--text3)' }}>Not found</span>
+}
+
+// Clickable source domain + "checked <date>"
+function SourceLink({ url, checkedAt }: { url: string; checkedAt?: string }) {
+  return (
+    <>
+      <a href={url} target="_blank" rel="noopener noreferrer" title={url}
+        style={{ fontSize:10, color:'var(--accent2)', marginLeft:5, textDecoration:'none', whiteSpace:'nowrap' as const }}>
+        {sourceDomain(url)} ↗
+      </a>
+      {checkedAt && <span style={{ fontSize:10, color:'var(--text3)', marginLeft:4, whiteSpace:'nowrap' as const }}>checked {fmtChecked(checkedAt)}</span>}
+    </>
+  )
+}
+
+// Sourced fact → value + source + date; else AI value (old results / pass-1 price) → AI estimate;
+// else "Not found" if a live check ran for this competitor, "Not verified" if none did.
+function FactValue({ fact, fallback, checkedAt, prefix }: { fact?: { value: string; source_url: string } | null; fallback?: string | null; checkedAt?: string; prefix?: string }) {
+  if (fact) return <span>{prefix}{fact.value}<SourceLink url={fact.source_url} checkedAt={checkedAt} /></span>
+  if (fallback) return <span>{prefix}{fallback}<AiEstimateTag /></span>
+  return checkedAt ? <NotFound /> : <NotVerified />
+}
+
+function CompetitiveTab({ data, loading, checking, onGenerate, appName }: { data?:string; loading?:boolean; checking?:boolean; onGenerate:()=>void; appName:string }) {
   const [view, setView] = useState<'cards'|'table'>(() => {
     try { return (localStorage.getItem('markr_compView') as 'cards'|'table') ?? 'cards' } catch { return 'cards' }
   })
@@ -784,7 +885,7 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
   if (loading) return <LoadingCard text="Analyzing competitors…" />
   if (!data) return <EmptyTab emoji="🔍" title="Competitive Intelligence" desc="Deep analysis of your top 5 competitors — strengths, gaps, positioning and how you win." onGenerate={onGenerate} btnLabel="Run Competitive Intelligence" />
   try {
-    const { comps, mktPos, wspace, winCond } = JSON.parse(data)
+    const { comps, mktPos, wspace, winCond, intentGaps, facts_note } = JSON.parse(data)
     const tC  = { High:'var(--red)', Medium:'var(--amber)', Low:'var(--green)' } as Record<string,string>
     const tBg = { High:'rgba(229,85,85,.12)', Medium:'rgba(245,166,35,.12)', Low:'rgba(52,201,138,.12)' } as Record<string,string>
 
@@ -805,7 +906,18 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
           <strong style={{ color:'var(--accent2)' }}>Market Position:</strong> {mktPos}<br/><br/>
           <strong style={{ color:'var(--green)' }}>Whitespace:</strong> {wspace}<br/><br/>
           <strong style={{ color:'var(--amber)' }}>Win Condition:</strong> {winCond}
+          {Array.isArray(intentGaps) && intentGaps.length > 0 && (
+            <>
+              <br/><br/>
+              <strong style={{ color:'var(--red)' }}>Gaps vs your intent:</strong>
+              <ul style={{ margin:'4px 0 0', paddingLeft:18 }}>
+                {intentGaps.map((g: string, i: number) => <li key={i}>{g}</li>)}
+              </ul>
+            </>
+          )}
         </Banner>
+        {checking && <div style={{ fontSize:12, color:'var(--accent2)', margin:'-4px 0 12px' }}>🔎 Checking live sources for website, pricing, funding and team size…</div>}
+        {!checking && facts_note && <div style={{ fontSize:12, color:'var(--amber)', margin:'-4px 0 12px' }}>⚠️ {facts_note}</div>}
 
         {/* View toggle */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
@@ -819,7 +931,7 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
               }}>{v === 'cards' ? '⊞ Cards' : '☰ Table'}</button>
             ))}
           </div>
-          <button className="vbtn" onClick={onGenerate}>🔄 Refresh</button>
+          <button className="vbtn" onClick={onGenerate} disabled={checking}>🔄 Refresh</button>
         </div>
 
         {/* ── Table view ── */}
@@ -841,6 +953,7 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                     const ratingFallback = cleanEstimate(c.reviews?.rating)
                     const funding = cleanEstimate(c.funding)
                     const team    = cleanEstimate(c.employees)
+                    const checkedAt = typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined
                     const topGap = c.positioningGap ?? c.userHates?.[0] ?? c.weaknesses?.[0] ?? '—'
                     return (
                       <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
@@ -850,7 +963,7 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                             {c.type && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, background: c.type==='local' ? 'rgba(52,201,138,.15)' : 'rgba(124,111,247,.15)', color: c.type==='local' ? 'var(--green)' : 'var(--accent)' }}>{c.type==='local' ? 'Local' : 'Global'}</span>}
                             {c.unverified === true && <UnverifiedBadge />}
                           </div>
-                          {c.price && <div style={{ fontSize:10, color:'var(--text3)', marginTop:2 }}>{c.price}</div>}
+                          <div style={{ fontSize:10, color:'var(--text3)', marginTop:2, fontWeight:400 }}><FactValue fact={c.facts?.pricing} fallback={cleanEstimate(c.price)} checkedAt={checkedAt} /></div>
                         </td>
                         <td style={{ padding:'10px 12px' }}>
                           <span style={{ fontSize:12, fontWeight:700, padding:'3px 8px', borderRadius:6, background:sBg, color:sColor }}>{score}/10</span>
@@ -862,8 +975,8 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                             <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {ratingFallback}<AiEstimateTag /></span>
                           ) : <NotVerified />}
                         </td>
-                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}>{funding ? <>{funding}<AiEstimateTag /></> : <NotVerified />}</td>
-                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}>{team ? <>{team}<AiEstimateTag /></> : <NotVerified />}</td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}><FactValue fact={c.facts?.funding} fallback={funding} checkedAt={checkedAt} /></td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}><FactValue fact={c.facts?.team_size} fallback={team} checkedAt={checkedAt} /></td>
                         <td style={{ padding:'10px 12px', color:'var(--text2)', maxWidth:220 }}>
                           <div style={{ overflow:'hidden', display:'-webkit-box' as any, WebkitLineClamp:2, WebkitBoxOrient:'vertical' as any }}>{topGap}</div>
                         </td>
@@ -893,10 +1006,29 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                   )}
                   {c.unverified === true && <UnverifiedBadge />}
                   {c.cat &&<span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'var(--surface3)', color:'var(--text3)' }}>{c.cat}</span>}
-                  {c.url && <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize:10, color:'var(--text3)', textDecoration:'none' }}>{c.url.replace(/^https?:\/\/(www\.)?/,'').split('/')[0]}</a>}
+                  {(() => {
+                    // App Store developer site (Live) → search-verified site → model URL
+                    const site = competitorWebsite(c)
+                    if (!site) return null
+                    const fromAppStore = site === c.appStore?.sellerUrl
+                    const verified = !fromAppStore && site === c.facts?.website?.value ? c.facts.website : null
+                    return (
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:2 }}>
+                        <a href={site} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:'var(--text3)', textDecoration:'none' }}>{sourceDomain(site)}</a>
+                        {fromAppStore && <SrcBadge src="Live" live />}
+                        {verified && (
+                          <a href={verified.source_url} target="_blank" rel="noopener noreferrer"
+                            title={`Verified via ${sourceDomain(verified.source_url)}${typeof c.facts_checked_at === 'string' ? `, checked ${fmtChecked(c.facts_checked_at)}` : ''}`}
+                            style={{ fontSize:9, color:'var(--green)', textDecoration:'none', marginLeft:3 }}>✓ verified</a>
+                        )}
+                      </span>
+                    )
+                  })()}
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                  {c.price && <span style={{ fontSize:11, fontWeight:600, color:'var(--green)' }}>{c.price}</span>}
+                  <span style={{ fontSize:11, fontWeight:600, color:'var(--green)' }}>
+                    <FactValue fact={c.facts?.pricing} fallback={cleanEstimate(c.price)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} />
+                  </span>
                   <span style={{ fontSize:10, padding:'3px 9px', borderRadius:20, fontWeight:700,
                     background:tBg[c.threat]??tBg.Medium, color:tC[c.threat]??tC.Medium,
                   }}>{c.threat} threat · {c.score}/10</span>
@@ -936,22 +1068,16 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                 {/* Funding */}
                 <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
                   <SecLabel>Funding</SecLabel>
-                  {(() => {
-                    const f = cleanEstimate(c.funding)
-                    return f
-                      ? <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{f}<AiEstimateTag /></div>
-                      : <NotVerified />
-                  })()}
+                  <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
+                    <FactValue fact={c.facts?.funding} fallback={cleanEstimate(c.funding)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} />
+                  </div>
                 </div>
                 {/* Team size */}
                 <div style={{ padding:'10px 14px' }}>
                   <SecLabel>Team Size</SecLabel>
-                  {(() => {
-                    const e = cleanEstimate(c.employees)
-                    return e
-                      ? <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>👥 {e}<AiEstimateTag /></div>
-                      : <NotVerified />
-                  })()}
+                  <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
+                    <FactValue fact={c.facts?.team_size} fallback={cleanEstimate(c.employees)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} prefix="👥 " />
+                  </div>
                 </div>
               </div>
 

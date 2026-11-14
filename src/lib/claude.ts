@@ -15,7 +15,8 @@ export async function callClaude(
   onChunk?: (chunk: string) => void,
   useModel: 'haiku' | 'sonnet' = 'haiku',
   feature = 'general',
-  images?: string[]  // base64 data-URLs — sent to Anthropic vision API
+  images?: string[],  // base64 data-URLs — sent to Anthropic vision API
+  opts?: { webSearch?: { maxUses: number } },  // server-side web search (Anthropic only, whitelisted features)
 ): Promise<string> {
   const token = await getToken()
 
@@ -33,6 +34,7 @@ export async function callClaude(
       stream:  !!onChunk,
       feature,
       ...(images && images.length > 0 ? { images } : {}),
+      ...(opts?.webSearch ? { webSearch: opts.webSearch } : {}),
     }),
   })
 

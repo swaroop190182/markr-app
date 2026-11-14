@@ -63,11 +63,13 @@ async function logUsage(supabase: any, userId: string, feature: string, u: Usage
   } catch { /* non-critical — never block the response */ }
 }
 
+const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
+
 // ── Call Anthropic ─────────────────────────────────────────────────────────────
 async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse, images?: string[]): Promise<UsageInfo | { failStatus: number } | null> {
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) return null
-  const MODEL = 'claude-haiku-4-5-20251001'
+  const MODEL = ANTHROPIC_MODEL
   try {
     // Build message content — multi-part when images are provided
     const messageContent: any = images && images.length > 0
@@ -118,6 +120,111 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
       return { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0, model: MODEL }
     }
   } catch { return null }
+}
+
+// ── Web-search pass (Anthropic only) ─────────────────────────────────────────
+// Used for sourced facts. The model's JSON is never trusted: every
+// {value, source_url} whose source_url wasn't actually returned by a search
+// result in this call is replaced with null before it leaves the server.
+const WEB_SEARCH_FEATURES = new Set(['competitive_facts'])   // opt-in per feature; nothing else can spend searches
+const WEB_SEARCH_MAX_USES = 8
+const WEB_SEARCH_BUDGET_MS = 45_000   // stop resuming pause_turn after this
+const WEB_SEARCH_HARD_MS   = 55_000   // stay under the 60s function limit
+
+// Comparable form of a URL: host without www, no trailing slash, no #fragment, no utm_* params
+function normalizeSourceUrl(u: string): string | null {
+  try {
+    const url = new URL(u.trim())
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    url.hash = ''
+    for (const k of [...url.searchParams.keys()]) if (k.toLowerCase().startsWith('utm_')) url.searchParams.delete(k)
+    const q = url.searchParams.toString()
+    return `${url.hostname.toLowerCase().replace(/^www\./, '')}${url.pathname.replace(/\/+$/, '')}${q ? '?' + q : ''}`
+  } catch { return null }
+}
+
+// Walk the model's JSON; keep a {value, source_url} only if its source was a real search result
+function keepSourcedFacts(node: any, allowed: Set<string>, stats: { kept: number; dropped: number }, key?: string): any {
+  if (Array.isArray(node)) return node.map(n => keepSourcedFacts(n, allowed, stats))
+  if (node && typeof node === 'object') {
+    if ('value' in node && 'source_url' in node) {
+      const src = typeof node.source_url === 'string' ? normalizeSourceUrl(node.source_url) : null
+      const val = node.value == null ? '' : String(node.value).trim()
+      const ok  = !!src && allowed.has(src) && !!val && (key !== 'website' || !!normalizeSourceUrl(val))
+      if (ok) { stats.kept++; return { value: node.value, source_url: node.source_url } }
+      stats.dropped++
+      return null
+    }
+    const out: Record<string, any> = {}
+    for (const [k, v] of Object.entries(node)) out[k] = keepSourcedFacts(v, allowed, stats, k)
+    return out
+  }
+  return node
+}
+
+type SearchResult =
+  | { ok: true; json: any; inputTokens: number; outputTokens: number; searches: number }
+  | { ok: false; reason: string }
+
+async function callAnthropicWithSearch(prompt: string, system: string, maxTokens: number, maxUses: number, feature: string): Promise<SearchResult> {
+  const key = process.env.ANTHROPIC_API_KEY
+  if (!key) return { ok: false, reason: 'no ANTHROPIC_API_KEY' }
+  const started = Date.now()
+  const assistant: any[] = []          // all assistant content so far (resent unchanged on pause_turn)
+  const allowed = new Set<string>()    // normalized URLs of every search result returned
+  let inputTokens = 0, outputTokens = 0, searches = 0, pauses = 0, stop = ''
+  try {
+    while (true) {
+      const remaining = WEB_SEARCH_HARD_MS - (Date.now() - started)
+      if (remaining < 5_000) return { ok: false, reason: 'time budget exhausted' }
+      const messages: any[] = [{ role: 'user', content: prompt }]
+      if (assistant.length) messages.push({ role: 'assistant', content: assistant })
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL, max_tokens: maxTokens, system, messages,
+          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: maxUses }],
+        }),
+        signal: AbortSignal.timeout(remaining),
+      })
+      if (!resp.ok) return { ok: false, reason: `anthropic ${resp.status}: ${(await resp.text()).slice(0, 200)}` }
+      const data = await resp.json()
+      inputTokens  += data.usage?.input_tokens ?? 0
+      outputTokens += data.usage?.output_tokens ?? 0
+      searches     += data.usage?.server_tool_use?.web_search_requests ?? 0
+      for (const b of data.content ?? []) {
+        assistant.push(b)
+        // Success content is a list of results; an error (e.g. max_uses_exceeded) is a single object — skip it
+        if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) {
+          for (const r of b.content) {
+            const n = r?.type === 'web_search_result' && typeof r.url === 'string' ? normalizeSourceUrl(r.url) : null
+            if (n) allowed.add(n)
+          }
+        }
+      }
+      stop = data.stop_reason ?? ''
+      if (stop === 'pause_turn' && pauses < 3 && Date.now() - started < WEB_SEARCH_BUDGET_MS) { pauses++; continue }
+      break
+    }
+    if (stop !== 'end_turn') return { ok: false, reason: `stopped: ${stop}` }
+
+    const text = assistant.filter(b => b.type === 'text').map(b => b.text).join('')
+    const body = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
+    const start = body.indexOf('{'), end = body.lastIndexOf('}')
+    if (start === -1 || end <= start) return { ok: false, reason: 'no JSON in response' }
+    const stats = { kept: 0, dropped: 0 }
+    const json = keepSourcedFacts(JSON.parse(body.slice(start, end + 1)), allowed, stats)
+    json.checked_at = new Date().toISOString()
+
+    // Timing line for tuning FACTS_BATCH
+    console.log(`[web_search] feature=${feature} ms=${Date.now() - started} searches=${searches} pauses=${pauses} stop=${stop} in=${inputTokens} out=${outputTokens} sources=${allowed.size} kept=${stats.kept} dropped=${stats.dropped}`)
+    return { ok: true, json, inputTokens, outputTokens, searches }
+  } catch (e) {
+    return { ok: false, reason: (e as Error).message }
+  } finally {
+    console.log(`[web_search] feature=${feature} finished ms=${Date.now() - started} searches=${searches} pauses=${pauses} stop=${stop}`)
+  }
 }
 
 // ── Call Gemini ────────────────────────────────────────────────────────────────
@@ -206,7 +313,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     userId = user.id; userEmail = user.email ?? ''
   }
 
-  const { prompt, system, maxTokens, stream: doStream, feature = 'general', images } = req.body
+  const { prompt, system, maxTokens, stream: doStream, feature = 'general', images, webSearch } = req.body
+
+  // Web search is opt-in per feature, Anthropic-only, non-streaming
+  if (webSearch && (!WEB_SEARCH_FEATURES.has(feature) || doStream || (images && images.length))) {
+    return res.status(400).json({ error: 'Web search is not available for this request.' })
+  }
 
   // Rate limiting — stored in Supabase, survives cold starts
   if (!isCronJob) {
@@ -230,6 +342,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Connection', 'keep-alive')
+  }
+
+  if (webSearch) {
+    const maxUses = Math.min(Math.max(1, Number(webSearch.maxUses) || WEB_SEARCH_MAX_USES), WEB_SEARCH_MAX_USES)
+    const r = await callAnthropicWithSearch(prompt, sys, tok, maxUses, feature)
+    if (!r.ok) {
+      console.warn('[web_search] failed:', r.reason)
+      // No Gemini/Groq fallback — they can't search, and recalled facts are not acceptable here
+      return res.status(503).json({ error: 'Live source check unavailable — please try again later.' })
+    }
+    logUsage(supabase, userId, feature, { inputTokens: r.inputTokens, outputTokens: r.outputTokens, model: ANTHROPIC_MODEL })
+    return res.status(200).json({ content: [{ type: 'text', text: JSON.stringify(r.json) }], provider: 'anthropic' })
   }
 
   const anthropicResult = await callAnthropic(prompt, sys, tok, doStream, res, images)

@@ -4,7 +4,8 @@ import { Card, CardHeader } from '../components/ui'
 import { callClaude, extractJSON } from '../lib/claude'
 import { supabase } from '../lib/supabase'
 import { formatInstagramCount } from '../lib/instagram'
-import { matchesCompetitor, domainOf } from '../lib/founder'
+import { matchesCompetitor, domainOf, readCompetitive } from '../lib/founder'
+import { competitorWebsite } from '../lib/competitors'
 import DeliverySettings from './DeliverySettings'
 
 
@@ -384,10 +385,16 @@ Output exactly 6 pillar names, one per line, no bullets, no numbers.`,
       // ── Step 3c: try a URL from competitive_analysis cache ────────────────────
       const caText = (currentApp as any).competitive_analysis as string | null | undefined
       if (caText) {
-        const urlMatches = caText.match(/https?:\/\/(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s)"'>]*)?/g) ?? []
-        const myHost = (() => { try { return new URL(currentApp!.url).hostname } catch { return '' } })()
+        // Prefer each saved competitor's website (App Store site → search-verified → model URL),
+        // in ranking order and with exclusions applied; then fall back to any URL in the raw text.
+        const structured = ((readCompetitive(currentApp as any)?.comps ?? []) as any[])
+          .map(c => competitorWebsite(c))
+          .filter((u): u is string => !!u)
+        const urlMatches = [...structured, ...(caText.match(/https?:\/\/(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s)"'>]*)?/g) ?? [])]
+        const myHost    = (() => { try { return new URL(currentApp!.url).hostname } catch { return '' } })()
+        const triedHost = (() => { try { return new URL(comp.url).hostname } catch { return '' } })()   // step 3a already failed on this
         const altUrl = urlMatches.find(u => {
-          try { return new URL(u).hostname !== myHost && !isExcluded({ url: u }) } catch { return false }
+          try { const h = new URL(u).hostname; return h !== myHost && h !== triedHost && !isExcluded({ url: u }) } catch { return false }
         })
         if (altUrl) {
           setCompStatus('Trying alternate competitor…')
