@@ -229,7 +229,7 @@ ${rc.trim()}
 FOUNDER-SPECIFIED COMPETITORS — analyze these FIRST, in this order, as the first ${focus.length} entries in "comps". This overrides the LOCAL/GLOBAL quota below:
 ${focus.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 - Give each its honest type ("local" or "global").
-- If you don't recognize the product behind a URL, use the domain as its name, mark details as unverified, and never invent features, pricing or positioning for it. For such entries set "unverified": true and use "Unverified" for any field you cannot support.
+- If you don't recognize the product behind a URL, use the domain as its name, mark details as unverified, and never invent features, pricing or positioning for it. For such entries set "unverified": true and use null for any field you cannot support.
 ${focus.length < 5 ? `- Then fill the remaining ${5 - focus.length} slot(s) using the discovery rules below.` : '- All 5 slots are founder-specified — do NOT auto-discover any others.'}` : ''
     const excludeBlock = excluded.length ? `
 
@@ -251,7 +251,7 @@ Landing page headline: ${ua?.headline || ''}
 Category: ${ua?.category || currentApp.category || ''}
 MARKET: ${detectedMarket}
 
-CRITICAL: Base your competitor selection on what this product ACTUALLY DOES based on the description, headline and URL above — NOT just the product name. Only return products that directly compete with the core function described above. If unsure, visit the URL before deciding.`
+CRITICAL: Base your competitor selection on what this product ACTUALLY DOES based on the description, headline and URL above — NOT just the product name. Only return products that directly compete with the core function described above. If unsure, rely on the description, headline and URL above.`
 
       const prompt = `Find 5 real direct competitors for this specific product. Prioritise local/regional competitors first.
 
@@ -265,15 +265,13 @@ This product operates primarily in: ${detectedMarket}
 
 ${priorityLine}
 
-For each competitor draw on your training knowledge across ALL sources: Crunchbase, LinkedIn, G2, Capterra, Reddit, ProductHunt, TechCrunch, and app store data. Provide specific numbers where you know them (funding amounts, employee counts, review counts, upvotes).
-
-RECENT NEWS RULE: For recentMoves, only include news announcements, launches, or updates from the last 6 months (i.e. from approximately January 2026 onwards). Search your knowledge for: [competitor name] news announcement launch update 2025 2026. Each item must include a clear specific date (e.g. "March 2026", "Q1 2026"). If you cannot find any news items from the last 6 months for a competitor, set recentMoves to [{"headline":"No recent news in the last 6 months","date":"","source":""}] — do NOT include older articles to fill the slots.
+FACTS RULE: "funding", "employees", "reviews.rating", "reviews.ratingCount" and "reviews.traction" must be null unless you are certain of the exact value. Never estimate, round, or guess — null is the expected answer for most small or local companies.
 
 JSON only, no markdown:
-{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":"4.3/5","ratingSource":"G2","ratingCount":"~450 reviews","praise":"top praise under 10 words","complaints":"top complaint under 10 words","traction":"downloads or user count signal"},"funding":"Seed · $1.2M · 2022","fundingSource":"Crunchbase","employees":"10-50","employeesSource":"LinkedIn","userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"recentMoves":[{"headline":"specific event from last 6 months only","date":"March 2026","source":"TechCrunch"},{"headline":"another recent move — omit if none","date":"Q1 2026","source":"ProductHunt"}],"redditSentiment":"positive","redditQuote":"representative opinion from a real reddit discussion","phUpvotes":"~450","phYear":"2023","positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"}`
+{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":null,"ratingCount":null,"traction":null},"funding":null,"employees":null,"userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"}`
 
-      // 5 competitors, each with strengths/weaknesses/reviews/funding/userLoves/
-      // userHates/recentMoves — the largest payload in the app.
+      // 5 competitors, each with strengths/weaknesses/userLoves/userHates and
+      // positioning fields — the largest payload in the app.
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 8000, undefined, 'sonnet', 'competitive')
       const cleaned = extractJSON(raw)
       if (!cleaned) throw new Error('Empty response')
@@ -757,14 +755,34 @@ function UnverifiedBadge() {
   )
 }
 
+// AI-recalled facts (funding, team size, ratings) often come back as filler strings instead of null
+const MISSING_ESTIMATE = /^(null|none|unknown|n\/?a|-|—|unverified|undisclosed|not (available|known|verified))$/i
+function cleanEstimate(v: unknown): string | null {
+  if (v == null) return null
+  const s = String(v).trim()
+  return !s || MISSING_ESTIMATE.test(s) ? null : s
+}
+
+function AiEstimateTag() {
+  return (
+    <span title="Recalled by AI, not checked against a live source." style={{ display:'inline-block', fontSize:9, padding:'1px 5px', borderRadius:20, fontWeight:700, letterSpacing:'.04em', marginLeft:4, background:'var(--surface3)', color:'var(--text3)', cursor:'help', whiteSpace:'nowrap' as const }}>
+      AI estimate
+    </span>
+  )
+}
+
+function NotVerified() {
+  return <span style={{ fontSize:11, color:'var(--text3)' }}>Not verified</span>
+}
+
 function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; loading?:boolean; onGenerate:()=>void; appName:string }) {
   const [view, setView] = useState<'cards'|'table'>(() => {
     try { return (localStorage.getItem('markr_compView') as 'cards'|'table') ?? 'cards' } catch { return 'cards' }
   })
   const switchView = (v: 'cards'|'table') => { setView(v); try { localStorage.setItem('markr_compView', v) } catch {} }
 
-  if (loading) return <LoadingCard text="Researching competitors across all sources…" />
-  if (!data) return <EmptyTab emoji="🔍" title="Competitive Intelligence" desc="Deep analysis of your top 5 competitors — funding, sentiment, recent moves, positioning gaps, and more." onGenerate={onGenerate} btnLabel="Run Competitive Intelligence" />
+  if (loading) return <LoadingCard text="Analyzing competitors…" />
+  if (!data) return <EmptyTab emoji="🔍" title="Competitive Intelligence" desc="Deep analysis of your top 5 competitors — strengths, gaps, positioning and how you win." onGenerate={onGenerate} btnLabel="Run Competitive Intelligence" />
   try {
     const { comps, mktPos, wspace, winCond } = JSON.parse(data)
     const tC  = { High:'var(--red)', Medium:'var(--amber)', Low:'var(--green)' } as Record<string,string>
@@ -820,7 +838,9 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                     const sColor = score >= 7 ? 'var(--green)' : score >= 5 ? 'var(--amber)' : 'var(--red)'
                     const sBg    = score >= 7 ? 'rgba(52,201,138,.1)' : score >= 5 ? 'rgba(245,166,35,.1)' : 'rgba(229,85,85,.1)'
                     const rating = c.appStore?.rating ?? null
-                    const ratingFallback = c.reviews?.rating ?? null
+                    const ratingFallback = cleanEstimate(c.reviews?.rating)
+                    const funding = cleanEstimate(c.funding)
+                    const team    = cleanEstimate(c.employees)
                     const topGap = c.positioningGap ?? c.userHates?.[0] ?? c.weaknesses?.[0] ?? '—'
                     return (
                       <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
@@ -839,11 +859,11 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                           {rating != null ? (
                             <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {rating}/5 <span style={{ fontSize:9, color:'var(--text3)', fontWeight:400 }}>(live)</span></span>
                           ) : ratingFallback ? (
-                            <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {ratingFallback}</span>
-                          ) : <span style={{ color:'var(--text3)' }}>—</span>}
+                            <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {ratingFallback}<AiEstimateTag /></span>
+                          ) : <NotVerified />}
                         </td>
-                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}>{c.funding ?? '—'}</td>
-                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}>{c.employees ?? '—'}</td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}>{funding ? <>{funding}<AiEstimateTag /></> : <NotVerified />}</td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}>{team ? <>{team}<AiEstimateTag /></> : <NotVerified />}</td>
                         <td style={{ padding:'10px 12px', color:'var(--text2)', maxWidth:220 }}>
                           <div style={{ overflow:'hidden', display:'-webkit-box' as any, WebkitLineClamp:2, WebkitBoxOrient:'vertical' as any }}>{topGap}</div>
                         </td>
@@ -897,42 +917,41 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                       </div>
                       {c.appStore.price && <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>{c.appStore.price}{c.appStore.updatedMonths != null ? ` · ${c.appStore.updatedMonths === 0 ? 'updated this month' : `updated ${c.appStore.updatedMonths}mo ago`}` : ''}</div>}
                     </>
-                  ) : c.reviews?.rating ? (
-                    <div>
-                      <span style={{ color:'var(--amber)', fontWeight:700 }}>⭐ {c.reviews.rating}</span>
-                      {c.reviews.ratingCount && <span style={{ fontSize:11, color:'var(--text3)' }}> ({c.reviews.ratingCount})</span>}
-                      {c.reviews.ratingSource && <SrcBadge src={c.reviews.ratingSource} />}
-                      {c.reviews.traction && <div style={{ fontSize:11, color:'var(--green)', marginTop:2 }}>📈 {c.reviews.traction}</div>}
-                    </div>
-                  ) : (
-                    <span style={{ fontSize:11, color:'var(--text3)' }}>Web only</span>
-                  )}
+                  ) : (() => {
+                    // No live App Store data — fall back to AI-recalled values, clearly marked
+                    const r = cleanEstimate(c.reviews?.rating), n = cleanEstimate(c.reviews?.ratingCount), t = cleanEstimate(c.reviews?.traction)
+                    if (!r && !t) return <NotVerified />
+                    return (
+                      <div>
+                        {r && <div>
+                          <span style={{ color:'var(--amber)', fontWeight:700 }}>⭐ {r}</span>
+                          {n && <span style={{ fontSize:11, color:'var(--text3)' }}> ({n})</span>}
+                          <AiEstimateTag />
+                        </div>}
+                        {t && <div style={{ fontSize:11, color:'var(--green)', marginTop:2 }}>📈 {t}<AiEstimateTag /></div>}
+                      </div>
+                    )
+                  })()}
                 </div>
                 {/* Funding */}
                 <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
                   <SecLabel>Funding</SecLabel>
-                  {c.funding ? (
-                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
-                      {c.funding}
-                      {c.fundingSource && <SrcBadge src={c.fundingSource} />}
-                    </div>
-                  ) : <span style={{ fontSize:11, color:'var(--text3)' }}>—</span>}
-                  {c.phUpvotes && (
-                    <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>
-                      PH: {c.phUpvotes} upvotes{c.phYear ? ` · ${c.phYear}` : ''}
-                      <SrcBadge src="ProductHunt" />
-                    </div>
-                  )}
+                  {(() => {
+                    const f = cleanEstimate(c.funding)
+                    return f
+                      ? <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{f}<AiEstimateTag /></div>
+                      : <NotVerified />
+                  })()}
                 </div>
                 {/* Team size */}
                 <div style={{ padding:'10px 14px' }}>
                   <SecLabel>Team Size</SecLabel>
-                  {c.employees ? (
-                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
-                      👥 {c.employees}
-                      {c.employeesSource && <SrcBadge src={c.employeesSource} />}
-                    </div>
-                  ) : <span style={{ fontSize:11, color:'var(--text3)' }}>—</span>}
+                  {(() => {
+                    const e = cleanEstimate(c.employees)
+                    return e
+                      ? <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>👥 {e}<AiEstimateTag /></div>
+                      : <NotVerified />
+                  })()}
                 </div>
               </div>
 
@@ -951,48 +970,6 @@ function CompetitiveTab({ data, loading, onGenerate, appName }: { data?:string; 
                       <div key={j} style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5, marginBottom:3 }}>• {pt}</div>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* ── Row 3: Recent Moves | Reddit Sentiment ── */}
-              {(c.recentMoves?.length || c.redditSentiment) && (
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', borderBottom:'1px solid var(--border)' }}>
-                  {c.recentMoves?.length > 0 && (
-                    <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
-                      <SecLabel>📰 Recent moves</SecLabel>
-                      {c.recentMoves.map((m: any, j: number) => {
-                        const noNews = !m.date && !m.source
-                        return (
-                          <div key={j} style={{ marginBottom:7 }}>
-                            <div style={{ fontSize:11, color: noNews ? 'var(--text3)' : 'var(--text)', lineHeight:1.4, fontStyle: noNews ? 'italic' as const : 'normal' as const }}>{m.headline}</div>
-                            {!noNews && (
-                              <div style={{ display:'flex', alignItems:'center', gap:2, marginTop:2 }}>
-                                {m.date && <span style={{ fontSize:10, color:'var(--text3)' }}>{m.date}</span>}
-                                {m.source && <SrcBadge src={m.source} />}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {c.redditSentiment && (
-                    <div style={{ padding:'10px 14px' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-                        <SecLabel>💬 Reddit sentiment</SecLabel>
-                        <span style={{ fontSize:9, padding:'2px 7px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, marginBottom:6,
-                          background: c.redditSentiment==='positive' ? 'rgba(52,201,138,.15)' : c.redditSentiment==='negative' ? 'rgba(229,85,85,.12)' : 'rgba(245,166,35,.12)',
-                          color: c.redditSentiment==='positive' ? 'var(--green)' : c.redditSentiment==='negative' ? 'var(--red)' : 'var(--amber)',
-                        }}>{c.redditSentiment}</span>
-                        <SrcBadge src="Reddit" />
-                      </div>
-                      {c.redditQuote && (
-                        <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5, fontStyle:'italic' as const, borderLeft:'2px solid var(--border)', paddingLeft:8 }}>
-                          "{c.redditQuote}"
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
 
