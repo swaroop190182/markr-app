@@ -4,8 +4,8 @@ import { supabase } from '../lib/supabase'
 const D = "'Inter', sans-serif"
 const B = "'Inter', sans-serif"
 
-// TODO: replace with the real Product Hunt launch URL. Until then the badge shows a visible TODO and doesn't link anywhere.
-const PRODUCT_HUNT_URL = '[TODO: Product Hunt URL]'
+// Product Hunt launch page. If this is ever set back to a '[TODO…' string, the badge shows it and stops linking.
+const PRODUCT_HUNT_URL = 'https://www.producthunt.com/products/markr-growth-intelligence-for-founders?launch=markr-growth-intelligence-for-founders'
 const PH_TODO = PRODUCT_HUNT_URL.startsWith('[TODO')
 
 // "Why Markr" comparison table — [feature, others, markr]
@@ -670,9 +670,16 @@ export default function Landing() {
               <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(124,111,247,.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>✍️</div>
               <div style={{ fontSize:11, fontWeight:700, color:'#a599ff', letterSpacing:'.08em', textTransform:'uppercase' as const, fontFamily:D }}>What to post</div>
             </div>
-            <div style={{ fontSize:13, color:'#f5a623', lineHeight:1.8, fontStyle:'italic', fontFamily:D, padding:'10px 14px', background:'rgba(255,255,255,.04)', borderRadius:8, borderLeft:'3px solid #7c6ff7' }}>
-              [TODO: real Emrise Instagram post from Content Studio]
+            <div style={{ fontSize:13, color:'rgba(255,255,255,.8)', lineHeight:1.8, fontStyle:'italic', fontFamily:D, padding:'10px 14px', background:'rgba(255,255,255,.04)', borderRadius:8, borderLeft:'3px solid #7c6ff7' }}>
+              That moment when an emotion hits different and you can't name it. You open Emrise, hit the emoji wheel, and suddenly it clicks. Naming it changes everything. Which lands harder for you — finally having words for what you're feeling, or realizing you're not alone in it?
             </div>
+            <div style={{ marginTop:10, fontSize:12, color:'rgba(255,255,255,.45)', lineHeight:1.6, fontFamily:D }}>
+              It mentions the emoji wheel — a real screen in the app, not a generic wellness line.
+            </div>
+            <a href="https://www.instagram.com/reel/DehBC4WNQUJ/" target="_blank" rel="noopener noreferrer"
+              style={{ display:'inline-block', marginTop:8, fontSize:12, fontWeight:600, color:'#a599ff', textDecoration:'none', fontFamily:D }}>
+              Posted for real: see a Markr-written caption on Mindprint's Instagram →
+            </a>
           </div>
 
           <div style={{ textAlign:'center', marginTop:36 }}>
@@ -832,14 +839,14 @@ export default function Landing() {
               <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>S</div>
               <div>
                 <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint, Emrise & Tiny Tummies <span style={{ color:'#f5a623', fontWeight:600 }}>[TODO: confirm list]</span></div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint, Emrise & Tiny Tummies</div>
               </div>
             </div>
           </div>
           {/* Stats */}
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {[
-              { n:'[TODO: number]', label:'Apps built before Markr', sub:'Each one taught me what Markr now does automatically', color:'#7c6ff7' },
+              { n:'5',              label:'Apps built before Markr', sub:'Each one taught me what Markr now does automatically', color:'#7c6ff7' },
               { n:'68',             label:'Audits of Emrise alone',  sub:'Every insight tested on our own apps first',           color:'#e26faf' },
               { n:'~1 min',         label:'To your first score',     sub:'Paste your URL — Markr does the rest',                 color:'#34c98a' },
             ].map(s=>(
@@ -904,7 +911,7 @@ export default function Landing() {
                   <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>S</div>
                   <div>
                     <div style={{ fontSize:13, fontWeight:600, color:'#f0f0f5', fontFamily:D }}>Swaroop</div>
-                    <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint, Emrise & Tiny Tummies <span style={{ color:'#f5a623', fontWeight:600 }}>[TODO: confirm list]</span></div>
+                    <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:D }}>Founder of Markr · Also built Mindprint, Emrise & Tiny Tummies</div>
                   </div>
                 </div>
               </div>
