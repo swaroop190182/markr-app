@@ -21,12 +21,27 @@ export function itunesNameMatches(compName: string, hit: { trackName?: string; s
   })
 }
 
-// Website priority: App Store developer site (Live) → search-verified site → the model's URL
-export function competitorWebsite(c: any): string | null {
-  for (const v of [c?.appStore?.sellerUrl, c?.facts?.website?.value, c?.url]) {
-    if (typeof v === 'string' && /^https?:\/\//i.test(v)) return v
+const isHttp = (v: unknown): v is string => typeof v === 'string' && /^https?:\/\//i.test(v)
+const siteHost = (u: string) => { try { return new URL(u).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' } }
+const sameSiteHost = (a: string, b: string) => !!a && !!b && (a === b || a.endsWith('.' + b) || b.endsWith('.' + a))
+
+// The only two ways a website earns the "✓ verified" tick:
+//  - it is the developer site from the name-matched App Store lookup, or
+//  - pass 2's website fact, whose source is a search result on that same domain.
+// A website that only came from the model (pass 1's url, or a fact citing another site) is not confirmed.
+// Re-checked here so older saved results with mismatched domains lose the tick too.
+export function confirmedWebsite(c: any): { url: string; via: 'app_store' | 'search'; source_url?: string } | null {
+  if (isHttp(c?.appStore?.sellerUrl)) return { url: c.appStore.sellerUrl, via: 'app_store' }
+  const w = c?.facts?.website
+  if (w && isHttp(w.value) && isHttp(w.source_url) && sameSiteHost(siteHost(w.value), siteHost(w.source_url))) {
+    return { url: w.value, via: 'search', source_url: w.source_url }
   }
   return null
+}
+
+// Website to show and use: confirmed site first, otherwise the model's (unconfirmed) URL
+export function competitorWebsite(c: any): string | null {
+  return confirmedWebsite(c)?.url ?? (isHttp(c?.url) ? c.url : null)
 }
 
 export function sourceDomain(url: string): string {
@@ -73,7 +88,14 @@ export function applyFacts(comp: any, entry: any, checkedAt: string): any {
     website: pick(entry?.website), pricing: pick(entry?.pricing),
     funding: pick(entry?.funding), team_size: pick(entry?.team_size),
   }
-  return { ...comp, facts, facts_checked_at: checkedAt }
+  const out = { ...comp, facts, facts_checked_at: checkedAt }
+  // A search-confirmed website on a different domain replaces pass 1's guess everywhere c.url is used
+  const confirmed = confirmedWebsite(out)
+  if (confirmed?.via === 'search' && !sameSiteHost(siteHost(confirmed.url), siteHost(comp?.url ?? ''))) {
+    out.url_guess = comp?.url ?? null
+    out.url = confirmed.url
+  }
+  return out
 }
 
 // Match pass-2 entries back to competitors by name, falling back to position within the batch

@@ -3,7 +3,7 @@ import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
 import { readCompetitive, filterExcluded, orderFocusFirst } from '../lib/founder'
-import { itunesNameMatches, applyFacts, findFactsEntry, competitorWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
+import { itunesNameMatches, applyFacts, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
 
 // Pass 2 (live sources) runs competitors in batches to stay inside the 60s API limit.
 // Measured on the Vercel preview: 3 + 2 batches took ~9.8s / ~9.5s (8 searches, no pauses),
@@ -303,17 +303,26 @@ JSON only, no markdown:
         ? parsed.intentGaps.filter((g: unknown) => typeof g === 'string' && g.trim()).slice(0, 3)
         : undefined
 
-      // Enrich each competitor with live App Store data via iTunes Search API (parallel)
+      // Enrich each competitor with live App Store data via iTunes Search API (parallel).
+      // Use the storefront of this app's primary market so prices come in its currency (India → ₹),
+      // falling back to the US store when the app isn't found there.
+      const STOREFRONTS: Record<string, string> = { 'India': 'in', 'United States': 'us', 'US': 'us', 'United Kingdom': 'gb', 'UK': 'gb', 'Australia': 'au' }
+      const storefront = STOREFRONTS[detectedMarket] ?? 'us'
       parsed.comps = await Promise.all(parsed.comps.map(async (comp: any) => {
         try {
-          const res = await fetch(
-            `https://itunes.apple.com/search?term=${encodeURIComponent(comp.name)}&entity=software&limit=3`,
-            { signal: AbortSignal.timeout(4000) }
-          )
-          if (!res.ok) return comp
-          const data = await res.json()
           // Name search can return an unrelated app — only trust a hit whose title/seller matches
-          const hit  = (data.results ?? []).find((h: any) => itunesNameMatches(comp.name, h))
+          const lookup = async (country: string) => {
+            const res = await fetch(
+              `https://itunes.apple.com/search?term=${encodeURIComponent(comp.name)}&entity=software&limit=3&country=${country}`,
+              { signal: AbortSignal.timeout(4000) }
+            )
+            if (!res.ok) return null
+            const data = await res.json()
+            return (data.results ?? []).find((h: any) => itunesNameMatches(comp.name, h)) ?? null
+          }
+          let store = storefront
+          let hit = await lookup(store)
+          if (!hit && store !== 'us') { store = 'us'; hit = await lookup(store) }
           if (!hit) return comp
           const monthsAgo = hit.currentVersionReleaseDate
             ? Math.max(0, Math.floor((Date.now() - new Date(hit.currentVersionReleaseDate).getTime()) / (1000 * 60 * 60 * 24 * 30.5)))
@@ -323,7 +332,9 @@ JSON only, no markdown:
             appStore: {
               rating:       hit.averageUserRating != null ? Math.round(hit.averageUserRating * 10) / 10 : null,
               ratingCount:  hit.userRatingCount ?? null,
-              price:        hit.price === 0 ? 'Free' : hit.price ? `$${hit.price}` : null,
+              // iTunes' own formatted price is in the storefront's currency (e.g. "₹99.00")
+              price:        hit.price === 0 ? 'Free' : typeof hit.formattedPrice === 'string' ? hit.formattedPrice : null,
+              storefront:   store,
               updatedMonths: monthsAgo,
               sellerUrl:    typeof hit.sellerUrl === 'string' ? hit.sellerUrl : null,
               trackViewUrl: typeof hit.trackViewUrl === 'string' ? hit.trackViewUrl : null,
@@ -358,7 +369,9 @@ JSON only, no markdown:
   const FACTS_SYSTEM = 'You are a careful researcher. Use web search. Output ONLY valid JSON, no markdown.'
   const factsPrompt = (batch: any[]) => `For each competitor below, use web search to find: official website, current pricing, total funding raised, team size.
 
-${batch.map((c, i) => `${i + 1}. ${c.name}${c.url ? ` — ${c.url}` : ''}`).join('\n')}
+${batch.map((c, i) => `${i + 1}. ${c.name}${c.url ? ` (guessed URL, may be wrong: ${c.url})` : ''}`).join('\n')}
+
+- website: the company's real official site, found in your search results. Don't repeat the guessed URL unless a search result confirms it.
 
 RULES:
 - Only include a value that a search result you retrieved directly states. Put that result's exact URL in source_url.
@@ -881,6 +894,36 @@ function SourceLink({ url, checkedAt }: { url: string; checkedAt?: string }) {
   )
 }
 
+// Competitor website: confirmed site (App Store lookup or same-domain search result) gets "✓ verified";
+// an unconfirmed model URL is shown plain, with no tick.
+function WebsiteLink({ c }: { c: any }) {
+  const site = competitorWebsite(c)
+  if (!site) return null
+  const conf = confirmedWebsite(c)
+  const checked = typeof c.facts_checked_at === 'string' ? `, checked ${fmtChecked(c.facts_checked_at)}` : ''
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:2 }}>
+      <a href={site} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:'var(--text3)', textDecoration:'none' }}>{sourceDomain(site)}</a>
+      {conf?.via === 'app_store' && <>
+        <SrcBadgeStatic text="Live" />
+        <span title="Developer website from the App Store listing" style={{ fontSize:9, color:'var(--green)', marginLeft:3, cursor:'help' }}>✓ verified</span>
+      </>}
+      {conf?.via === 'search' && conf.source_url && (
+        <a href={conf.source_url} target="_blank" rel="noopener noreferrer"
+          title={`Confirmed by a search result on this domain: ${conf.source_url}${checked}`}
+          style={{ fontSize:9, color:'var(--green)', textDecoration:'none', marginLeft:3 }}>✓ verified</a>
+      )}
+    </span>
+  )
+}
+
+// Same look as CompetitiveTab's live SrcBadge, usable outside it
+function SrcBadgeStatic({ text }: { text: string }) {
+  return (
+    <span style={{ display:'inline-block', fontSize:9, padding:'1px 5px', borderRadius:20, fontWeight:700, letterSpacing:'.04em', marginLeft:4, background:'rgba(245,166,35,.15)', color:'var(--amber)' }}>{text}</span>
+  )
+}
+
 function LowConfidenceTag() {
   return (
     <span title="Source isn't the company's own site, an app store, or a recognised database or news outlet — double-check it." style={{ display:'inline-block', fontSize:9, padding:'1px 5px', borderRadius:20, fontWeight:700, letterSpacing:'.04em', marginLeft:4, background:'rgba(245,166,35,.12)', color:'var(--amber)', cursor:'help', whiteSpace:'nowrap' as const }}>
@@ -990,6 +1033,7 @@ function CompetitiveTab({ data, loading, checking, onGenerate, appName }: { data
                             {c.type && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, background: c.type==='local' ? 'rgba(52,201,138,.15)' : 'rgba(124,111,247,.15)', color: c.type==='local' ? 'var(--green)' : 'var(--accent)' }}>{c.type==='local' ? 'Local' : 'Global'}</span>}
                             {c.unverified === true && <UnverifiedBadge />}
                           </div>
+                          <div style={{ marginTop:2, fontWeight:400 }}><WebsiteLink c={c} /></div>
                           <div style={{ fontSize:10, color:'var(--text3)', marginTop:2, fontWeight:400 }}><FactValue comp={c} fact={c.facts?.pricing} fallback={cleanEstimate(c.price)} checkedAt={checkedAt} /></div>
                         </td>
                         <td style={{ padding:'10px 12px' }}>
@@ -1033,24 +1077,7 @@ function CompetitiveTab({ data, loading, checking, onGenerate, appName }: { data
                   )}
                   {c.unverified === true && <UnverifiedBadge />}
                   {c.cat &&<span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, background:'var(--surface3)', color:'var(--text3)' }}>{c.cat}</span>}
-                  {(() => {
-                    // App Store developer site (Live) → search-verified site → model URL
-                    const site = competitorWebsite(c)
-                    if (!site) return null
-                    const fromAppStore = site === c.appStore?.sellerUrl
-                    const verified = !fromAppStore && site === c.facts?.website?.value ? c.facts.website : null
-                    return (
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:2 }}>
-                        <a href={site} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:'var(--text3)', textDecoration:'none' }}>{sourceDomain(site)}</a>
-                        {fromAppStore && <SrcBadge src="Live" live />}
-                        {verified && (
-                          <a href={verified.source_url} target="_blank" rel="noopener noreferrer"
-                            title={`Verified via ${sourceDomain(verified.source_url)}${typeof c.facts_checked_at === 'string' ? `, checked ${fmtChecked(c.facts_checked_at)}` : ''}`}
-                            style={{ fontSize:9, color:'var(--green)', textDecoration:'none', marginLeft:3 }}>✓ verified</a>
-                        )}
-                      </span>
-                    )
-                  })()}
+                  <WebsiteLink c={c} />
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
                   <span style={{ fontSize:11, fontWeight:600, color:'var(--green)' }}>
@@ -1074,7 +1101,7 @@ function CompetitiveTab({ data, loading, checking, onGenerate, appName }: { data
                         {c.appStore.ratingCount != null && <span style={{ fontSize:11, color:'var(--text3)' }}> ({c.appStore.ratingCount.toLocaleString()})</span>}
                         <SrcBadge src="Live" live />
                       </div>
-                      {c.appStore.price && <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>{c.appStore.price}{c.appStore.updatedMonths != null ? ` · ${c.appStore.updatedMonths === 0 ? 'updated this month' : `updated ${c.appStore.updatedMonths}mo ago`}` : ''}</div>}
+                      {c.appStore.price && <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>{c.appStore.price}{typeof c.appStore.storefront === 'string' ? ` · ${c.appStore.storefront.toUpperCase()} store` : ''}{c.appStore.updatedMonths != null ? ` · ${c.appStore.updatedMonths === 0 ? 'updated this month' : `updated ${c.appStore.updatedMonths}mo ago`}` : ''}</div>}
                     </>
                   ) : (() => {
                     // No live App Store data — fall back to AI-recalled values, clearly marked

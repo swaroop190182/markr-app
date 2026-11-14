@@ -125,7 +125,8 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
 // ── Web-search pass (Anthropic only) ─────────────────────────────────────────
 // Used for sourced facts. The model's JSON is never trusted: every
 // {value, source_url} whose source_url wasn't actually returned by a search
-// result in this call is replaced with null before it leaves the server.
+// result in this call is replaced with null before it leaves the server, and a
+// website is kept only if a returned result is on that website's own domain.
 const WEB_SEARCH_FEATURES = new Set(['competitive_facts'])   // opt-in per feature; nothing else can spend searches
 const WEB_SEARCH_MAX_USES = 10
 const WEB_SEARCH_BUDGET_MS = 45_000   // stop resuming pause_turn after this
@@ -143,15 +144,37 @@ function normalizeSourceUrl(u: string): string | null {
   } catch { return null }
 }
 
-// Walk the model's JSON; keep a {value, source_url} only if its source was a real search result
-function keepSourcedFacts(node: any, allowed: Set<string>, stats: { kept: number; dropped: number }, key?: string): any {
+type FactStats = { kept: number; dropped: number; derived: number }
+
+const hostOfNorm = (n: string) => n.split(/[/?]/)[0]   // host part of a normalizeSourceUrl() result
+const sameSite   = (a: string, b: string) => a === b || a.endsWith('.' + b) || b.endsWith('.' + a)
+
+// A website is confirmed only by a search result that was actually returned on that same domain.
+// Returns that result's original URL (used as the website's source), or null.
+function findResultOnSite(siteUrl: string, allowed: Map<string, string>): string | null {
+  const n = normalizeSourceUrl(siteUrl)
+  if (!n) return null
+  const host = hostOfNorm(n)
+  for (const [norm, original] of allowed) if (sameSite(hostOfNorm(norm), host)) return original
+  return null
+}
+
+// Walk the model's JSON; keep a {value, source_url} only if its source was a real search result.
+// "website" is stricter: its own domain must appear among the returned results (the cited
+// source_url is ignored and replaced with that result), so a guessed domain can't be "verified".
+function keepSourcedFacts(node: any, allowed: Map<string, string>, stats: FactStats, key?: string): any {
   if (Array.isArray(node)) return node.map(n => keepSourcedFacts(n, allowed, stats))
   if (node && typeof node === 'object') {
     if ('value' in node && 'source_url' in node) {
-      const src = typeof node.source_url === 'string' ? normalizeSourceUrl(node.source_url) : null
       const val = node.value == null ? '' : String(node.value).trim()
-      const ok  = !!src && allowed.has(src) && !!val && (key !== 'website' || !!normalizeSourceUrl(val))
-      if (ok) { stats.kept++; return { value: node.value, source_url: node.source_url } }
+      if (key === 'website') {
+        const onSite = val ? findResultOnSite(val, allowed) : null
+        if (onSite) { stats.kept++; return { value: node.value, source_url: onSite } }
+        stats.dropped++
+        return null
+      }
+      const src = typeof node.source_url === 'string' ? normalizeSourceUrl(node.source_url) : null
+      if (src && allowed.has(src) && val) { stats.kept++; return { value: node.value, source_url: node.source_url } }
       stats.dropped++
       return null
     }
@@ -160,6 +183,38 @@ function keepSourcedFacts(node: any, allowed: Set<string>, stats: { kept: number
     return out
   }
   return node
+}
+
+// When the model's website wasn't confirmed, take a returned result whose domain is named
+// after the company: the name itself, or the name plus a common affix (amaha + health).
+// Third-party platforms never count as a company's own site.
+const SITE_AFFIXES = ['app', 'apps', 'hq', 'inc', 'labs', 'ai', 'io', 'health', 'care', 'online', 'official', 'global', 'india', 'tech', 'co', 'in', 'get', 'try', 'join', 'use', 'go', 'my']
+const THIRD_PARTY_HOSTS = ['apple.com', 'google.com', 'crunchbase.com', 'tracxn.com', 'pitchbook.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'x.com', 'twitter.com', 'youtube.com', 'wikipedia.org', 'medium.com', 'reddit.com', 'g2.com', 'capterra.com', 'producthunt.com']
+
+// Registrable label: "amahahealth" for www.amahahealth.com and amahahealth.co.in; "medium" for amaha.medium.com
+function siteLabel(host: string): string {
+  const p = host.split('.')
+  const i = p.length >= 3 && p[p.length - 1].length === 2 && ['co', 'com', 'org', 'net', 'ac', 'gov'].includes(p[p.length - 2]) ? p.length - 3 : p.length - 2
+  return (p[Math.max(0, i)] ?? '').replace(/[^a-z0-9]/g, '')
+}
+
+function hostNamedAfter(host: string, name: string): boolean {
+  const n = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (n.length < 3) return false
+  const label = siteLabel(host)
+  return label === n || SITE_AFFIXES.some(a => label === n + a || label === a + n)
+}
+
+function fillWebsitesFromResults(json: any, allowed: Map<string, string>, stats: FactStats): void {
+  if (!Array.isArray(json?.competitors)) return
+  for (const c of json.competitors) {
+    if (!c || typeof c.name !== 'string' || c.website) continue
+    for (const [norm, original] of allowed) {
+      const host = hostOfNorm(norm)
+      if (THIRD_PARTY_HOSTS.some(t => sameSite(host, t)) || !hostNamedAfter(host, c.name)) continue
+      try { c.website = { value: new URL(original).origin, source_url: original }; stats.derived++; break } catch { /* skip */ }
+    }
+  }
 }
 
 type SearchResult =
@@ -171,7 +226,7 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
   if (!key) return { ok: false, reason: 'no ANTHROPIC_API_KEY' }
   const started = Date.now()
   const assistant: any[] = []          // all assistant content so far (resent unchanged on pause_turn)
-  const allowed = new Set<string>()    // normalized URLs of every search result returned
+  const allowed = new Map<string, string>()   // normalized → original URL of every search result returned
   let inputTokens = 0, outputTokens = 0, searches = 0, pauses = 0, stop = ''
   try {
     while (true) {
@@ -199,7 +254,7 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
         if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) {
           for (const r of b.content) {
             const n = r?.type === 'web_search_result' && typeof r.url === 'string' ? normalizeSourceUrl(r.url) : null
-            if (n) allowed.add(n)
+            if (n && !allowed.has(n)) allowed.set(n, r.url)
           }
         }
       }
@@ -213,12 +268,13 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
     const body = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
     const start = body.indexOf('{'), end = body.lastIndexOf('}')
     if (start === -1 || end <= start) return { ok: false, reason: 'no JSON in response' }
-    const stats = { kept: 0, dropped: 0 }
+    const stats: FactStats = { kept: 0, dropped: 0, derived: 0 }
     const json = keepSourcedFacts(JSON.parse(body.slice(start, end + 1)), allowed, stats)
+    if (feature === 'competitive_facts') fillWebsitesFromResults(json, allowed, stats)
     json.checked_at = new Date().toISOString()
 
     // Timing line for tuning FACTS_BATCH
-    console.log(`[web_search] feature=${feature} ms=${Date.now() - started} searches=${searches} pauses=${pauses} stop=${stop} in=${inputTokens} out=${outputTokens} sources=${allowed.size} kept=${stats.kept} dropped=${stats.dropped}`)
+    console.log(`[web_search] feature=${feature} ms=${Date.now() - started} searches=${searches} pauses=${pauses} stop=${stop} in=${inputTokens} out=${outputTokens} sources=${allowed.size} kept=${stats.kept} dropped=${stats.dropped} sites_from_results=${stats.derived}`)
     return { ok: true, json, inputTokens, outputTokens, searches }
   } catch (e) {
     return { ok: false, reason: (e as Error).message }
