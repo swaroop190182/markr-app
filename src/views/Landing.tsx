@@ -601,11 +601,13 @@ export default function Landing() {
               </div>
             ))}
           </div>
-          {/* Example strip */}
+          {/* Example strip — hidden: restore when a real gap line is available.
+              When restoring, change the text color from #f5a623 to rgba(255,255,255,.75).
           <div style={{ marginTop:16, display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' as const, padding:'14px 18px', borderRadius:10, border:'1px dashed rgba(124,111,247,.35)', background:'rgba(124,111,247,.05)' }}>
             <span style={{ fontSize:10, fontWeight:700, letterSpacing:'.08em', textTransform:'uppercase' as const, color:'#a599ff', padding:'2px 10px', borderRadius:20, background:'rgba(124,111,247,.15)', fontFamily:D, flexShrink:0 }}>Example</span>
             <span style={{ fontSize:13, color:'#f5a623', fontFamily:D }}>[TODO: real gap line from Emrise SWOT or Positioning]</span>
           </div>
+          */}
         </div>
       </section>
 
