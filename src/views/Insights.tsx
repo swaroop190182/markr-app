@@ -3,11 +3,13 @@ import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
 import { readCompetitive, filterExcluded, orderFocusFirst } from '../lib/founder'
-import { itunesNameMatches, applyFacts, findFactsEntry, competitorWebsite, sourceDomain } from '../lib/competitors'
+import { itunesNameMatches, applyFacts, findFactsEntry, competitorWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
 
 // Pass 2 (live sources) runs competitors in batches to stay inside the 60s API limit.
-// Tune from the [web_search] timing log on the Vercel preview.
-const FACTS_BATCH = 3
+// Measured on the Vercel preview: 3 + 2 batches took ~9.8s / ~9.5s (8 searches, no pauses),
+// so all 5 competitors now go in one call. Lower this if [web_search] ms approaches ~40s.
+const FACTS_BATCH = 5
+const FACTS_MAX_USES = 10
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -276,10 +278,12 @@ This product operates primarily in: ${detectedMarket}
 
 ${priorityLine}
 
-FACTS RULE: "funding", "employees", "reviews.rating", "reviews.ratingCount" and "reviews.traction" must be null unless you are certain of the exact value. Never estimate, round, or guess — null is the expected answer for most small or local companies.${intentGapsRule}
+FACTS RULE: "funding", "employees", "reviews.rating", "reviews.ratingCount" and "reviews.traction" must be null unless you are certain of the exact value. Never estimate, round, or guess — null is the expected answer for most small or local companies.
+
+CURRENCY RULE: State every price — each competitor's and ${currentApp.name}'s own — in its own currency exactly as given (e.g. "₹49/mo"). Never convert it or restate it in another currency.${intentGapsRule}
 
 JSON only, no markdown:
-{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"$X/mo","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":null,"ratingCount":null,"traction":null},"funding":null,"employees":null,"userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"${hasBrief ? ',"intentGaps":["gap 1"]' : ''}}`
+{"comps":[{"name":"X","url":"https://example.com","type":"local","cat":"direct","price":"price as listed, in its own currency","strengths":["s1","s2"],"weaknesses":["w1","w2"],"threat":"High","score":8,"diff":"how ${currentApp.name} wins in one line","reason":"why this is a competitor","reviews":{"rating":null,"ratingCount":null,"traction":null},"funding":null,"employees":null,"userLoves":["specific strength users praise 1","specific strength 2","specific strength 3"],"userHates":["specific complaint users raise 1","complaint 2","complaint 3"],"positioningGap":"one specific sentence on what they genuinely cannot do that ${currentApp.name} can"}],"mktPos":"2 sentence market position","wspace":"whitespace opportunity","winCond":"win condition"${hasBrief ? ',"intentGaps":["gap 1"]' : ''}}`
 
       // 5 competitors, each with strengths/weaknesses/userLoves/userHates and
       // positioning fields — the largest payload in the app.
@@ -361,6 +365,15 @@ RULES:
 - If no result directly supports a value, use null. Never estimate, infer, round, or combine figures.
 - Use the competitor names exactly as written above, in the same order.
 
+SOURCE PREFERENCE (use other sites only if none of these have it):
+- pricing: the company's own website, or its App Store / Google Play listing.
+- funding and team_size: Crunchbase, Tracxn, PitchBook, LinkedIn, or a named news outlet.
+
+PRICING:
+- pricing must be the product's own subscription or plan price (e.g. "₹49/month Premium", "$69.99/year").
+- If you only find a different kind of price (e.g. per therapy session, per seat setup fee), keep it but say what it is in the value, e.g. "₹1,500 per therapy session (no subscription price found)".
+- Write every price in its own currency exactly as the source shows it. Never convert currencies.
+
 Output ONLY JSON (website, pricing, funding and team_size may each be null):
 {"competitors":[{"name":"…","website":{"value":"https://…","source_url":"https://…"},"pricing":{"value":"…","source_url":"https://…"},"funding":{"value":"…","source_url":"https://…"},"team_size":{"value":"…","source_url":"https://…"}}]}`
 
@@ -373,7 +386,7 @@ Output ONLY JSON (website, pricing, funding and team_size may each be null):
     for (let i = 0; i < comps.length; i += FACTS_BATCH) {
       const batch = comps.slice(i, i + FACTS_BATCH)
       try {
-        const raw = await callClaude(factsPrompt(batch), FACTS_SYSTEM, 4000, undefined, 'haiku', 'competitive_facts', undefined, { webSearch: { maxUses: 8 } })
+        const raw = await callClaude(factsPrompt(batch), FACTS_SYSTEM, 4000, undefined, 'haiku', 'competitive_facts', undefined, { webSearch: { maxUses: FACTS_MAX_USES } })
         const result  = JSON.parse(raw)   // already source-checked on the server
         const entries = Array.isArray(result.competitors) ? result.competitors : []
         const checkedAt = typeof result.checked_at === 'string' ? result.checked_at : new Date().toISOString()
@@ -868,10 +881,24 @@ function SourceLink({ url, checkedAt }: { url: string; checkedAt?: string }) {
   )
 }
 
-// Sourced fact → value + source + date; else AI value (old results / pass-1 price) → AI estimate;
+function LowConfidenceTag() {
+  return (
+    <span title="Source isn't the company's own site, an app store, or a recognised database or news outlet — double-check it." style={{ display:'inline-block', fontSize:9, padding:'1px 5px', borderRadius:20, fontWeight:700, letterSpacing:'.04em', marginLeft:4, background:'rgba(245,166,35,.12)', color:'var(--amber)', cursor:'help', whiteSpace:'nowrap' as const }}>
+      low-confidence source
+    </span>
+  )
+}
+
+// Sourced fact → value + source + date (+ low-confidence tag if the source isn't preferred);
+// else AI value (old results / pass-1 price) → AI estimate;
 // else "Not found" if a live check ran for this competitor, "Not verified" if none did.
-function FactValue({ fact, fallback, checkedAt, prefix }: { fact?: { value: string; source_url: string } | null; fallback?: string | null; checkedAt?: string; prefix?: string }) {
-  if (fact) return <span>{prefix}{fact.value}<SourceLink url={fact.source_url} checkedAt={checkedAt} /></span>
+function FactValue({ comp, fact, fallback, checkedAt, prefix }: { comp: any; fact?: { value: string; source_url: string } | null; fallback?: string | null; checkedAt?: string; prefix?: string }) {
+  if (fact) return (
+    <span>
+      {prefix}{fact.value}<SourceLink url={fact.source_url} checkedAt={checkedAt} />
+      {!isPreferredSource(comp, fact.source_url) && <LowConfidenceTag />}
+    </span>
+  )
   if (fallback) return <span>{prefix}{fallback}<AiEstimateTag /></span>
   return checkedAt ? <NotFound /> : <NotVerified />
 }
@@ -963,7 +990,7 @@ function CompetitiveTab({ data, loading, checking, onGenerate, appName }: { data
                             {c.type && <span style={{ fontSize:9, padding:'2px 6px', borderRadius:20, fontWeight:700, textTransform:'uppercase' as const, background: c.type==='local' ? 'rgba(52,201,138,.15)' : 'rgba(124,111,247,.15)', color: c.type==='local' ? 'var(--green)' : 'var(--accent)' }}>{c.type==='local' ? 'Local' : 'Global'}</span>}
                             {c.unverified === true && <UnverifiedBadge />}
                           </div>
-                          <div style={{ fontSize:10, color:'var(--text3)', marginTop:2, fontWeight:400 }}><FactValue fact={c.facts?.pricing} fallback={cleanEstimate(c.price)} checkedAt={checkedAt} /></div>
+                          <div style={{ fontSize:10, color:'var(--text3)', marginTop:2, fontWeight:400 }}><FactValue comp={c} fact={c.facts?.pricing} fallback={cleanEstimate(c.price)} checkedAt={checkedAt} /></div>
                         </td>
                         <td style={{ padding:'10px 12px' }}>
                           <span style={{ fontSize:12, fontWeight:700, padding:'3px 8px', borderRadius:6, background:sBg, color:sColor }}>{score}/10</span>
@@ -975,8 +1002,8 @@ function CompetitiveTab({ data, loading, checking, onGenerate, appName }: { data
                             <span style={{ color:'var(--amber)', fontWeight:600 }}>⭐ {ratingFallback}<AiEstimateTag /></span>
                           ) : <NotVerified />}
                         </td>
-                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}><FactValue fact={c.facts?.funding} fallback={funding} checkedAt={checkedAt} /></td>
-                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}><FactValue fact={c.facts?.team_size} fallback={team} checkedAt={checkedAt} /></td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}><FactValue comp={c} fact={c.facts?.funding} fallback={funding} checkedAt={checkedAt} /></td>
+                        <td style={{ padding:'10px 12px', color:'var(--text2)' }}><FactValue comp={c} fact={c.facts?.team_size} fallback={team} checkedAt={checkedAt} /></td>
                         <td style={{ padding:'10px 12px', color:'var(--text2)', maxWidth:220 }}>
                           <div style={{ overflow:'hidden', display:'-webkit-box' as any, WebkitLineClamp:2, WebkitBoxOrient:'vertical' as any }}>{topGap}</div>
                         </td>
@@ -1027,7 +1054,7 @@ function CompetitiveTab({ data, loading, checking, onGenerate, appName }: { data
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
                   <span style={{ fontSize:11, fontWeight:600, color:'var(--green)' }}>
-                    <FactValue fact={c.facts?.pricing} fallback={cleanEstimate(c.price)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} />
+                    <FactValue comp={c} fact={c.facts?.pricing} fallback={cleanEstimate(c.price)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} />
                   </span>
                   <span style={{ fontSize:10, padding:'3px 9px', borderRadius:20, fontWeight:700,
                     background:tBg[c.threat]??tBg.Medium, color:tC[c.threat]??tC.Medium,
@@ -1069,14 +1096,14 @@ function CompetitiveTab({ data, loading, checking, onGenerate, appName }: { data
                 <div style={{ padding:'10px 14px', borderRight:'1px solid var(--border)' }}>
                   <SecLabel>Funding</SecLabel>
                   <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
-                    <FactValue fact={c.facts?.funding} fallback={cleanEstimate(c.funding)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} />
+                    <FactValue comp={c} fact={c.facts?.funding} fallback={cleanEstimate(c.funding)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} />
                   </div>
                 </div>
                 {/* Team size */}
                 <div style={{ padding:'10px 14px' }}>
                   <SecLabel>Team Size</SecLabel>
                   <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
-                    <FactValue fact={c.facts?.team_size} fallback={cleanEstimate(c.employees)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} prefix="👥 " />
+                    <FactValue comp={c} fact={c.facts?.team_size} fallback={cleanEstimate(c.employees)} checkedAt={typeof c.facts_checked_at === 'string' ? c.facts_checked_at : undefined} prefix="👥 " />
                   </div>
                 </div>
               </div>

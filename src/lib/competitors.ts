@@ -33,6 +33,36 @@ export function sourceDomain(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
 }
 
+// ── Source confidence ───────────────────────────────────────────────────────
+// A fact is "preferred" when its source is the company's own domain, an app store,
+// a company database, or a recognised business/tech news outlet. Anything else is
+// still shown, with a "low-confidence source" tag. Edit these lists to tune it.
+const APP_STORE_HOSTS = ['apps.apple.com', 'itunes.apple.com', 'play.google.com']
+const DATABASE_HOSTS  = ['crunchbase.com', 'tracxn.com', 'pitchbook.com', 'linkedin.com']
+const NEWS_HOSTS = [
+  'techcrunch.com', 'reuters.com', 'bloomberg.com', 'forbes.com', 'wsj.com', 'ft.com', 'cnbc.com',
+  'businessinsider.com', 'theverge.com', 'venturebeat.com', 'axios.com', 'fortune.com',
+  'economictimes.indiatimes.com', 'livemint.com', 'moneycontrol.com', 'business-standard.com',
+  'thehindubusinessline.com', 'inc42.com', 'yourstory.com', 'entrackr.com', 'vccircle.com', 'the-ken.com',
+]
+
+const hostOf = (u: string) => { try { return new URL(u).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' } }
+const sameOrSub = (host: string, base: string) => host === base || host.endsWith('.' + base)
+
+export function isPreferredSource(comp: any, sourceUrl: string): boolean {
+  const h = hostOf(sourceUrl)
+  if (!h) return false
+  if ([...APP_STORE_HOSTS, ...DATABASE_HOSTS, ...NEWS_HOSTS].some(b => sameOrSub(h, b))) return true
+  // Company's own domain: any known website for it (App Store developer site, verified site, model URL)
+  const own = [comp?.appStore?.sellerUrl, comp?.facts?.website?.value, comp?.url]
+    .map(v => (typeof v === 'string' ? hostOf(v) : ''))
+    .filter(Boolean)
+  if (own.some(o => sameOrSub(h, o) || sameOrSub(o, h))) return true
+  // No website known: accept a domain named exactly after the company (e.g. calm.com for "Calm")
+  const n = norm(comp?.name ?? '')
+  return n.length >= 3 && norm(h.split('.')[0]) === n
+}
+
 // Attach one competitor's pass-2 result. Only {value, source_url} pairs that survived
 // the server-side source check get through; everything else becomes null ("Not found").
 export function applyFacts(comp: any, entry: any, checkedAt: string): any {

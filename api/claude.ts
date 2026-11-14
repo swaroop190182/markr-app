@@ -127,7 +127,7 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
 // {value, source_url} whose source_url wasn't actually returned by a search
 // result in this call is replaced with null before it leaves the server.
 const WEB_SEARCH_FEATURES = new Set(['competitive_facts'])   // opt-in per feature; nothing else can spend searches
-const WEB_SEARCH_MAX_USES = 8
+const WEB_SEARCH_MAX_USES = 10
 const WEB_SEARCH_BUDGET_MS = 45_000   // stop resuming pause_turn after this
 const WEB_SEARCH_HARD_MS   = 55_000   // stay under the 60s function limit
 
