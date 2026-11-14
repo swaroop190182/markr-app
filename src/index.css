@@ -175,6 +175,7 @@
   .app-sidebar {
     width: 220px;
     min-width: 220px;
+    height: 100%;   /* bounds the Sidebar so its app list can scroll instead of overflowing */
     flex-shrink: 0;
     transition: transform .25s ease, width .25s ease;
   }
