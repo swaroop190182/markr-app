@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+// ".js" required: Vercel runs api/ as Node ESM (see tsconfig.api.json)
+import { stripLegacyProductTest } from '../_lib/brand.js'
 
 const RESEND_API = 'https://api.resend.com/emails'
 const FROM       = 'Markr <markr@journaljoy.org>'
@@ -28,7 +30,7 @@ async function generateContent(app: any): Promise<any[]> {
     const pillar = pillarsForDay[i]
 
     const prompt = `You are the Instagram content strategist for ${app.name}, a ${app.category} app.
-${app.brand_voice ?? ''}
+${stripLegacyProductTest(app.brand_voice)}
 
 Content pillar: ${pillar}
 Post type: ${slot.label} — optimised for ${slot.goal}

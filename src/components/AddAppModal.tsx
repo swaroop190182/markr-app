@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal, Field, SelectField, ProgressStep } from './ui'
 import { useStore } from '../lib/store'
-import { callClaude, runProductTest } from '../lib/claude'
+import { callClaude } from '../lib/claude'
 import { toast } from './Toast'
 import type { AppData } from '../types'
 import { COLORS } from '../lib/data'
@@ -123,36 +123,14 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
       const bvRaw      = (analysisRaw.match(/BRAND_VOICE:\s*([\s\S]+)/) ?? [])[1]?.trim() ?? ''
       setStep(1, 'done')
 
-      // Step 2 — product test
-      let productTest = null
-      if (hasCreds && canUseProductTest) {  // Pro only — Sonnet is expensive
-        setStep(2, 'active')
-        try {
-          productTest = await runProductTest({
-            id: 0, name, platform: platform as AppData['platform'],
-            color: '', stage: stage as AppData['stage'], category,
-            url, desc, brand: '', pillars, features,
-            testCreds: { user: testUser, loginUrl: loginUrl || url, flows: testFlows }
-          } as AppData, testPass)
-        } catch (e) {
-          productTest = { error: (e as Error).message } as any
-        }
-        setStep(2, 'done')
-      } else {
-        setStep(2, 'skip')
-      }
+      // The old "AI Readiness Assessment" step (runProductTest) is removed: it asked a model to
+      // role-play a QA tester and never opened the app, so its scores and bugs were invented.
+      // Real checks run from Insights → Product Test (rule-based).
 
       // Step 3 — build brand voice
       setStep(3, 'active')
-      let testCtx = ''
-      if (productTest && !productTest.error) {
-        testCtx = `\n\nPRODUCT TEST (${productTest.overall_score}/100 — ${productTest.verdict}):\n`
-          + `• Works: ${(productTest.what_works_well??[]).join('; ')}\n`
-          + `• Fix: ${(productTest.what_needs_fixing??[]).slice(0,2).join('; ')}\n`
-          + `• Content: ${(productTest.content_implications??[]).join('; ')}`
-      }
       const brand = `You are the Instagram content strategist for ${name}, a ${category.toLowerCase()} ${platform.toLowerCase()} app.\n\n`
-        + `TARGET AUDIENCE: ${audience}\nCORE PROBLEM: ${problem}\nDIFFERENTIATOR: ${diff}\nBRAND TONE: ${tone}${testCtx}\n`
+        + `TARGET AUDIENCE: ${audience}\nCORE PROBLEM: ${problem}\nDIFFERENTIATOR: ${diff}\nBRAND TONE: ${tone}\n`
         + (bvRaw ? `\nBRAND VOICE:\n${bvRaw}\n` : '')
         + `\nRULES:\n• Write from the user's perspective\n• Never salesy\n• End with a question\n• NEVER: game-changer, hustle, crush it`
       setStep(3, 'done')
@@ -165,7 +143,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         category: detectedCategory || category, url, desc, brand, pillars, features,
         audience, problem, diff,
         testCreds: hasCreds ? { user: testUser, password: testPass, loginUrl: loginUrl || url, flows: testFlows } : null,
-        productTest,
+        productTest: null,
         url_analysis: savedUrlAnalysis,
         primary_market: primaryMarket,
         instagram_handle: normalizedHandle || null,
@@ -175,10 +153,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
       addApp(newApp)
       onClose()
 
-      const msg = hasCreds && productTest && !productTest.error
-        ? `✅ ${name} analyzed & tested! Score: ${productTest.overall_score}/100`
-        : `✅ ${name} analyzed! Content engine ready.`
-      toast(msg, 5000)
+      toast(`✅ ${name} analyzed! Content engine ready.`, 5000)
 
     } catch (e) {
       toast('Analysis failed: ' + (e as Error).message)
@@ -242,10 +217,10 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
           <span style={{ fontSize: 15 }}>🔐</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)' }}>
-              AI Readiness Assessment Access <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', marginLeft: 6 }}>optional · powerful</span>
+              Test credentials <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', marginLeft: 6 }}>optional</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-              Give test credentials and AI will explore your app as a real user
+              Saved for the upcoming real-browser test — not used yet
             </div>
           </div>
           <span style={{ color: 'var(--text3)', fontSize: 11, transition: 'transform .2s', transform: credsOpen ? 'rotate(180deg)' : '' }}>▼</span>
@@ -272,7 +247,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
                 placeholder="e.g. Onboarding, Sadhana tab, Habit Awareness screen, Mira AI chat, Addiction Support, Settings…" />
             </Field>
             <div style={{ background: 'rgba(52,201,138,.06)', border: '1px solid rgba(52,201,138,.2)', borderRadius: 6, padding: '9px 12px', fontSize: 11, color: 'var(--green)', lineHeight: 1.65 }}>
-              ✦ With test access: explore UI flows · assess features · score UX · find bugs · generate QA report that enriches all content and strategy.
+              Stored for the real-browser test (coming soon). Nothing is tested with them yet — use a sandbox account.
             </div>
           </div>
         )}
@@ -283,7 +258,6 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, margin: '12px 0 4px' }}>
           <ProgressStep label="Reading app URL & context"              state={steps[0]} />
           <ProgressStep label="Analyzing features & audience"          state={steps[1]} />
-          <ProgressStep label="AI Readiness Assessment — simulating user session" state={steps[2]} />
           <ProgressStep label="Building content engine & brand pillars" state={steps[3]} />
         </div>
       )}

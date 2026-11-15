@@ -3,6 +3,7 @@ import { useStore } from '../lib/store'
 import { Card, CardHeader, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON } from '../lib/claude'
 import { readCompetitive } from '../lib/founder'
+import { stripLegacyProductTest } from '../../api/_lib/brand'
 import { compressImage, analyzeScreenshot, summarizeProduct, guessLabel } from '../lib/vision'
 import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
@@ -762,7 +763,8 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
       stratCtx.recommendedChannels.length ? `Marketing recommended channels: ${stratCtx.recommendedChannels.join(', ')}` : '',
     ].filter(Boolean).join('\n')
 
-    const brandVoice = currentApp.brand ?? `You are the Instagram content strategist for ${currentApp.name}, a ${currentApp.category} app.`
+    // Older brand voices embed a simulated "PRODUCT TEST" block — strip it before it reaches the prompt
+    const brandVoice = stripLegacyProductTest(currentApp.brand) || `You are the Instagram content strategist for ${currentApp.name}, a ${currentApp.category} app.`
     const testCtx = getTestContext(currentApp)
     const styleConfig = POST_STYLES.find(s => s.id === style) ?? POST_STYLES[1]
 
@@ -1122,20 +1124,24 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
         </div>
       )}
 
-      {pt && !pt.error && typeof (pt.overall_score ?? pt.score) === 'number' && (() => {
-        // overall_score = older AI test format, score = current rule-based format
-        const score    = pt.overall_score ?? pt.score
-        const features = (pt.features_found ?? []).map(f => f.name).filter(Boolean)
-        return (
-          <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
-            <span>🧪</span>
-            <div style={{ flex:1, fontSize:12 }}>
-              <strong style={{ color:'var(--green)' }}>AI Readiness Assessment active</strong> — posts are grounded in your assessment findings (score: {score}/100)
-              {features.length > 0 && <>. Features: <span style={{ color:'var(--text2)' }}>{features.join(', ')}</span></>}
-            </div>
+      {pt && !pt.error && (Array.isArray(pt.checks) && typeof pt.score === 'number' ? (
+        // Real rule-based readiness check — the only product-test format used in prompts
+        <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
+          <span>🧪</span>
+          <div style={{ flex:1, fontSize:12 }}>
+            <strong style={{ color:'var(--green)' }}>Readiness check active</strong> — posts take your readiness findings into account (score: {Math.min(100, pt.score)}/100)
           </div>
-        )
-      })()}
+        </div>
+      ) : (
+        // Older AI-simulated result (never opened the app) — not shown as real, not used in prompts
+        <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
+          <span>🧪</span>
+          <div style={{ flex:1, fontSize:12, color:'var(--text2)' }}>
+            Run the readiness check to ground posts in real findings about your app.
+          </div>
+          <button className="vbtn" onClick={() => setView('insights')}>Run the readiness check</button>
+        </div>
+      ))}
 
       {/* User context section */}
       {contentContext ? (

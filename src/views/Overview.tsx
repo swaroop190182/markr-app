@@ -616,7 +616,16 @@ Return ONLY this JSON, no markdown:
           { label:'Your Apps',      value: String(apps.length),  change: plan==='pro'?'Pro — unlimited':'Free — 1 app', c: plan==='pro'?'var(--green)':'var(--accent2)' },
           { label:'Content Pillars', value: String(currentApp.pillars?.length ?? 0), change:`for ${currentApp.name}`, c:'var(--text3)' },
           { label:'Plan',           value: plan==='pro'?'Pro':'Free', change: plan==='pro'?'All features unlocked':'7-day trial', c: plan==='pro'?'var(--green)':'var(--amber)' },
-          { label:'AI Readiness Assessment', value: currentApp.productTest && !currentApp.productTest.error ? `${Math.min(100, (currentApp.productTest as any).score ?? currentApp.productTest.overall_score ?? 0)}/100` : '—', change: currentApp.productTest && !currentApp.productTest.error ? ((currentApp.productTest as any).verdict ?? '') : 'Not run yet', c: currentApp.productTest && !currentApp.productTest.error ? 'var(--green)' : 'var(--text3)' },
+          // Only the rule-based readiness check (pt.checks) is a real result; older AI-simulated
+          // results (overall_score) never opened the app, so they show as "Run the readiness check"
+          (() => {
+            const p = currentApp.productTest
+            const real = !!p && !p.error && Array.isArray(p.checks) && typeof p.score === 'number'
+            return { label:'Readiness check',
+              value: real ? `${Math.min(100, p!.score!)}/100` : '—',
+              change: real ? (p!.verdict ?? '') : (p && !p.error ? 'Run the readiness check' : 'Not run yet'),
+              c: real ? 'var(--green)' : 'var(--text3)' }
+          })(),
         ].map(m => (
           <div key={m.label} className="card">
             <div style={{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>{m.label}</div>
@@ -641,20 +650,27 @@ Return ONLY this JSON, no markdown:
       </div>
 
       {/* QA banner */}
-      {pt && !pt.error && (
+      {pt && !pt.error && (Array.isArray(pt.checks) && typeof pt.score === 'number' ? (
+        // Real rule-based readiness check
         <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
           <span>🧪</span>
           <div style={{ flex:1, fontSize:12 }}>
-            <strong style={{ color:'var(--green)' }}>AI Readiness Assessment active</strong>
-            {' '}— Score: {Math.min(100, (pt as any).score ?? pt.overall_score ?? 0)}/100
-            {(pt as any).verdict ? ` · ${(pt as any).verdict}` : ''}
-            {(pt.features_found??[]).length > 0 && (
-              <span style={{ color:'var(--text3)', marginLeft:8 }}>Features: {(pt.features_found??[]).map((f:any)=>f.name).join(', ')}</span>
-            )}
+            <strong style={{ color:'var(--green)' }}>Readiness check</strong>
+            {' '}— Score: {Math.min(100, pt.score)}/100
+            {pt.verdict ? ` · ${pt.verdict}` : ''}
           </div>
-          <button className="vbtn" onClick={() => setView('insights')}>View QA report</button>
+          <button className="vbtn" onClick={() => setView('insights')}>View report</button>
         </div>
-      )}
+      ) : (
+        // Older AI-simulated result — never opened the app, so it is not shown as real
+        <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
+          <span>🧪</span>
+          <div style={{ flex:1, fontSize:12, color:'var(--text2)' }}>
+            Run the readiness check to get a real result for {currentApp.name}.
+          </div>
+          <button className="vbtn" onClick={() => setView('insights')}>Run the readiness check</button>
+        </div>
+      ))}
 
             {/* First-time hint — app added but nothing generated yet */}
       {apps.length > 0 && !currentApp.analyzed && (

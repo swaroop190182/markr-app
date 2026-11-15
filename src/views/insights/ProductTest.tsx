@@ -278,116 +278,28 @@ export default function ProductTest() {
               )}
             </div>
           ) : (
-            <>
-              {/* Existing AI test results renderer */}
-              {(() => {
-                const score = aiPt.overall_score ?? 0
-                const sc = score>=80?'var(--green)':score>=60?'var(--amber)':'var(--red)'
-                const sbg = score>=80?'rgba(52,201,138,.12)':score>=60?'rgba(245,166,35,.12)':'rgba(229,85,85,.12)'
-                const sev = { Critical:'var(--red)', High:'#f97316', Medium:'var(--amber)', Low:'var(--text3)' } as Record<string,string>
-                const sevBg = { Critical:'rgba(229,85,85,.12)', High:'rgba(249,115,22,.12)', Medium:'rgba(245,166,35,.12)', Low:'rgba(90,90,114,.1)' } as Record<string,string>
-                return (
-                  <>
-                    <div style={{ background:sbg, border:`1px solid ${sc}40`, borderRadius:'var(--r2)', padding:'14px 18px', marginBottom:14, display:'flex', alignItems:'center', gap:14 }}>
-                      <div style={{ textAlign:'center', flexShrink:0 }}>
-                        <div style={{ fontSize:38, fontWeight:800, color:sc, lineHeight:1 }}>{score}</div>
-                        <div style={{ fontSize:9, color:'var(--text3)', marginTop:2 }}>QA Score</div>
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4 }}>{aiPt.verdict_emoji} {aiPt.verdict}</div>
-                        <div style={{ fontSize:12, color:'var(--text2)', lineHeight:1.5, marginBottom:6 }}>{aiPt.executive_summary}</div>
-                        {(aiPt as any).screens_captured && (
-                          <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const }}>
-                            <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, background:'rgba(124,111,247,.15)', color:'var(--accent2)', fontWeight:600 }}>
-                              📸 {(aiPt as any).screens_captured} screens tested
-                            </span>
-                            {(aiPt as any).screens_list?.slice(0,3).map((s: string, i: number) => (
-                              <span key={i} style={{ fontSize:10, padding:'2px 8px', borderRadius:20, background:'var(--surface2)', color:'var(--text3)' }}>{s.slice(0,30)}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* UX scores */}
-                    {aiPt.ux_ratings && (
-                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:14 }}>
-                        {Object.entries(aiPt.ux_ratings).map(([k,v]) => {
-                          const vc = (v as number)>=80?'var(--green)':(v as number)>=60?'var(--amber)':'var(--red)'
-                          const labels: Record<string,string> = { onboarding:'Onboarding', navigation:'Navigation', visual_design:'Visual Design', performance:'Performance', mobile_responsiveness:'Mobile', error_handling:'Error Handling' }
-                          return (
-                            <div key={k} style={{ background:'var(--surface2)', borderRadius:'var(--r)', padding:'10px 12px', border:'1px solid var(--border)' }}>
-                              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                                <span style={{ fontSize:11, fontWeight:600, color:'var(--text2)' }}>{labels[k]??k}</span>
-                                <span style={{ fontSize:14, fontWeight:700, color:vc }}>{v as number}</span>
-                              </div>
-                              <div style={{ height:4, background:'var(--surface3)', borderRadius:2, overflow:'hidden' }}>
-                                <div style={{ height:'100%', width:`${v}%`, background:vc, borderRadius:2 }} />
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    {/* Bugs */}
-                    {(aiPt.bugs_and_issues??[]).length>0 && (
-                      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--r2)', padding:'14px 16px', marginBottom:14 }}>
-                        <div style={{ fontSize:12, fontWeight:700, marginBottom:10 }}>🐛 Bugs & Issues ({aiPt.bugs_and_issues!.length} found)</div>
-                        {aiPt.bugs_and_issues!.map((b,i)=>(
-                          <div key={i} style={{ display:'flex', gap:10, padding:'8px 0', borderBottom:'1px solid var(--border)', alignItems:'flex-start' }}>
-                            <div style={{ width:6, height:6, borderRadius:'50%', background:sev[b.severity]??sev.Medium, marginTop:5, flexShrink:0 }} />
-                            <div style={{ flex:1 }}>
-                              <div style={{ fontSize:12, fontWeight:600, marginBottom:2 }}>{b.title}</div>
-                              <div style={{ fontSize:11, color:'var(--text2)', lineHeight:1.5 }}>{b.description}</div>
-                            </div>
-                            <span style={{ fontSize:10, padding:'2px 8px', borderRadius:20, fontWeight:700, background:sevBg[b.severity]??sevBg.Medium, color:sev[b.severity]??sev.Medium, flexShrink:0 }}>{b.severity}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* What works / needs fixing */}
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14 }}>
-                      <div style={{ background:'var(--surface)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r2)', padding:14 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:'var(--green)', marginBottom:10 }}>✅ What Works</div>
-                        {(aiPt.what_works_well??[]).map((w,i)=>(
-                          <div key={i} style={{ display:'flex', gap:8, padding:'6px 0', borderBottom:'1px solid var(--border)', fontSize:12 }}>
-                            <span style={{ color:'var(--green)', flexShrink:0 }}>✓</span><span>{w}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ background:'var(--surface)', border:'1px solid rgba(245,166,35,.25)', borderRadius:'var(--r2)', padding:14 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:'var(--amber)', marginBottom:10 }}>🔧 Needs Fixing</div>
-                        {(aiPt.what_needs_fixing??[]).map((w,i)=>(
-                          <div key={i} style={{ display:'flex', gap:8, padding:'6px 0', borderBottom:'1px solid var(--border)', fontSize:12 }}>
-                            <span style={{ color:'var(--amber)', fontWeight:700, flexShrink:0 }}>{i+1}</span><span>{w}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Re-run */}
-                    <div style={{ textAlign:'center', marginTop:14 }}>
-                      <div style={{ maxWidth:300, margin:'0 auto 10px', display:'flex', flexDirection:'column', gap:8 }}>
-                        <input type="email" value={testEmail} onChange={e=>setTestEmail(e.target.value)}
-                          placeholder={currentApp.testCreds?.user || 'Test email to re-run'}
-                          style={{ textAlign:'center' }} />
-                        <input type="password" value={testPass} onChange={e=>setTestPass(e.target.value)}
-                          placeholder="Password to re-run"
-                          style={{ textAlign:'center' }} />
-                      </div>
-                      <button className="vbtn" onClick={runDeepTest} disabled={aiRunning} style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12 }}>
-                        <i className="ti ti-refresh" />  {aiRunning?'Running…':'Re-run deep test'}
-                      </button>
-                    </div>
-                  </>
-                )
-              })()}
-            </>
+            // Results saved in the older AI format came from a simulation that never opened the app
+            // (scores, flows, bugs and features were invented), so they are not shown as real results.
+            <LegacyResultNotice running={running} onRun={() => { setActiveTab('landing'); void runLandingAudit() }} />
           )}
         </>
       )}
+    </div>
+  )
+}
+
+// Shown instead of results saved in the older AI format (a simulated test that never opened the app)
+function LegacyResultNotice({ onRun, running }: { onRun: () => void; running: boolean }) {
+  return (
+    <div style={{ padding:'32px', textAlign:'center' }}>
+      <div style={{ fontSize:40, marginBottom:12 }}>🧪</div>
+      <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:8 }}>Run the readiness check</div>
+      <div style={{ fontSize:13, color:'var(--text3)', maxWidth:440, margin:'0 auto 16px', lineHeight:1.7 }}>
+        The saved result for this app came from an older AI simulation that never actually opened your app, so its scores, flows and bugs aren't shown. Run the readiness check to get a real result.
+      </div>
+      <button className="gen-btn" style={{ margin:'0 auto' }} onClick={onRun} disabled={running}>
+        {running ? 'Running…' : 'Run the readiness check'}
+      </button>
     </div>
   )
 }

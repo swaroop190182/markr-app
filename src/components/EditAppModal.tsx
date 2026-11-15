@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal, Field, SelectField, ProgressStep } from './ui'
 import { useStore } from '../lib/store'
-import { callClaude, runProductTest } from '../lib/claude'
+import { callClaude } from '../lib/claude'
 import { toast } from './Toast'
 import type { AppData } from '../types'
 import { normalizeInstagramHandle } from '../lib/instagram'
@@ -163,46 +163,15 @@ BRAND_VOICE: [3-4 sentences on voice]`,
       const bvRaw    = (raw.match(/BRAND_VOICE:\s*([\s\S]+)/) ?? [])[1]?.trim() ?? ''
       setStep(1, 'done')
 
-      let productTest = app.productTest
+      // The old simulated "AI Readiness Assessment" (runProductTest) is removed — it never opened
+      // the app, so its findings were invented. The saved productTest is left as it is; real checks
+      // run from Insights → Product Test. The rebuilt brand voice no longer embeds test findings.
       const effectivePass = testPass || app.testCreds?.password || ''
-      if (hasCreds && effectivePass && canUseProductTest) {  // Pro only
-        setStep(2, 'active')
-        try {
-          productTest = await runProductTest(
-            {
-              ...app,
-              name, url,
-              desc: newDesc,
-              features,
-              testCreds: {
-                user: testUser,
-                password: effectivePass,
-                loginUrl: loginUrl || url,
-                flows: testFlows
-              }
-            },
-            effectivePass
-          )
-        } catch (e) {
-          productTest = { error: (e as Error).message } as any
-        }
-        setStep(2, 'done')
-      } else {
-        setStep(2, 'skip')
-      }
 
       setStep(3, 'active')
-      let testCtx = ''
-      if (productTest && !(productTest as any).error) {
-        const pt = productTest as any
-        testCtx = `\n\nPRODUCT TEST (${pt.overall_score}/100 — ${pt.verdict}):\n`
-          + `• Works: ${(pt.what_works_well ?? []).join('; ')}\n`
-          + `• Fix: ${(pt.what_needs_fixing ?? []).slice(0, 2).join('; ')}\n`
-          + `• Content: ${(pt.content_implications ?? []).join('; ')}`
-      }
       const brand =
         `You are the Instagram content strategist for ${name}, a ${category.toLowerCase()} ${platform.toLowerCase()} app.\n\n`
-        + `TARGET AUDIENCE: ${audience}\nCORE PROBLEM: ${problem}\nDIFFERENTIATOR: ${diff}\nBRAND TONE: ${tone}${testCtx}\n`
+        + `TARGET AUDIENCE: ${audience}\nCORE PROBLEM: ${problem}\nDIFFERENTIATOR: ${diff}\nBRAND TONE: ${tone}\n`
         + (bvRaw ? `\nBRAND VOICE:\n${bvRaw}\n` : '')
         + `\nRULES:\n• Write from the user's perspective\n• Never salesy\n• End with a question\n• NEVER: game-changer, hustle, crush it`
       setStep(3, 'done')
@@ -224,15 +193,9 @@ BRAND_VOICE: [3-4 sentences on voice]`,
           loginUrl: loginUrl || url,
           flows: testFlows
         },
-        productTest
       })
       onClose()
-      toast(
-        hasCreds && productTest && !(productTest as any).error
-          ? `✅ ${name} updated & re-tested! Score: ${(productTest as any).overall_score}/100`
-          : `✅ ${name} updated!`,
-        4000
-      )
+      toast(`✅ ${name} updated!`, 4000)
     } catch (e) {
       toast('Failed: ' + (e as Error).message)
     }
@@ -240,7 +203,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
   }
 
   return (
-    <Modal title="Edit App" subtitle="Update details, credentials, or re-run the product test." onClose={onClose}>
+    <Modal title="Edit App" subtitle="Update details, your founder brief, or test credentials." onClose={onClose}>
       <Field label="App Name">
         <input value={name} onChange={e => setName(e.target.value)} />
       </Field>
@@ -307,7 +270,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         >
           <span style={{ fontSize: 15 }}>🔐</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)' }}>AI Readiness Assessment Credentials</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent2)' }}>Test credentials <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text3)', marginLeft: 6 }}>for the upcoming real-browser test · not used yet</span></div>
             <div style={{ fontSize: 11, color: testUser ? 'var(--green)' : 'var(--text3)', marginTop: 2 }}>
               {testUser ? `Saved: ${testUser} · click to update` : 'No credentials saved — add them here'}
             </div>
@@ -342,7 +305,6 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, margin: '12px 0 4px' }}>
           <ProgressStep label="Saving app details"                     state={steps[0]} />
           <ProgressStep label="Re-analyzing features & audience"       state={steps[1]} />
-          <ProgressStep label="AI Readiness Assessment — simulating user session" state={steps[2]} />
           <ProgressStep label="Rebuilding content engine"              state={steps[3]} />
         </div>
       )}
