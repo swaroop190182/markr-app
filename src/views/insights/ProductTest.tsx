@@ -3,6 +3,7 @@ import { useStore } from '../../lib/store'
 import { supabase } from '../../lib/supabase'
 import { callClaude, getTestContext } from '../../lib/claude'
 import { toast } from '../../components/Toast'
+import { carrySimulatedMarker } from '../../lib/outdated'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Severity = 'pass' | 'warn' | 'fail'
@@ -48,7 +49,7 @@ export default function ProductTest() {
       })
       const data = await res.json()
       if (!res.ok) { toast('Error: ' + data.error); setRunning(false); return }
-      await updateApp(currentApp.id, { productTest: data } as any)
+      await updateApp(currentApp.id, { productTest: carrySimulatedMarker(currentApp.productTest, data) } as any)   // keeps the simulated-data marker
       toast(`Landing audit complete! Score: ${data.score}/100`, 4000)
       setActiveTab('landing')
     } catch(e) { toast('Error: ' + (e as Error).message) }
@@ -80,7 +81,7 @@ export default function ProductTest() {
       })
       const data = await res.json()
       if (!res.ok) { toast('Error: ' + data.error); setAiRunning(false); return }
-      await updateApp(currentApp.id, { productTest: data } as any)
+      await updateApp(currentApp.id, { productTest: carrySimulatedMarker(currentApp.productTest, data) } as any)   // keeps the simulated-data marker
       toast(`Deep QA complete! Score: ${data.overall_score}/100 · ${data.screens_captured} screens tested`, 5000)
       setActiveTab('deep')
     } catch(e) {

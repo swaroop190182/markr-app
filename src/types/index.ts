@@ -68,6 +68,9 @@ export interface ProductTest {
   error?: string
   url?: string
   appName?: string
+  // Set on a rule-based result that replaced an older AI-simulated one, so analyses built with
+  // the simulated data stay flagged until they're re-run (see src/lib/outdated.ts)
+  had_simulated_test?: boolean
 }
 
 export interface AppData {

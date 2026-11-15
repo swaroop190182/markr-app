@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { normalizeSourceUrl, keepSourcedFacts, fillWebsitesFromResults, SITE_AFFIXES as SERVER_AFFIXES } from '../api/_lib/sources.ts'
 import {
   applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite,
-  isPreferredSource, itunesNameMatches,
+  isPreferredSource, itunesNameMatches, sourcedCompetitorFacts,
 } from '../src/lib/competitors.ts'
 import { applyBriefWebsites, orderFocusFirst, domainNamedAfter, SITE_AFFIXES as CLIENT_AFFIXES } from '../src/lib/founder.ts'
 
@@ -161,4 +161,25 @@ test('domain-name affix rules are identical on client and server', () => {
   assert.deepEqual(CLIENT_AFFIXES, SERVER_AFFIXES)
   assert.equal(domainNamedAfter('www.amahahealth.com', 'Amaha'), true)
   assert.equal(domainNamedAfter('amahareviews.com', 'Amaha'), false)
+})
+
+// ── Sourced competitor facts passed into BMC / SWOT / Growth / Pricing ──────
+test('only search-sourced facts and live App Store data are passed; AI estimates never are', () => {
+  const out = sourcedCompetitorFacts([
+    { name: 'Calm', price: '$14.99/mo', funding: '$300M',                         // pass-1 AI estimates → ignored
+      facts: { pricing: { value: '$69.99/year', source_url: 'https://www.calm.com/pricing' },
+               funding: { value: '$218M', source_url: 'https://www.crunchbase.com/organization/calm' }, team_size: null },
+      appStore: { price: 'Free', rating: 4.8, ratingCount: 1500000 } },
+    { name: 'Wysa', price: '$9.99', facts: { pricing: null, funding: null, team_size: null } },   // nothing sourced → no line
+  ])
+  assert.ok(out.startsWith('SOURCED COMPETITOR FACTS'))
+  assert.ok(out.includes('- Calm: pricing $69.99/year; funding $218M; App Store price Free; App Store rating 4.8/5 (1500000 ratings)'))
+  assert.equal(out.includes('$14.99'), false)
+  assert.equal(out.includes('$300M'), false)
+  assert.equal(out.includes('Wysa'), false)
+})
+
+test('no sourced facts at all → empty block', () => {
+  assert.equal(sourcedCompetitorFacts([{ name: 'X', price: '$5' }]), '')
+  assert.equal(sourcedCompetitorFacts(null), '')
 })

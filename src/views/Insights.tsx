@@ -9,7 +9,7 @@ import OutdatedNotice from '../components/OutdatedNotice'
 // What one analysis run achieved — lets "Refresh all outdated" stop cleanly at the daily limit
 type RunStatus = 'ok' | 'failed' | 'locked' | 'limit' | 'saved_then_limit'
 type StepState = 'pending' | 'active' | 'done' | 'failed' | 'skipped'
-import { itunesNameMatches, applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
+import { sourcedCompetitorFacts, itunesNameMatches, applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
 
 // Pass 2 (live sources) runs competitors in batches to stay inside the 60s API limit.
 // Measured on the Vercel preview: 3 + 2 batches took ~9.8s / ~9.5s (8 searches, no pauses),
@@ -18,7 +18,9 @@ const FACTS_BATCH = 5
 const FACTS_MAX_USES = 10
 
 // Same rule Competitive follows: no unsourced facts about competitors in the other analyses
-const COMPETITOR_FACTS_RULE = `COMPETITOR FACTS RULE: Don't state facts about competitors — downloads, user counts, funding, investors, affiliations, ratings or review counts — unless they appear in the sourced competitive data provided above. If they don't, leave them out and describe competitors only by what they offer.`
+const COMPETITOR_FACTS_RULE = `COMPETITOR FACTS RULE: Don't state facts about competitors — prices, downloads, user counts, funding, investors, team size, affiliations, ratings or review counts — unless they appear in SOURCED COMPETITOR FACTS above. Quote those values exactly as given. If a fact isn't listed there, leave it out and describe competitors only by what they offer.`
+// Model-invented integrations/partners (e.g. a non-HR marketplace suggested as an HR integration)
+const THIRD_PARTY_RULE = `THIRD-PARTY NAMES RULE: Don't name specific third-party tools, platforms, apps or partners (integrations, marketplaces, agencies, communities) unless they appear in the context above. Describe the type instead — e.g. "HR platforms used by mid-size Indian companies". Competitor names from the competitive data are fine.`
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -247,6 +249,14 @@ export default function Insights({ onUpgrade, onEditApp }: { onUpgrade?: () => v
 ${rc.trim()}
 ━━━ This data is more recent than the landing page — weight it heavily ━━━`
   }
+
+  // Sourced competitor facts + the competitor-facts and third-party-names rules, for BMC, SWOT,
+  // Growth and Pricing. Reads the current competitive results (exclusions applied).
+  const competitorFactsBlock = () => [
+    sourcedCompetitorFacts(readCompetitive(currentApp, cache.competitive)?.comps),
+    COMPETITOR_FACTS_RULE,
+    THIRD_PARTY_RULE,
+  ].filter(Boolean).join('\n\n')
 
   // ── COMPETITIVE ─────────────────────────────────────────────────────────────
   async function genCompetitive(): Promise<RunStatus> {
@@ -535,7 +545,7 @@ Output ONLY JSON:
       const prompt = `Build a complete Business Model Canvas for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nValue propositions must reflect REAL features from product testing.' : ''}${fCtx}${vCtx ? '\n'+vCtx+'\nValue propositions and revenue streams must match features and pricing visible in the screenshots.' : ''}
 
 ${igCtx}
-${COMPETITOR_FACTS_RULE}
+${competitorFactsBlock()}
 Output ONLY valid JSON:
 {"key_partners":["3-4 real partner types"],"key_activities":["3-4 core activities"],"key_resources":["3-4 key assets"],"value_propositions":["3-4 specific value props"],"customer_relationships":["2-3 relationship modes"],"channels":["3-4 channels"],"customer_segments":["2-3 specific segments"],"cost_structure":["3-4 major costs"],"revenue_streams":["2-3 revenue streams"],"unfair_advantage":"1 sentence"}`
 
@@ -566,7 +576,7 @@ Output ONLY valid JSON:
 
 ${igCtx}
 
-${COMPETITOR_FACTS_RULE}
+${competitorFactsBlock()}
 
 SCORING RULES — you MUST calculate each component score honestly based on actual evidence:
 - strength_score (0-25): High strength = +8pts, Medium = +5pts, Low = +3pts. Cap at 25.
@@ -677,7 +687,7 @@ ${ptCtx}${fCtx}${vCtx}${rcCtx}${existingCtx}
 
 ${igCtx}
 
-${COMPETITOR_FACTS_RULE}
+${competitorFactsBlock()}
 
 RULES — this must NOT be generic:
 1. Every tactic MUST reference specific features, competitor weaknesses, or SWOT findings above
@@ -720,7 +730,7 @@ Output ONLY valid JSON:
       const prompt = `Complete pricing strategy for "${currentApp.name}" — ${currentApp.category} (${currentApp.stage}, ${currentApp.platform}).${currentApp.desc ? ' '+currentApp.desc : ''}${ptCtx ? '\n'+ptCtx+'\nPricing must reflect real product quality from testing.' : ''}${fCtx}${vCtx ? '\n'+vCtx+'\nIf current prices or trial terms are visible above, treat them as the CURRENT pricing — critique and build on them rather than inventing from scratch. Mention them in benchmark_note.' : ''}
 
 ${igCtx}
-${COMPETITOR_FACTS_RULE}
+${competitorFactsBlock()}
 Output ONLY valid JSON:
 {"strategy_type":"Freemium/Usage-based/Flat-rate/Tiered","strategy_rationale":"2 sentence explanation","tiers":[{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":true,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"}],"monetization_angles":[{"angle":"name","description":"1 sentence","revenue_potential":"High"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Low"}],"pricing_risks":["risk 1","risk 2","risk 3"],"benchmark_note":"1 sentence"}`
 

@@ -2,7 +2,7 @@
 // Run with: npm test
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isOutdated, inputsChangedAt, outdatedKeys, callCost, canBypassLock, isOneTimeUsed, outdatedReason, markGenerated, hasLegacyProductTest } from '../src/lib/outdated.ts'
+import { isOutdated, inputsChangedAt, outdatedKeys, callCost, canBypassLock, isOneTimeUsed, outdatedReason, markGenerated, hasLegacyProductTest, carrySimulatedMarker } from '../src/lib/outdated.ts'
 import { stampFounderBrief, hasFounderBrief, normalizeFounderBrief } from '../src/lib/founder.ts'
 
 const app = (over: Record<string, unknown>) => ({ id: 1, name: 'X', ...over }) as any
@@ -118,4 +118,24 @@ test('a brief/screenshot change is still reported as "inputs"', () => {
   const a = app({ founder_brief: { vision: 'v', updated_at: '2026-11-10T00:00:00Z' },
     swot_analyzed_at: '2026-11-01T00:00:00Z', swot_analysis: newSwot })
   assert.equal(outdatedReason(a, 'swot'), 'inputs')
+})
+
+// ── Readiness check run before the old analyses were re-run ─────────────────
+test('a rule-based result that replaced a simulated test carries the marker, and it is kept on later runs', () => {
+  const first = carrySimulatedMarker(legacyPt as any, realPt)
+  assert.equal(first.had_simulated_test, true)
+  const second = carrySimulatedMarker(first as any, { score: 80, checks: [] })   // later readiness re-run
+  assert.equal(second.had_simulated_test, true)
+  assert.equal(carrySimulatedMarker(realPt as any, { score: 80, checks: [] }).had_simulated_test, undefined)   // never simulated
+  assert.equal(carrySimulatedMarker(null, realPt).had_simulated_test, undefined)
+})
+
+test('after the readiness check replaced a simulated test, unstamped analyses are still flagged', () => {
+  const pt = carrySimulatedMarker(legacyPt as any, realPt)
+  const a = app({ productTest: pt, swot_analysis: oldSwot, gtm_analysis: oldSwot, competitive_analysis: oldSwot })
+  assert.equal(hasLegacyProductTest(a), true)
+  assert.equal(outdatedReason(a, 'swot'), 'legacy_test')
+  assert.equal(outdatedReason(a, 'gtm'), 'legacy_test')
+  assert.equal(outdatedReason(a, 'competitive'), null)
+  assert.equal(outdatedReason(app({ productTest: pt, swot_analysis: newSwot }), 'swot'), null)   // re-run clears it
 })

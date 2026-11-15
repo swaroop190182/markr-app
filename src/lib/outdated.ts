@@ -38,10 +38,19 @@ const generatedWithCurrentContext = (json: unknown): boolean => {
   try { return (JSON.parse(json)?.[CONTEXT_MARKER] ?? 0) >= CONTEXT_VERSION } catch { return false }
 }
 
-// The saved product test is in the old AI-simulated format (not the rule-based check)
+// A product test in the old AI-simulated format (not the rule-based check)
+const isSimulatedFormat = (pt: AppData['productTest']): boolean => !!pt && !pt.error && !Array.isArray(pt.checks)
+
+// The app has (or had) simulated test data: its saved test is still in that format, or a
+// rule-based result replaced one and carries the had_simulated_test marker.
 export function hasLegacyProductTest(app: AppData): boolean {
-  const pt = app.productTest
-  return !!pt && !pt.error && !Array.isArray(pt.checks)
+  return isSimulatedFormat(app.productTest) || !!app.productTest?.had_simulated_test
+}
+
+// Use when saving a new product test result: keep the marker if the previous result was
+// simulated (or already carried the marker), so old analyses stay flagged until re-run.
+export function carrySimulatedMarker<T extends object>(prev: AppData['productTest'], next: T): T & { had_simulated_test?: boolean } {
+  return isSimulatedFormat(prev) || !!prev?.had_simulated_test ? { ...next, had_simulated_test: true } : next
 }
 
 export type OutdatedReason = 'inputs' | 'legacy_test'

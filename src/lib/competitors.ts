@@ -123,3 +123,29 @@ export function findFactsEntry(entries: any[], comp: any, indexInBatch: number):
   const n = norm(comp?.name ?? '')
   return entries.find(e => norm(e?.name ?? '') === n) ?? entries[indexInBatch]
 }
+
+// ── Sourced competitor facts for prompts ─────────────────────────────────────
+// Only values a live web search confirmed (pass 2, with a source) or the name-matched App Store
+// lookup returned. AI estimates (pass 1's price/funding/employees) are never included, so the
+// other analyses can quote competitor facts accurately or leave them out.
+const factText = (v: unknown) => String(v).replace(/\s+/g, ' ').trim().slice(0, 80)
+
+export function sourcedCompetitorFacts(comps: any[] | null | undefined): string {
+  const lines: string[] = []
+  for (const c of comps ?? []) {
+    if (!c?.name) continue
+    const f = c.facts ?? {}
+    const parts: string[] = []
+    if (f.pricing?.value)   parts.push(`pricing ${factText(f.pricing.value)}`)
+    if (f.funding?.value)   parts.push(`funding ${factText(f.funding.value)}`)
+    if (f.team_size?.value) parts.push(`team size ${factText(f.team_size.value)}`)
+    if (typeof c.appStore?.price === 'string') parts.push(`App Store price ${factText(c.appStore.price)}`)
+    if (typeof c.appStore?.rating === 'number') {
+      parts.push(`App Store rating ${c.appStore.rating}/5${typeof c.appStore.ratingCount === 'number' ? ` (${c.appStore.ratingCount} ratings)` : ''}`)
+    }
+    if (parts.length) lines.push(`- ${factText(c.name)}: ${parts.join('; ')}`)
+  }
+  return lines.length
+    ? `SOURCED COMPETITOR FACTS (verified by live search or the App Store — the only competitor facts you may state, quoted exactly):\n${lines.join('\n')}`
+    : ''
+}
