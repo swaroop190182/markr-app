@@ -3,10 +3,12 @@
 // Run with: npm test   (Node's built-in runner; no extra dependencies)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeSourceUrl, keepSourcedFacts, fillWebsitesFromResults } from '../api/_lib/sources.ts'
+import { normalizeSourceUrl, keepSourcedFacts, fillWebsitesFromResults, SITE_AFFIXES as SERVER_AFFIXES } from '../api/_lib/sources.ts'
 import {
-  applyFacts, findFactsEntry, competitorWebsite, confirmedWebsite, isPreferredSource, itunesNameMatches,
+  applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite,
+  isPreferredSource, itunesNameMatches,
 } from '../src/lib/competitors.ts'
+import { applyBriefWebsites, orderFocusFirst, domainNamedAfter, SITE_AFFIXES as CLIENT_AFFIXES } from '../src/lib/founder.ts'
 
 // Server pass (as in api/claude.ts) followed by the client merge (as in genCompetitive)
 function runPass2(modelJson: any, resultUrls: string[], pass1: any) {
@@ -84,4 +86,79 @@ test('source confidence: blogs, lookalikes and spoofed hosts are low-confidence'
   assert.equal(isPreferredSource({ name: 'Calm', url: 'https://calm.com' }, 'https://someblog.example/calm-review'), false)
   assert.equal(isPreferredSource({ name: 'Headspace' }, 'https://headspacereviews.com/pricing'), false)
   assert.equal(isPreferredSource({ name: 'Calm', url: 'https://calm.com' }, 'https://crunchbase.com.evil.example/x'), false)
+})
+
+// ── Founder-given websites (focus competitors entered as URLs) ──────────────
+const briefApp = (focus: string[]) => ({ founder_brief: { focus_competitors: focus } }) as any
+
+test('brief URL becomes the website, labelled "from your brief", and moves that competitor first', () => {
+  const pass1 = [{ name: 'Wysa', url: 'https://www.wysa.io' }, { name: 'Amaha', url: 'https://amaha.in' }]
+  const app = briefApp(['https://www.amahahealth.com'])
+  const comps = orderFocusFirst(applyBriefWebsites(pass1, app), app) as any[]
+  assert.equal(comps[0].name, 'Amaha')                                   // matched via amaha + health
+  assert.equal(comps[0].brief_url, 'https://www.amahahealth.com')
+  assert.equal(comps[0].url, 'https://www.amahahealth.com')
+  assert.equal(comps[0].url_guess, 'https://amaha.in')
+  assert.equal(competitorWebsite(comps[0]), 'https://www.amahahealth.com')
+  assert.equal(confirmedWebsite(comps[0])?.via, 'brief')
+  assert.equal(comps[1].brief_url, undefined)                            // Wysa untouched
+})
+
+test('a bare domain in the brief works too (amahahealth.com → https://amahahealth.com)', () => {
+  const [c] = applyBriefWebsites([{ name: 'Amaha', url: 'https://amaha.in' }], briefApp(['amahahealth.com'])) as any[]
+  assert.equal(c.brief_url, 'https://amahahealth.com')
+})
+
+test('pass 2 cannot replace a brief URL, even with a search-confirmed site elsewhere', () => {
+  const [pinned] = applyBriefWebsites([{ name: 'Amaha', url: 'https://amaha.in' }], briefApp(['https://www.amahahealth.com'])) as any[]
+  const c = runPass2({ competitors: [{
+    name: 'Amaha', website: { value: 'https://amaha.in', source_url: 'https://amaha.in/about' },
+    pricing: null, funding: null, team_size: null,
+  }] }, ['https://amaha.in/about'], pinned)
+  assert.equal(c.url, 'https://www.amahahealth.com')
+  assert.equal(competitorWebsite(c), 'https://www.amahahealth.com')
+  assert.equal(confirmedWebsite(c)?.via, 'brief')
+})
+
+test('brief names (not URLs) never pin a website', () => {
+  const [c] = applyBriefWebsites([{ name: 'Amaha', url: 'https://amaha.in' }], briefApp(['Amaha'])) as any[]
+  assert.equal(c.brief_url, undefined)
+  assert.equal(c.url, 'https://amaha.in')
+})
+
+// ── Targeted "<name> official website" search after pass 2 ──────────────────
+test('only competitors checked by pass 2 with no confirmed website need the targeted search', () => {
+  assert.equal(needsWebsiteSearch({ name: 'Amaha', url: 'https://amaha.in', facts_checked_at: 't', facts: { website: null } }), true)
+  assert.equal(needsWebsiteSearch({ name: 'Amaha', url: 'https://amaha.in' }), false)                                   // pass 2 never ran
+  assert.equal(needsWebsiteSearch({ name: 'Amaha', brief_url: 'https://www.amahahealth.com', facts_checked_at: 't' }), false)
+  assert.equal(needsWebsiteSearch({ name: 'Wysa', appStore: { sellerUrl: 'http://www.wysa.io' }, facts_checked_at: 't' }), false)
+})
+
+test('targeted search: result on amahahealth.com confirms the website and replaces amaha.in', () => {
+  const before = { name: 'Amaha', url: 'https://amaha.in', facts_checked_at: '2026-11-15T00:00:00Z',
+    facts: { website: null, pricing: { value: 'Free', source_url: 'https://apps.apple.com/in/app/x' }, funding: null, team_size: null } }
+  // Server side of the targeted call: model returns nothing usable, results contain the real site
+  const allowed = new Map<string, string>()
+  for (const u of ['https://www.amahahealth.com/', 'https://www.justdial.com/amaha']) allowed.set(normalizeSourceUrl(u)!, u)
+  const stats = { kept: 0, dropped: 0, derived: 0 }
+  const json = keepSourcedFacts({ competitors: [{ name: 'Amaha', website: null }] }, allowed, stats)
+  fillWebsitesFromResults(json, allowed, stats)
+  const c = applyWebsiteFact(before, findFactsEntry(json.competitors, before, 0), '2026-11-15T00:01:00Z')
+  assert.equal(competitorWebsite(c), 'https://www.amahahealth.com')
+  assert.equal(confirmedWebsite(c)?.via, 'search')
+  assert.equal(c.url, 'https://www.amahahealth.com')
+  assert.equal(c.url_guess, 'https://amaha.in')
+  assert.equal(c.facts.pricing?.value, 'Free')                            // other pass-2 facts kept
+  assert.equal(c.facts_checked_at, '2026-11-15T00:00:00Z')               // original check date kept
+})
+
+test('targeted search with no usable result leaves the competitor unchanged', () => {
+  const before = { name: 'Amaha', url: 'https://amaha.in', facts_checked_at: 't', facts: { website: null } }
+  assert.equal(applyWebsiteFact(before, { name: 'Amaha', website: null }, 't2'), before)
+})
+
+test('domain-name affix rules are identical on client and server', () => {
+  assert.deepEqual(CLIENT_AFFIXES, SERVER_AFFIXES)
+  assert.equal(domainNamedAfter('www.amahahealth.com', 'Amaha'), true)
+  assert.equal(domainNamedAfter('amahareviews.com', 'Amaha'), false)
 })

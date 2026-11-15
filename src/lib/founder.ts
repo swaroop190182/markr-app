@@ -54,6 +54,44 @@ export function matchesCompetitor(comp: { name?: string; url?: string }, entry: 
   return !!k && (name === k || (!!url && nameKey(url.split('.')[0]) === k))
 }
 
+// ── Founder-given competitor websites ────────────────────────────────────────
+// Keep in sync with SITE_AFFIXES in api/_lib/sources.ts (tests/competitors.test.ts checks they match)
+export const SITE_AFFIXES = ['app', 'apps', 'hq', 'inc', 'labs', 'ai', 'io', 'health', 'care', 'online', 'official', 'global', 'india', 'tech', 'co', 'in', 'get', 'try', 'join', 'use', 'go', 'my']
+
+// Registrable label of a host: "amahahealth" for www.amahahealth.com and amahahealth.co.in
+export function siteLabel(host: string): string {
+  const p = host.toLowerCase().replace(/^www\./, '').split('.')
+  const i = p.length >= 3 && p[p.length - 1].length === 2 && ['co', 'com', 'org', 'net', 'ac', 'gov'].includes(p[p.length - 2]) ? p.length - 3 : p.length - 2
+  return (p[Math.max(0, i)] ?? '').replace(/[^a-z0-9]/g, '')
+}
+
+// Is this domain named after the company? The name itself, or the name plus a common affix (amaha + health)
+export function domainNamedAfter(domain: string, name: string): boolean {
+  const n = nameKey(name)
+  if (n.length < 3) return false
+  const label = siteLabel(domainOf(domain))
+  return label === n || SITE_AFFIXES.some(a => label === n + a || label === a + n)
+}
+
+const toHttps = (s: string) => (/^https?:\/\//i.test(s.trim()) ? s.trim() : `https://${s.trim()}`)
+
+// A focus competitor given as a URL in the founder brief is the founder's word on that
+// competitor's website. Pin it as brief_url (and c.url) so neither pass 1's guess nor
+// pass 2's search can replace it. Each brief URL attaches to at most one competitor.
+export function applyBriefWebsites<T extends { name?: string; url?: string }>(comps: T[], app: AppData): T[] {
+  const briefUrls = (app.founder_brief?.focus_competitors ?? []).filter(f => looksLikeDomain(f))
+  if (!briefUrls.length) return comps
+  const used = new Set<string>()
+  return comps.map(c => {
+    const hit = briefUrls.find(u => !used.has(u) && (matchesCompetitor(c, u) || domainNamedAfter(u, c.name ?? '')))
+    if (!hit) return c
+    used.add(hit)
+    const url = toHttps(hit)
+    const prev = (c as any).url
+    return { ...c, brief_url: url, url, ...(prev && prev !== url ? { url_guess: prev } : {}) }
+  })
+}
+
 export function filterExcluded<T extends { name?: string; url?: string }>(comps: T[], app: AppData): T[] {
   const ex = app.founder_brief?.excluded_competitors ?? []
   return ex.length ? comps.filter(c => !ex.some(e => matchesCompetitor(c, e))) : comps

@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
 import { callClaude, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
-import { readCompetitive, filterExcluded, orderFocusFirst } from '../lib/founder'
-import { itunesNameMatches, applyFacts, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
+import { readCompetitive, filterExcluded, orderFocusFirst, applyBriefWebsites } from '../lib/founder'
+import { itunesNameMatches, applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
 
 // Pass 2 (live sources) runs competitors in batches to stay inside the 60s API limit.
 // Measured on the Vercel preview: 3 + 2 batches took ~9.8s / ~9.5s (8 searches, no pauses),
@@ -296,7 +296,9 @@ JSON only, no markdown:
       }
 
       // Founder brief is enforced in code, not just in the prompt
-      parsed.comps = orderFocusFirst(filterExcluded(parsed.comps, currentApp), currentApp)
+      // Brief URLs are pinned before ordering, so a focus competitor given as a URL
+      // (e.g. amahahealth.com) also sorts first once it is this competitor's url
+      parsed.comps = orderFocusFirst(applyBriefWebsites(filterExcluded(parsed.comps, currentApp), currentApp), currentApp)
       if (parsed.comps.length === 0) throw new Error('Every competitor returned was on your excluded list — try again')
 
       parsed.intentGaps = hasBrief && Array.isArray(parsed.intentGaps)
@@ -353,9 +355,14 @@ JSON only, no markdown:
       // Pass 2: sourced facts via server-side web search
       setFactsChecking(true)
       try {
-        const { comps, note } = await addLiveFacts(parsed.comps)
+        const { comps, note, searchesUsed, budget } = await addLiveFacts(parsed.comps)
         parsed.comps = comps
         if (note) parsed.facts_note = note; else delete parsed.facts_note
+        // Websites still unconfirmed after pass 2 get one targeted search each, if budget remains
+        const remaining = budget - searchesUsed
+        if (remaining > 0 && parsed.comps.some(needsWebsiteSearch)) {
+          parsed.comps = await findMissingWebsites(parsed.comps, remaining)
+        }
       } finally {
         setFactsChecking(false)
       }
@@ -369,9 +376,11 @@ JSON only, no markdown:
   const FACTS_SYSTEM = 'You are a careful researcher. Use web search. Output ONLY valid JSON, no markdown.'
   const factsPrompt = (batch: any[]) => `For each competitor below, use web search to find: official website, current pricing, total funding raised, team size.
 
-${batch.map((c, i) => `${i + 1}. ${c.name}${c.url ? ` (guessed URL, may be wrong: ${c.url})` : ''}`).join('\n')}
+${batch.map((c, i) => `${i + 1}. ${c.name}${
+    c.brief_url ? ` (website given by the founder: ${c.brief_url} — use it as the website, don't search for one)`
+    : c.url ? ` (guessed URL, may be wrong: ${c.url})` : ''}`).join('\n')}
 
-- website: the company's real official site, found in your search results. Don't repeat the guessed URL unless a search result confirms it.
+- website: the company's real official site, found in your search results. Don't repeat a guessed URL unless a search result confirms it.
 
 RULES:
 - Only include a value that a search result you retrieved directly states. Put that result's exact URL in source_url.
@@ -392,10 +401,11 @@ Output ONLY JSON (website, pricing, funding and team_size may each be null):
 
   // Sequential batches: each call counts against the daily limit, and the
   // rate-limit counter is read-then-write, so parallel calls could undercount.
-  async function addLiveFacts(comps: any[]): Promise<{ comps: any[]; note: string | null }> {
+  async function addLiveFacts(comps: any[]): Promise<{ comps: any[]; note: string | null; searchesUsed: number; budget: number }> {
     const out = [...comps]
     const failures: string[] = []
     const batches = Math.ceil(comps.length / FACTS_BATCH)
+    let searchesUsed = 0
     for (let i = 0; i < comps.length; i += FACTS_BATCH) {
       const batch = comps.slice(i, i + FACTS_BATCH)
       try {
@@ -403,16 +413,55 @@ Output ONLY JSON (website, pricing, funding and team_size may each be null):
         const result  = JSON.parse(raw)   // already source-checked on the server
         const entries = Array.isArray(result.competitors) ? result.competitors : []
         const checkedAt = typeof result.checked_at === 'string' ? result.checked_at : new Date().toISOString()
+        // Unknown count (older server) counts as the full allowance, so no extra searches run
+        searchesUsed += Number.isFinite(result.search_requests) ? Number(result.search_requests) : FACTS_MAX_USES
         batch.forEach((c, j) => { out[i + j] = applyFacts(c, findFactsEntry(entries, c, j), checkedAt) })
       } catch (e) {
         failures.push((e as Error).message)
+        searchesUsed += FACTS_MAX_USES   // don't spend more after a failure
       }
     }
     return {
       comps: out,
+      budget: batches * FACTS_MAX_USES,
+      searchesUsed,
       note: failures.length
         ? `Live source check skipped for ${failures.length === batches ? 'all' : 'some'} competitors — ${failures[0]}`
         : null,
+    }
+  }
+
+  // Targeted website search for competitors pass 2 checked but couldn't confirm a website for.
+  // One search per competitor, within the remaining budget. The server applies the same rules:
+  // a website is kept only if a returned result is on that domain, or is named after the company.
+  const websitePrompt = (names: string[]) => `Find the official website of each company below. For each one, run one web search for "<company name> official website" and take the company's own site from the results.
+
+${names.map((n, i) => `${i + 1}. ${n}`).join('\n')}
+
+RULES:
+- The website must be a URL from your search results, on the company's own domain — not a directory, app store, social network or news site.
+- If the results don't show the company's own site, use null. Never guess a domain.
+- Use the names exactly as written above, in the same order.
+
+Output ONLY JSON:
+{"competitors":[{"name":"…","website":{"value":"https://…","source_url":"https://…"}}]}`
+
+  async function findMissingWebsites(comps: any[], maxSearches: number): Promise<any[]> {
+    const targets = comps.filter(needsWebsiteSearch).slice(0, maxSearches)
+    if (!targets.length) return comps
+    try {
+      const raw = await callClaude(websitePrompt(targets.map(c => c.name)), FACTS_SYSTEM, 1500, undefined, 'haiku', 'competitive_facts', undefined, { webSearch: { maxUses: targets.length } })
+      const result  = JSON.parse(raw)
+      const entries = Array.isArray(result.competitors) ? result.competitors : []
+      const checkedAt = typeof result.checked_at === 'string' ? result.checked_at : new Date().toISOString()
+      return comps.map(c => {
+        const j = targets.indexOf(c)
+        return j === -1 ? c : applyWebsiteFact(c, findFactsEntry(entries, c, j), checkedAt)
+      })
+    } catch (e) {
+      // Not worth a user-facing note: pass 2's facts are already saved; these stay unconfirmed
+      console.warn('[competitive] targeted website search skipped:', (e as Error).message)
+      return comps
     }
   }
 
@@ -894,8 +943,9 @@ function SourceLink({ url, checkedAt }: { url: string; checkedAt?: string }) {
   )
 }
 
-// Competitor website: confirmed site (App Store lookup or same-domain search result) gets "✓ verified";
-// an unconfirmed model URL is shown plain, with no tick.
+// Competitor website: the founder's own URL is labelled "from your brief"; a confirmed site
+// (App Store lookup or same-domain search result) gets "✓ verified"; an unconfirmed model URL
+// is shown plain, with no label.
 function WebsiteLink({ c }: { c: any }) {
   const site = competitorWebsite(c)
   if (!site) return null
@@ -904,6 +954,9 @@ function WebsiteLink({ c }: { c: any }) {
   return (
     <span style={{ display:'inline-flex', alignItems:'center', gap:2 }}>
       <a href={site} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:'var(--text3)', textDecoration:'none' }}>{sourceDomain(site)}</a>
+      {conf?.via === 'brief' && (
+        <span title="Website given in your founder brief — not replaced by analysis or search" style={{ fontSize:9, color:'var(--accent2)', marginLeft:3, cursor:'help', whiteSpace:'nowrap' as const }}>from your brief</span>
+      )}
       {conf?.via === 'app_store' && <>
         <SrcBadgeStatic text="Live" />
         <span title="Developer website from the App Store listing" style={{ fontSize:9, color:'var(--green)', marginLeft:3, cursor:'help' }}>✓ verified</span>

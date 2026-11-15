@@ -25,12 +25,14 @@ const isHttp = (v: unknown): v is string => typeof v === 'string' && /^https?:\/
 const siteHost = (u: string) => { try { return new URL(u).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' } }
 const sameSiteHost = (a: string, b: string) => !!a && !!b && (a === b || a.endsWith('.' + b) || b.endsWith('.' + a))
 
-// The only two ways a website earns the "✓ verified" tick:
-//  - it is the developer site from the name-matched App Store lookup, or
-//  - pass 2's website fact, whose source is a search result on that same domain.
+// How a competitor's website is confirmed, in priority order:
+//  - 'brief':     the founder gave it as a focus competitor URL ("from your brief", always wins)
+//  - 'app_store': the developer site from the name-matched App Store lookup ("✓ verified")
+//  - 'search':    a website fact whose source is a search result on that same domain ("✓ verified")
 // A website that only came from the model (pass 1's url, or a fact citing another site) is not confirmed.
 // Re-checked here so older saved results with mismatched domains lose the tick too.
-export function confirmedWebsite(c: any): { url: string; via: 'app_store' | 'search'; source_url?: string } | null {
+export function confirmedWebsite(c: any): { url: string; via: 'brief' | 'app_store' | 'search'; source_url?: string } | null {
+  if (isHttp(c?.brief_url)) return { url: c.brief_url, via: 'brief' }
   if (isHttp(c?.appStore?.sellerUrl)) return { url: c.appStore.sellerUrl, via: 'app_store' }
   const w = c?.facts?.website
   if (w && isHttp(w.value) && isHttp(w.source_url) && sameSiteHost(siteHost(w.value), siteHost(w.source_url))) {
@@ -80,22 +82,40 @@ export function isPreferredSource(comp: any, sourceUrl: string): boolean {
 
 // Attach one competitor's pass-2 result. Only {value, source_url} pairs that survived
 // the server-side source check get through; everything else becomes null ("Not found").
-export function applyFacts(comp: any, entry: any, checkedAt: string): any {
-  const pick = (f: any): SourcedFact | null =>
-    f && (typeof f.value === 'string' || typeof f.value === 'number') && typeof f.source_url === 'string'
-      ? { value: String(f.value), source_url: f.source_url } : null
-  const facts: CompetitorFacts = {
-    website: pick(entry?.website), pricing: pick(entry?.pricing),
-    funding: pick(entry?.funding), team_size: pick(entry?.team_size),
-  }
-  const out = { ...comp, facts, facts_checked_at: checkedAt }
-  // A search-confirmed website on a different domain replaces pass 1's guess everywhere c.url is used
+const pickFact = (f: any): SourcedFact | null =>
+  f && (typeof f.value === 'string' || typeof f.value === 'number') && typeof f.source_url === 'string'
+    ? { value: String(f.value), source_url: f.source_url } : null
+
+// A search-confirmed website on a different domain replaces pass 1's guess everywhere c.url is used.
+// A founder-given brief_url is never replaced (confirmedWebsite reports it as 'brief', not 'search').
+function adoptSearchWebsite(out: any, prevUrl: string | undefined): any {
   const confirmed = confirmedWebsite(out)
-  if (confirmed?.via === 'search' && !sameSiteHost(siteHost(confirmed.url), siteHost(comp?.url ?? ''))) {
-    out.url_guess = comp?.url ?? null
+  if (confirmed?.via === 'search' && !sameSiteHost(siteHost(confirmed.url), siteHost(prevUrl ?? ''))) {
+    out.url_guess = prevUrl ?? null
     out.url = confirmed.url
   }
   return out
+}
+
+export function applyFacts(comp: any, entry: any, checkedAt: string): any {
+  const facts: CompetitorFacts = {
+    website: pickFact(entry?.website), pricing: pickFact(entry?.pricing),
+    funding: pickFact(entry?.funding), team_size: pickFact(entry?.team_size),
+  }
+  return adoptSearchWebsite({ ...comp, facts, facts_checked_at: checkedAt }, comp?.url)
+}
+
+// Pass 2 ran for this competitor but its website is still unconfirmed → worth one targeted search
+export function needsWebsiteSearch(c: any): boolean {
+  return typeof c?.facts_checked_at === 'string' && !confirmedWebsite(c)
+}
+
+// Merge the result of the targeted "<name> official website" search (website only)
+export function applyWebsiteFact(comp: any, entry: any, checkedAt: string): any {
+  const website = pickFact(entry?.website)
+  if (!website) return comp
+  const facts: CompetitorFacts = { pricing: null, funding: null, team_size: null, ...(comp?.facts ?? {}), website }
+  return adoptSearchWebsite({ ...comp, facts, facts_checked_at: comp?.facts_checked_at ?? checkedAt }, comp?.url)
 }
 
 // Match pass-2 entries back to competitors by name, falling back to position within the batch

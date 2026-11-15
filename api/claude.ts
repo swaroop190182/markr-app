@@ -191,6 +191,7 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
     const json = keepSourcedFacts(JSON.parse(body.slice(start, end + 1)), allowed, stats)
     if (feature === 'competitive_facts') fillWebsitesFromResults(json, allowed, stats)
     json.checked_at = new Date().toISOString()
+    json.search_requests = searches   // lets the client spend any remaining search budget
 
     // Timing line for tuning FACTS_BATCH
     console.log(`[web_search] feature=${feature} ms=${Date.now() - started} searches=${searches} pauses=${pauses} stop=${stop} in=${inputTokens} out=${outputTokens} sources=${allowed.size} kept=${stats.kept} dropped=${stats.dropped} sites_from_results=${stats.derived}`)

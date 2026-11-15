@@ -58,7 +58,8 @@ export function keepSourcedFacts(node: any, allowed: Map<string, string>, stats:
 // When the model's website wasn't confirmed, take a returned result whose domain is named
 // after the company: the name itself, or the name plus a common affix (amaha + health).
 // Third-party platforms never count as a company's own site.
-const SITE_AFFIXES = ['app', 'apps', 'hq', 'inc', 'labs', 'ai', 'io', 'health', 'care', 'online', 'official', 'global', 'india', 'tech', 'co', 'in', 'get', 'try', 'join', 'use', 'go', 'my']
+// Keep in sync with SITE_AFFIXES in src/lib/founder.ts (tests/competitors.test.ts checks they match)
+export const SITE_AFFIXES = ['app', 'apps', 'hq', 'inc', 'labs', 'ai', 'io', 'health', 'care', 'online', 'official', 'global', 'india', 'tech', 'co', 'in', 'get', 'try', 'join', 'use', 'go', 'my']
 const THIRD_PARTY_HOSTS = ['apple.com', 'google.com', 'crunchbase.com', 'tracxn.com', 'pitchbook.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'x.com', 'twitter.com', 'youtube.com', 'wikipedia.org', 'medium.com', 'reddit.com', 'g2.com', 'capterra.com', 'producthunt.com']
 
 // Registrable label: "amahahealth" for www.amahahealth.com and amahahealth.co.in; "medium" for amaha.medium.com
