@@ -9,7 +9,9 @@ import OutdatedNotice from '../components/OutdatedNotice'
 // What one analysis run achieved — lets "Refresh all outdated" stop cleanly at the daily limit
 type RunStatus = 'ok' | 'failed' | 'locked' | 'limit' | 'saved_then_limit'
 type StepState = 'pending' | 'active' | 'done' | 'failed' | 'skipped'
-import { sourcedCompetitorFacts, itunesNameMatches, applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
+import { sourcedCompetitorFacts, correctMarketType, competitorProfiles, stripFiguresFromFreeText, itunesNameMatches, applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
+import { CURRENCY_RULE, fixAnalysisCurrency } from '../lib/prices'
+import { isAdminEmail } from '../lib/admin'
 
 // Pass 2 (live sources) runs competitors in batches to stay inside the 60s API limit.
 // Measured on the Vercel preview: 3 + 2 batches took ~9.8s / ~9.5s (8 searches, no pauses),
@@ -21,6 +23,8 @@ const FACTS_MAX_USES = 10
 const COMPETITOR_FACTS_RULE = `COMPETITOR FACTS RULE: Don't state facts about competitors — prices, downloads, user counts, funding, investors, team size, affiliations, ratings or review counts — unless they appear in SOURCED COMPETITOR FACTS above. Quote those values exactly as given. If a fact isn't listed there, leave it out and describe competitors only by what they offer.`
 // Model-invented integrations/partners (e.g. a non-HR marketplace suggested as an HR integration)
 const THIRD_PARTY_RULE = `THIRD-PARTY NAMES RULE: Don't name specific third-party tools, platforms, apps or partners (integrations, marketplaces, agencies, communities) unless they appear in the context above. Describe the type instead — e.g. "HR platforms used by mid-size Indian companies". Competitor names from the competitive data are fine.`
+// Competitor features only from the Competitive data — e.g. an "AI chatbot" nothing in it mentions
+const COMPETITOR_FEATURES_RULE = `COMPETITOR FEATURES RULE: Don't describe what a competitor's product does or offers (features like an "AI chatbot") unless it appears in COMPETITOR PROFILES above. Otherwise refer to the competitor only by name.`
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -215,6 +219,9 @@ export default function Insights({ onUpgrade, onEditApp }: { onUpgrade?: () => v
     console.error(`[insights] ${k} did not save:`, reason)
   }
 
+  // Restore original currency symbols / drop model-made conversions; logs each correction on the server
+  const applyCurrencyFix = (k: string, obj: any) => fixAnalysisCurrency(currentApp, k, obj, cache.competitive)
+
   const cacheJSON = (k: string, raw: string, label: string): boolean => {
     const cleaned = extractJSON(raw)
     try {
@@ -233,7 +240,7 @@ export default function Insights({ onUpgrade, onEditApp }: { onUpgrade?: () => v
       }
       return false
     }
-    setTabCache(k, cleaned)
+    setTabCache(k, JSON.stringify(applyCurrencyFix(k, JSON.parse(cleaned))))
     return true
   }
 
@@ -254,8 +261,11 @@ ${rc.trim()}
   // Growth and Pricing. Reads the current competitive results (exclusions applied).
   const competitorFactsBlock = () => [
     sourcedCompetitorFacts(readCompetitive(currentApp, cache.competitive)?.comps),
+    competitorProfiles(readCompetitive(currentApp, cache.competitive)?.comps),
     COMPETITOR_FACTS_RULE,
+    COMPETITOR_FEATURES_RULE,
     THIRD_PARTY_RULE,
+    CURRENCY_RULE,
   ].filter(Boolean).join('\n\n')
 
   // ── COMPETITIVE ─────────────────────────────────────────────────────────────
@@ -278,7 +288,7 @@ ${rc.trim()}
 
 FOUNDER-SPECIFIED COMPETITORS — analyze these FIRST, in this order, as the first ${focus.length} entries in "comps". This overrides the LOCAL/GLOBAL quota below:
 ${focus.map((f, i) => `${i + 1}. ${f}`).join('\n')}
-- Give each its honest type ("local" or "global").
+- type: "local" only if the company is headquartered in the MARKET named below; otherwise "global" (presence in the market doesn't make it local).
 - If you don't recognize the product behind a URL, use the domain as its name, mark details as unverified, and never invent features, pricing or positioning for it. For such entries set "unverified": true and use null for any field you cannot support.
 ${focus.length < 5 ? `- Then fill the remaining ${5 - focus.length} slot(s) using the discovery rules below.` : '- All 5 slots are founder-specified — do NOT auto-discover any others.'}` : ''
     const excludeBlock = excluded.length ? `
@@ -316,10 +326,13 @@ This product operates primarily in: ${detectedMarket}
 - The 2-3 LOCAL competitors MUST be companies actually operating in ${detectedMarket}. Not international brands with a presence there — companies headquartered and operating in that market.
 - If you cannot name real competitors in ${detectedMarket}, say so explicitly rather than substituting global ones.
 - Only after local competitors should you list global players, clearly labelled as global.
+- type is "local" only for companies headquartered in ${detectedMarket}; every other company is "global".
 
 ${priorityLine}
 
 FACTS RULE: "funding", "employees", "reviews.rating", "reviews.ratingCount" and "reviews.traction" must be null unless you are certain of the exact value. Never estimate, round, or guess — null is the expected answer for most small or local companies.
+
+FIGURES RULE: Never put prices, revenue, funding, user or download counts or other figures in strengths, weaknesses, diff, reason, userLoves, userHates or positioningGap. Figures belong only in the "price", "funding", "employees" and "reviews" fields.
 
 CURRENCY RULE: State every price — each competitor's and ${currentApp.name}'s own — in its own currency exactly as given (e.g. "₹49/mo"). Never convert it or restate it in another currency.${intentGapsRule}
 
@@ -340,6 +353,7 @@ JSON only, no markdown:
       // Brief URLs are pinned before ordering, so a focus competitor given as a URL
       // (e.g. amahahealth.com) also sorts first once it is this competitor's url
       parsed.comps = orderFocusFirst(applyBriefWebsites(filterExcluded(parsed.comps, currentApp), currentApp), currentApp)
+      parsed.comps = parsed.comps.map((c: any) => stripFiguresFromFreeText(c).comp)   // figures belong only in the fact fields
       if (parsed.comps.length === 0) throw new Error('Every competitor returned was on your excluded list — try again')
 
       parsed.intentGaps = hasBrief && Array.isArray(parsed.intentGaps)
@@ -413,7 +427,9 @@ JSON only, no markdown:
       } finally {
         setFactsChecking(false)
       }
-      setTabCache('competitive', JSON.stringify(parsed))   // final save + URL analysis on verified site
+      // Local/global from where the company is headquartered (sourced), then restore original currencies
+      parsed.comps = parsed.comps.map((c: any) => correctMarketType(c, detectedMarket))
+      setTabCache('competitive', JSON.stringify(applyCurrencyFix('competitive', parsed)))   // final save + URL analysis on verified site
       toast(parsed.facts_note ? 'Live source check incomplete — see note' : 'Live sources checked ✓')
       if (limitHit) {
         status = 'saved_then_limit'
@@ -430,7 +446,7 @@ JSON only, no markdown:
 
   // ── COMPETITIVE pass 2: sourced facts ──────────────────────────────────────
   const FACTS_SYSTEM = 'You are a careful researcher. Use web search. Output ONLY valid JSON, no markdown.'
-  const factsPrompt = (batch: any[]) => `For each competitor below, use web search to find: official website, current pricing, total funding raised, team size.
+  const factsPrompt = (batch: any[]) => `For each competitor below, use web search to find: official website, current pricing, total funding raised, team size, headquarters country.
 
 ${batch.map((c, i) => `${i + 1}. ${c.name}${
     c.brief_url ? ` (website given by the founder: ${c.brief_url} — use it as the website, don't search for one)`
@@ -452,8 +468,8 @@ PRICING:
 - If you only find a different kind of price (e.g. per therapy session, per seat setup fee), keep it but say what it is in the value, e.g. "₹1,500 per therapy session (no subscription price found)".
 - Write every price in its own currency exactly as the source shows it. Never convert currencies.
 
-Output ONLY JSON (website, pricing, funding and team_size may each be null):
-{"competitors":[{"name":"…","website":{"value":"https://…","source_url":"https://…"},"pricing":{"value":"…","source_url":"https://…"},"funding":{"value":"…","source_url":"https://…"},"team_size":{"value":"…","source_url":"https://…"}}]}`
+Output ONLY JSON (website, pricing, funding, team_size and hq_country may each be null):
+{"competitors":[{"name":"…","website":{"value":"https://…","source_url":"https://…"},"pricing":{"value":"…","source_url":"https://…"},"funding":{"value":"…","source_url":"https://…"},"team_size":{"value":"…","source_url":"https://…"},"hq_country":{"value":"city, country","source_url":"https://…"}}]}`
 
   // Sequential batches: each call counts against the daily limit, and the
   // rate-limit counter is read-then-write, so parallel calls could undercount.
@@ -732,7 +748,7 @@ Output ONLY valid JSON:
 ${igCtx}
 ${competitorFactsBlock()}
 Output ONLY valid JSON:
-{"strategy_type":"Freemium/Usage-based/Flat-rate/Tiered","strategy_rationale":"2 sentence explanation","tiers":[{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":true,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"}],"monetization_angles":[{"angle":"name","description":"1 sentence","revenue_potential":"High"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Low"}],"pricing_risks":["risk 1","risk 2","risk 3"],"benchmark_note":"1 sentence"}`
+{"strategy_type":"Freemium/Usage-based/Flat-rate/Tiered","strategy_rationale":"2 sentence explanation","tiers":[{"name":"tier","price":"price in the app's own currency","target":"5 words","features":["3-4 features"],"recommended":true,"conversion_note":"1 sentence"},{"name":"tier","price":"price in the app's own currency","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"},{"name":"tier","price":"price in the app's own currency","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"}],"monetization_angles":[{"angle":"name","description":"1 sentence","revenue_potential":"High"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Low"}],"pricing_risks":["risk 1","risk 2","risk 3"],"benchmark_note":"1 sentence"}`
 
       // 3 tiers with nested feature lists, 4 monetization angles, risks.
       const raw = await callClaude(prompt, 'Output ONLY valid JSON.', 3000, undefined, 'haiku', 'pricing')
@@ -1131,6 +1147,12 @@ Output ONLY valid JSON:
                 onUpgrade={onUpgrade}
               />
             )}
+            {activeTab !== 'product' && isAdminEmail(userEmail) && (() => {
+              try {
+                const n = JSON.parse(cache[activeTab] ?? '{}')?._currency_fixes
+                return n > 0 ? <div style={{ fontSize:11, color:'var(--text3)', margin:'-6px 0 10px' }}>🔧 {n} {n === 1 ? 'price' : 'prices'} corrected to {n === 1 ? 'its' : 'their'} original currency (admin only)</div> : null
+              } catch { return null }
+            })()}
             {activeTab === 'competitive' && (
               <CompetitiveTab data={cache.competitive} loading={loading.competitive} checking={factsChecking} onGenerate={genCompetitive} appName={currentApp.name} />
             )}

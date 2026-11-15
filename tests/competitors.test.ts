@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { normalizeSourceUrl, keepSourcedFacts, fillWebsitesFromResults, SITE_AFFIXES as SERVER_AFFIXES } from '../api/_lib/sources.ts'
 import {
   applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite,
-  isPreferredSource, itunesNameMatches, sourcedCompetitorFacts,
+  isPreferredSource, itunesNameMatches, sourcedCompetitorFacts, correctMarketType, competitorProfiles, stripFiguresFromFreeText,
 } from '../src/lib/competitors.ts'
 import { applyBriefWebsites, orderFocusFirst, domainNamedAfter, SITE_AFFIXES as CLIENT_AFFIXES } from '../src/lib/founder.ts'
 
@@ -182,4 +182,57 @@ test('only search-sourced facts and live App Store data are passed; AI estimates
 test('no sourced facts at all → empty block', () => {
   assert.equal(sourcedCompetitorFacts([{ name: 'X', price: '$5' }]), '')
   assert.equal(sourcedCompetitorFacts(null), '')
+})
+
+// ── Local / global label ────────────────────────────────────────────────────
+const hq = (value: string) => ({ value, source_url: 'https://www.crunchbase.com/organization/x' })
+
+test('a sourced HQ country decides local/global against the primary market (Amaha example)', () => {
+  const amaha = correctMarketType({ name: 'Amaha', type: 'global', facts: { hq_country: hq('Bengaluru, India') } }, 'India')
+  assert.equal(amaha.type, 'local')
+  assert.equal(amaha.type_pass1, 'global')
+  assert.equal(amaha.type_source, 'hq')
+  const calm = correctMarketType({ name: 'Calm', type: 'local', facts: { hq_country: hq('San Francisco, United States') } }, 'India')
+  assert.equal(calm.type, 'global')
+  assert.equal(correctMarketType({ name: 'X', type: 'local', facts: { hq_country: hq('Indianapolis, Indiana, US') } }, 'India').type, 'global')
+})
+
+test('Global / Auto-detect / unknown markets leave the label alone', () => {
+  const c = { name: 'Amaha', type: 'global', facts: { hq_country: hq('India') } }
+  assert.equal(correctMarketType(c, 'Global'), c)
+  assert.equal(correctMarketType(c, 'Auto-detect'), c)
+  assert.equal(correctMarketType(c, null), c)
+})
+
+test('country-domain fallback: a confirmed .in site makes it local; a guessed URL or other domain changes nothing', () => {
+  const confirmed = { name: 'Wysa', type: 'global', facts: { website: { value: 'https://www.wysa.in', source_url: 'https://www.wysa.in/about' } } }
+  assert.equal(correctMarketType(confirmed, 'India').type, 'local')
+  assert.equal(correctMarketType(confirmed, 'India').type_source, 'domain')
+  const guessed = { name: 'Wysa', type: 'global', url: 'https://www.wysa.in' }                     // pass 1 guess only
+  assert.equal(correctMarketType(guessed, 'India'), guessed)
+  const com = { name: 'Calm', type: 'local', facts: { website: { value: 'https://www.calm.com', source_url: 'https://www.calm.com/' } } }
+  assert.equal(correctMarketType(com, 'India'), com)                                               // domains never make it global
+})
+
+// ── Competitor profiles and free-text figures ───────────────────────────────
+test('competitor profiles list at most 3 strengths and weaknesses per competitor', () => {
+  const out = competitorProfiles([{ name: 'Rootd', strengths: ['Panic button', 'CBT lessons', 'Offline', 'Fourth'], weaknesses: [] }])
+  assert.ok(out.startsWith('COMPETITOR PROFILES'))
+  assert.ok(out.includes('- Rootd: strengths: Panic button; CBT lessons; Offline | weaknesses: none listed'))
+  assert.equal(out.includes('Fourth'), false)
+  assert.equal(competitorProfiles([]), '')
+})
+
+test('bracketed figures are stripped from Competitive free text (Amaha ₹999 example); other brackets stay', () => {
+  const { comp, removed } = stripFiguresFromFreeText({
+    name: 'Amaha', price: '₹199/month',
+    weaknesses: ['Higher premium tier cost (₹999/mo)', 'Popular in metros (~2M downloads)'],
+    positioningGap: 'No offline mode (iOS only) and no free tier (50K users)',
+    strengths: ['Clinician-led (Series B)'],
+  })
+  assert.deepEqual(comp.weaknesses, ['Higher premium tier cost', 'Popular in metros'])
+  assert.equal(comp.positioningGap, 'No offline mode (iOS only) and no free tier')
+  assert.deepEqual(comp.strengths, ['Clinician-led (Series B)'])
+  assert.equal(comp.price, '₹199/month')     // the price field itself is not free text
+  assert.equal(removed, 3)
 })

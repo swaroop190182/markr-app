@@ -5,10 +5,12 @@ import { callClaude, extractJSON, getInstagramContext, getVisionContext, getFoun
 import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
 import { isOutdated, markGenerated } from '../lib/outdated'
+import { CURRENCY_RULE, fixAnalysisCurrency } from '../lib/prices'
+import { isAdminEmail } from '../lib/admin'
 import OutdatedNotice from '../components/OutdatedNotice'
 
 export default function Strategy() {
-  const { currentApp, updateApp, plan } = useStore()
+  const { currentApp, updateApp, plan, userEmail } = useStore()
   const [loading, setLoading] = useState(false)
 
   const canUseAnalysis = plan === 'analysis' || plan === 'pro' || plan === 'guest_pro'
@@ -125,6 +127,7 @@ Rules:
 - Target user: "${targetUser}", Problem: "${problem}", Competitor: "${compName}", Weakness: "${compWeakness}"
 - primaryMessage must be shorter and more benefit-driven than the current headline
 - proofPoint must cite something specific from context (score, quote, or competitive fact)
+- ${CURRENCY_RULE}
 - If PRODUCT UI is in context: primaryMessage must be stronger than the real in-app headline shown there too, and proofPoint may cite a visible trust signal
 - voiceGuide adjectives must reflect the app category (${currentApp.category}) and target user
 - say/notSay examples must be concrete and brand-specific — not generic marketing phrases`
@@ -136,7 +139,7 @@ Rules:
       if (!parsed.positioningStatement) throw new Error('Invalid response')
 
       await updateApp(currentApp.id, {
-        positioning_analysis:   markGenerated(JSON.stringify(parsed)),
+        positioning_analysis:   markGenerated(JSON.stringify(fixAnalysisCurrency(currentApp, 'positioning', parsed))),
         positioning_analyzed_at: new Date().toISOString(),
       } as any)
       toast('Positioning generated!')
@@ -172,6 +175,12 @@ Rules:
       {cached && !loading && isOutdated(currentApp, 'positioning') && (
         <OutdatedNotice onRerun={generate} busy={loading} />
       )}
+      {isAdminEmail(userEmail) && (() => {
+        try {
+          const n = (cached as any)?._currency_fixes
+          return n > 0 ? <div style={{ fontSize:11, color:'var(--text3)', margin:'-6px 0 10px' }}>🔧 {n} {n === 1 ? 'price' : 'prices'} corrected to {n === 1 ? 'its' : 'their'} original currency (admin only)</div> : null
+        } catch { return null }
+      })()}
 
       {!cached && !loading && (
         <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--surface)', borderRadius: 'var(--r2)', border: '1px solid var(--surface3)', color: 'var(--text3)', fontSize: 13 }}>

@@ -251,21 +251,21 @@ async function runRules(url: string, appName: string, desc: string, features: st
 }
 
 // ── AI verdict — tiny, focused, cheap ─────────────────────────────────────────
-async function getAiVerdict(findings: any, appName: string, desc: string): Promise<string> {
+async function getAiVerdict(findings: any, appName: string, desc: string, category = '', audience = ''): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) return ''
 
   const fails = findings.checks.filter((c: any) => c.status === 'fail').map((c: any) => c.detail).join('\n')
   const warns = findings.checks.filter((c: any) => c.status === 'warn').map((c: any) => c.detail).join('\n')
 
-  const prompt = `App: "${appName}". ${desc ? desc.slice(0,200) : ''}
-
+  const prompt = `App: "${appName}"${category ? ` — ${category} app` : ''}. ${desc ? desc.slice(0, 300) : ''}
+${audience ? `Intended audience: ${audience.slice(0, 200)}\n` : ''}
 Technical audit found:
 FAILS: ${fails || 'none'}
 WARNINGS: ${warns || 'none'}
 Score: ${findings.score}/100
 
-Write a 3-sentence verdict: (1) overall assessment, (2) the single most important fix, (3) one specific growth opportunity this reveals. Be direct and specific to this app. No preamble.`
+Write a 3-sentence verdict: (1) overall assessment, (2) the single most important fix, (3) one specific growth opportunity this reveals. Describe the product as its description and audience do — don't call it enterprise or B2B software unless they say so. Be direct and specific to this app. No preamble.`
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -289,7 +289,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: { user }, error } = await supabase.auth.getUser(token)
   if (error || !user) return res.status(401).json({ error: 'Invalid session' })
 
-  const { url, appName, desc, features, wantVerdict } = req.body
+  const { url, appName, desc, features, wantVerdict, category, audience } = req.body
   if (!url) return res.status(400).json({ error: 'URL required' })
 
   try {
@@ -299,7 +299,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // AI verdict only if requested and Pro user
     let verdict = ''
     if (wantVerdict) {
-      verdict = await getAiVerdict(findings, appName || '', desc || '')
+      verdict = await getAiVerdict(findings, appName || '', desc || '',
+        typeof category === 'string' ? category : '', typeof audience === 'string' ? audience : '')
     }
 
     res.status(200).json({ ...findings, verdict })

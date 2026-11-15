@@ -12,6 +12,16 @@ export class AiLimitError extends Error {
   constructor(message: string) { super(message); this.name = 'AiLimitError' }
 }
 
+// Report currency corrections to the server log (fire-and-forget; never blocks or fails a save)
+export function logCurrencyFixes(app: { id: number; name: string }, analysis: string, fixes: { from: string; to: string }[]): void {
+  if (!fixes.length) return
+  getToken().then(token => fetch('/api/currency-fixes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ appId: app.id, appName: app.name, analysis, fixes }),
+  })).catch(() => {})
+}
+
 // Today's AI-call usage for the signed-in user; null if it can't be read
 export async function getAiUsage(): Promise<{ plan: string; limit: number; used: number; remaining: number } | null> {
   try {

@@ -45,7 +45,11 @@ export default function ProductTest() {
       const res = await fetch('/api/product-test', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${session.access_token}` },
-        body: JSON.stringify({ url:currentApp.url, appName:currentApp.name, desc:currentApp.desc, features:currentApp.features, wantVerdict:true })
+        body: JSON.stringify({ url:currentApp.url, appName:currentApp.name, desc:currentApp.desc, features:currentApp.features,
+          // so the verdict describes the product as its description and audience do (not just its category)
+          category: currentApp.category,
+          audience: currentApp.founder_brief?.intended_audience || currentApp.audience || '',
+          wantVerdict:true })
       })
       const data = await res.json()
       if (!res.ok) { toast('Error: ' + data.error); setRunning(false); return }
@@ -93,7 +97,7 @@ export default function ProductTest() {
   // ── Tab switcher ──────────────────────────────────────────────────────────
   const tabs = [
     { id:'landing', label:'🔍 Landing Page Audit', sub:'Zero AI tokens', available:true },
-    { id:'deep',    label:'🧪 Deep AI Test',        sub:'Simulates real user', available:canUseProductTest },
+    { id:'deep',    label:'🌐 Real-browser test',  sub:'Coming soon',        available:canUseProductTest },
   ] as const
 
   return (

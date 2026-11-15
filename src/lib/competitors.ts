@@ -6,6 +6,7 @@ export interface CompetitorFacts {
   pricing:   SourcedFact | null
   funding:   SourcedFact | null
   team_size: SourcedFact | null
+  hq_country?: SourcedFact | null   // where the company is headquartered — drives the local/global label
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -101,6 +102,7 @@ export function applyFacts(comp: any, entry: any, checkedAt: string): any {
   const facts: CompetitorFacts = {
     website: pickFact(entry?.website), pricing: pickFact(entry?.pricing),
     funding: pickFact(entry?.funding), team_size: pickFact(entry?.team_size),
+    hq_country: pickFact(entry?.hq_country),
   }
   return adoptSearchWebsite({ ...comp, facts, facts_checked_at: checkedAt }, comp?.url)
 }
@@ -148,4 +150,72 @@ export function sourcedCompetitorFacts(comps: any[] | null | undefined): string 
   return lines.length
     ? `SOURCED COMPETITOR FACTS (verified by live search or the App Store — the only competitor facts you may state, quoted exactly):\n${lines.join('\n')}`
     : ''
+}
+
+// ── Local / global label ─────────────────────────────────────────────────────
+// Countries in each primary market (the names used by the market setting and detectMarket)
+const US = ['united states', 'united states of america', 'usa', 'us']
+const UK = ['united kingdom', 'uk', 'great britain', 'england', 'scotland', 'wales', 'northern ireland']
+const MARKET_COUNTRIES: Record<string, string[]> = {
+  'India': ['india'], 'United States': US, 'US': US, 'United Kingdom': UK, 'UK': UK, 'Australia': ['australia'],
+  'Europe': [...UK, 'germany', 'france', 'spain', 'italy', 'netherlands', 'ireland', 'sweden', 'denmark', 'finland', 'norway',
+             'belgium', 'austria', 'switzerland', 'poland', 'portugal', 'czech republic', 'greece', 'estonia', 'latvia', 'lithuania'],
+  'Southeast Asia': ['singapore', 'indonesia', 'malaysia', 'thailand', 'vietnam', 'philippines'],
+  'Middle East': ['united arab emirates', 'uae', 'saudi arabia', 'qatar', 'kuwait', 'bahrain', 'oman', 'israel', 'jordan'],
+}
+// Fallback when no HQ country was sourced: a confirmed website on the market's country domain → local
+const MARKET_DOMAINS: Record<string, string[]> = {
+  'India': ['.in'], 'United Kingdom': ['.uk'], 'UK': ['.uk'], 'Australia': ['.au'], 'United States': ['.us'], 'US': ['.us'],
+}
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Local = headquartered in the app's primary market. A sourced HQ country decides it either way;
+// otherwise a confirmed website on the market's country domain can make it local (never global).
+// Global / Auto-detect / unknown markets: no change. Keeps pass 1's label as type_pass1.
+export function correctMarketType(comp: any, market: string | null | undefined): any {
+  const countries = market ? MARKET_COUNTRIES[market] : undefined
+  if (!countries) return comp
+  const hq = comp?.facts?.hq_country?.value
+  let type: 'local' | 'global' | null = null
+  let via: 'hq' | 'domain' | null = null
+  if (typeof hq === 'string' && hq.trim()) {
+    type = countries.some(c => new RegExp('\\b' + escapeRe(c) + '\\b', 'i').test(hq)) ? 'local' : 'global'
+    via = 'hq'
+  } else {
+    const site = confirmedWebsite(comp)?.url
+    const host = site ? siteHost(site) : ''
+    if (host && (MARKET_DOMAINS[market!] ?? []).some(d => host.endsWith(d))) { type = 'local'; via = 'domain' }
+  }
+  if (!type) return comp
+  return type === comp.type ? { ...comp, type_source: via } : { ...comp, type, type_pass1: comp.type ?? null, type_source: via }
+}
+
+// ── Competitor profiles for the other analyses ──────────────────────────────
+// Name + top strengths/weaknesses from the Competitive analysis — the only competitor features
+// BMC, SWOT, Growth and Pricing may mention.
+export function competitorProfiles(comps: any[] | null | undefined): string {
+  const list = (xs: unknown) => (Array.isArray(xs) ? xs : []).filter(x => typeof x === 'string' && x.trim()).slice(0, 3).map(factText)
+  const lines = (comps ?? []).filter(c => c?.name).map(c => {
+    const s = list(c.strengths), w = list(c.weaknesses)
+    return '- ' + factText(c.name) + ': ' + (s.length ? 'strengths: ' + s.join('; ') : 'strengths: none listed')
+      + ' | ' + (w.length ? 'weaknesses: ' + w.join('; ') : 'weaknesses: none listed')
+  })
+  return lines.length ? 'COMPETITOR PROFILES (from the Competitive analysis — the only competitor features you may mention):\n' + lines.join('\n') : ''
+}
+
+// ── No figures in Competitive's free text ───────────────────────────────────
+// Bracketed figures — "(₹999/mo)", "(~2M downloads)", "(50K users)". Figures belong only in the
+// sourced facts. Returns how many were removed.
+const FIGURE_IN_BRACKETS = /\s*\((?=[^()]*(?:[$₹€£]\s?\d|\d[\d,.]*\s*(?:k|m|b|%|\+|lakh|crore)?\s*(?:users|downloads|installs|reviews|ratings|employees|customers|subscribers)\b|\d[\d,.]*\s*(?:k|m|b)\b))[^()]*\)/gi
+const FREE_TEXT_FIELDS = ['strengths', 'weaknesses', 'userLoves', 'userHates', 'diff', 'reason', 'positioningGap']
+
+export function stripFiguresFromFreeText(comp: any): { comp: any; removed: number } {
+  let removed = 0
+  const clean = (s: string) => s.replace(FIGURE_IN_BRACKETS, () => { removed++; return '' }).replace(/\s{2,}/g, ' ').trim()
+  const out = { ...comp }
+  for (const k of FREE_TEXT_FIELDS) {
+    if (typeof out[k] === 'string') out[k] = clean(out[k])
+    else if (Array.isArray(out[k])) out[k] = out[k].map((x: unknown) => typeof x === 'string' ? clean(x) : x)
+  }
+  return { comp: out, removed }
 }
