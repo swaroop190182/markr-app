@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && tsc -p tsconfig.api.json && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck:api": "tsc -p tsconfig.api.json"
   },
   "dependencies": {
     "react": "^18.3.1",

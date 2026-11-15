@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { normalizeSourceUrl, keepSourcedFacts, fillWebsitesFromResults, type FactStats } from './_lib/sources'
+// ".js" is required: package.json is "type": "module", so Vercel runs this as Node ESM,
+// which only resolves relative imports with an explicit extension (TS maps .js → .ts).
+import { normalizeSourceUrl, keepSourcedFacts, fillWebsitesFromResults, type FactStats } from './_lib/sources.js'
 
 type PlanKey = 'free' | 'analysis' | 'content' | 'guest_pro' | 'pro'
 const RATE_LIMITS: Record<PlanKey, number> = { free: 5, analysis: 10, content: 30, guest_pro: 30, pro: 50 }

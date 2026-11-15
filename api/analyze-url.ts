@@ -241,8 +241,10 @@ async function fullScrape(url: string) {
   const base = new URL(url).origin
 
   // Always fetch main page
-  let mainHtml = await fetchSafe(url)
-  if (!mainHtml) throw new Error('Could not reach this URL — make sure it is public and accessible.')
+  const fetchedHtml = await fetchSafe(url)
+  if (!fetchedHtml) throw new Error('Could not reach this URL — make sure it is public and accessible.')
+  // Typed as string (not string | null) so later reassignments don't re-widen it under strict checks
+  let mainHtml: string = fetchedHtml
 
   // ── JS SPA detection ──────────────────────────────────────────────────────
   // Raw HTML under 2KB is almost certainly a SPA shell — no legitimate static

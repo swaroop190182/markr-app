@@ -20,32 +20,48 @@ export async function callClaude(
 ): Promise<string> {
   const token = await getToken()
 
-  const res = await fetch('/api/claude', {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      prompt,
-      system,
-      maxTokens,
-      model:   useModel,
-      stream:  !!onChunk,
-      feature,
-      ...(images && images.length > 0 ? { images } : {}),
-      ...(opts?.webSearch ? { webSearch: opts.webSearch } : {}),
-    }),
-  })
+  let res: Response
+  try {
+    res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        prompt,
+        system,
+        maxTokens,
+        model:   useModel,
+        stream:  !!onChunk,
+        feature,
+        ...(images && images.length > 0 ? { images } : {}),
+        ...(opts?.webSearch ? { webSearch: opts.webSearch } : {}),
+      }),
+    })
+  } catch {
+    throw new Error('Could not reach the AI service — check your connection and try again.')
+  }
+
+  // A crashed or timed-out function returns Vercel's plain-text/HTML error page, not JSON.
+  // Read the body as text and parse it ourselves so callers never see a raw JSON parse error.
+  const readJson = async (): Promise<any> => {
+    try { return JSON.parse(await res.text()) } catch { return null }
+  }
+  const friendlyError = (status: number) =>
+    status === 429 ? 'Daily AI limit reached — try again tomorrow or upgrade your plan.'
+    : status >= 500 ? `The AI service had a server error (HTTP ${status}). Please try again in a moment.`
+    : `The AI service returned an unexpected response (HTTP ${status}). Please try again.`
 
   // Handle rate limit
   if (res.status === 429) {
-    const data = await res.json()
-    throw new Error(data.error)
+    const data = await readJson()
+    throw new Error(data?.error ?? friendlyError(429))
   }
 
   if (!onChunk) {
-    const data = await res.json()
+    const data = await readJson()
+    if (!res.ok || !data) throw new Error(data?.error ?? friendlyError(res.status))
     if (data.error) throw new Error(data.error)
     // Which provider actually served this — a 200 may come from a fallback
     // provider whose JSON adherence is weaker than Anthropic's.
@@ -53,8 +69,12 @@ export async function callClaude(
     return data.content?.map((b: { text?: string }) => b.text ?? '').join('') ?? ''
   }
 
-  // Streaming
-  const reader = res.body!.getReader()
+  // Streaming — a failed function never starts the event stream; report it cleanly
+  if (!res.ok || !res.body) {
+    const data = await readJson()
+    throw new Error(data?.error ?? friendlyError(res.status))
+  }
+  const reader = res.body.getReader()
   const dec    = new TextDecoder()
   let buf = ''
 

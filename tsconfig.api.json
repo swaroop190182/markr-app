@@ -1,0 +1,17 @@
+{
+  // Type-checks the Vercel serverless functions in api/ (the root tsconfig only covers src/).
+  // NodeNext mirrors how Vercel runs them: package.json is "type": "module", so they load as
+  // Node ESM, where relative imports must include the ".js" extension. An extensionless
+  // relative import is a compile error here instead of a crash on the deployed function.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["node"]
+  },
+  "include": ["api/**/*.ts"]
+}
