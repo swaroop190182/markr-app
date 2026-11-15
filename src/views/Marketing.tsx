@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { callClaude, extractJSON, getInstagramContext, getFounderContext, getVisionContext } from '../lib/claude'
-import { isOutdated, canBypassLock, isOneTimeUsed } from '../lib/outdated'
+import { isOutdated, outdatedReason, canBypassLock, isOneTimeUsed, markGenerated } from '../lib/outdated'
 import OutdatedNotice from '../components/OutdatedNotice'
 import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
@@ -40,7 +40,7 @@ export default function Marketing({ onUpgrade }: { onUpgrade?: () => void } = {}
 
   function saveMarketing(json: any) {
     updateApp(currentApp.id, {
-      gtm_analysis:    JSON.stringify(json),
+      gtm_analysis:    markGenerated(JSON.stringify(json)),   // built with current context rules
       gtm_analyzed_at: new Date().toISOString(),
     } as any)
   }
@@ -270,7 +270,7 @@ Return JSON only, no markdown:
   return (
     <div style={{ padding: '24px 28px', maxWidth: 960, margin: '0 auto' }}>
       {currentApp.gtm_analysis && isOutdated(currentApp, 'gtm') && (
-        <OutdatedNotice onRerun={genMarketingAll} busy={loading} oneTimeUsed={isOneTimeUsed(currentApp, plan)} onUpgrade={onUpgrade} />
+        <OutdatedNotice reason={outdatedReason(currentApp, 'gtm') ?? 'inputs'} onRerun={genMarketingAll} busy={loading} oneTimeUsed={isOneTimeUsed(currentApp, plan)} onUpgrade={onUpgrade} />
       )}
       <GoToMarketTab
         data={currentApp.gtm_analysis ?? undefined}

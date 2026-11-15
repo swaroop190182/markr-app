@@ -3,7 +3,7 @@ import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
 import { callClaude, AiLimitError, getAiUsage, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
 import { readCompetitive, filterExcluded, orderFocusFirst, applyBriefWebsites, hasFounderBrief } from '../lib/founder'
-import { ANALYSES, isOutdated, outdatedKeys, callCost, canBypassLock, isOneTimeUsed, type AnalysisKey } from '../lib/outdated'
+import { ANALYSES, isOutdated, outdatedReason, outdatedKeys, callCost, canBypassLock, isOneTimeUsed, markGenerated, type AnalysisKey } from '../lib/outdated'
 import OutdatedNotice from '../components/OutdatedNotice'
 
 // What one analysis run achieved — lets "Refresh all outdated" stop cleanly at the daily limit
@@ -144,7 +144,9 @@ export default function Insights({ onUpgrade, onEditApp }: { onUpgrade?: () => v
 
   const setLoad = (k: string, v: boolean) => setLoading(p => ({ ...p, [k]: v }))
   const setFStep = (k: string, s: string) => setFullSteps(p => ({ ...p, [k]: s }))
-  const setTabCache = (k: string, data: string, opts?: { skipCompetitorUrlAnalysis?: boolean }) => {
+  const setTabCache = (k: string, rawData: string, opts?: { skipCompetitorUrlAnalysis?: boolean }) => {
+    // Stamp every saved analysis as built with the current context rules (no simulated test data)
+    const data = markGenerated(rawData)
     setCache(p => ({ ...p, [k]: data }))
     const fieldMap: Record<string, string> = {
       competitive: 'competitive_analysis',
@@ -537,7 +539,7 @@ ${COMPETITOR_FACTS_RULE}
 Output ONLY valid JSON:
 {"key_partners":["3-4 real partner types"],"key_activities":["3-4 core activities"],"key_resources":["3-4 key assets"],"value_propositions":["3-4 specific value props"],"customer_relationships":["2-3 relationship modes"],"channels":["3-4 channels"],"customer_segments":["2-3 specific segments"],"cost_structure":["3-4 major costs"],"revenue_streams":["2-3 revenue streams"],"unfair_advantage":"1 sentence"}`
 
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2500)
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2500, undefined, 'haiku', 'bmc')
       if (cacheJSON('bmc', raw, 'Business Model Canvas')) { toast('Business Model Canvas ready!'); status = 'ok' }
     } catch(e) { toast('Error: '+(e as Error).message); noteRunError('bmc', e); if (e instanceof AiLimitError) status = 'limit' }
     setLoad('bmc', false)
@@ -567,10 +569,10 @@ ${igCtx}
 ${COMPETITOR_FACTS_RULE}
 
 SCORING RULES — you MUST calculate each component score honestly based on actual evidence:
-- strength_score (0-25): High strength = +6pts, Medium = +4pts, Low = +2pts. Cap at 25.
-- weakness_score (0-25): Start at 25. High weakness = -6pts, Medium = -3pts, Low = -1pt. Floor at 0.
-- opportunity_score (0-25): High opportunity = +6pts, Medium = +4pts. Cap at 25.
-- threat_score (0-25): Start at 25. High threat = -6pts, Medium = -3pts. Floor at 0.
+- strength_score (0-25): High strength = +8pts, Medium = +5pts, Low = +3pts. Cap at 25.
+- weakness_score (0-25): Start at 25. High weakness = -8pts, Medium = -4pts, Low = -1pt. Floor at 0.
+- opportunity_score (0-25): High opportunity = +8pts, Medium = +5pts. Cap at 25.
+- threat_score (0-25): Start at 25. High threat = -8pts, Medium = -4pts. Floor at 0.
 - overall_score = sum of all four components (0-100)
 
 HONEST BENCHMARKS — do NOT default to 70-75:
@@ -580,7 +582,8 @@ HONEST BENCHMARKS — do NOT default to 70-75:
 - 69-79: strong with clear path forward
 - 80+: proven traction (rare — only if strong evidence)
 
-For EVERY point: rating (High/Medium/Low), specific evidence (not generic), specific action, owner, timeframe.
+Exactly 3 points per quadrant. For EVERY point: rating (High/Medium/Low), specific evidence (not generic), specific action, owner, timeframe.
+Keep it tight: point ≤ 12 words, evidence ≤ 20 words, action ≤ 15 words, verdict one sentence.
 
 Output ONLY valid JSON, no markdown:
 {
@@ -593,26 +596,22 @@ Output ONLY valid JSON, no markdown:
   "strengths": [
     { "point": "specific strength unique to this app", "rating": "High", "evidence": "concrete reason this is a real strength for this specific app", "action": "specific tactic to leverage this", "owner": "marketing" },
     { "point": "specific strength", "rating": "Medium", "evidence": "concrete reason", "action": "specific leverage tactic", "owner": "founder" },
-    { "point": "specific strength", "rating": "High", "evidence": "concrete reason", "action": "specific leverage tactic", "owner": "product" },
-    { "point": "specific strength", "rating": "Low", "evidence": "concrete reason", "action": "specific leverage tactic", "owner": "marketing" }
+    { "point": "specific strength", "rating": "High", "evidence": "concrete reason", "action": "specific leverage tactic", "owner": "product" }
   ],
   "weaknesses": [
     { "point": "specific weakness unique to this app", "rating": "High", "evidence": "concrete reason this hurts growth", "action": "specific fix step", "owner": "product", "timeframe": "Week 1-2" },
     { "point": "specific weakness", "rating": "Medium", "evidence": "concrete reason", "action": "specific fix", "owner": "dev", "timeframe": "Month 1" },
-    { "point": "specific weakness", "rating": "High", "evidence": "concrete reason", "action": "specific fix", "owner": "founder", "timeframe": "Week 1" },
-    { "point": "specific weakness", "rating": "Low", "evidence": "concrete reason", "action": "specific fix", "owner": "marketing", "timeframe": "Month 2" }
+    { "point": "specific weakness", "rating": "High", "evidence": "concrete reason", "action": "specific fix", "owner": "founder", "timeframe": "Week 1" }
   ],
   "opportunities": [
     { "point": "specific opportunity for this app", "rating": "High", "evidence": "concrete reason this is real and addressable now", "action": "specific capture step", "owner": "founder", "timeframe": "Month 1" },
     { "point": "specific opportunity", "rating": "High", "evidence": "concrete reason", "action": "specific capture step", "owner": "marketing", "timeframe": "Month 2" },
-    { "point": "specific opportunity", "rating": "Medium", "evidence": "concrete reason", "action": "specific capture step", "owner": "product", "timeframe": "Quarter 2" },
-    { "point": "specific opportunity", "rating": "Medium", "evidence": "concrete reason", "action": "specific capture step", "owner": "founder", "timeframe": "Quarter 2" }
+    { "point": "specific opportunity", "rating": "Medium", "evidence": "concrete reason", "action": "specific capture step", "owner": "product", "timeframe": "Quarter 2" }
   ],
   "threats": [
     { "point": "specific threat to this app", "rating": "High", "evidence": "concrete reason this is dangerous", "action": "specific defence step", "owner": "founder", "timeframe": "Immediate" },
     { "point": "specific threat", "rating": "Medium", "evidence": "concrete reason", "action": "specific defence", "owner": "product", "timeframe": "Month 1" },
-    { "point": "specific threat", "rating": "High", "evidence": "concrete reason", "action": "specific defence", "owner": "marketing", "timeframe": "Month 1" },
-    { "point": "specific threat", "rating": "Low", "evidence": "concrete reason", "action": "specific defence", "owner": "founder", "timeframe": "Quarter 2" }
+    { "point": "specific threat", "rating": "High", "evidence": "concrete reason", "action": "specific defence", "owner": "marketing", "timeframe": "Month 1" }
   ],
   "top_actions": [
     { "priority": 1, "action": "Most important action NOW — specific to this app only", "category": "weakness", "impact": "High", "timeframe": "This week" },
@@ -621,9 +620,9 @@ Output ONLY valid JSON, no markdown:
   ]
 }`
 
-      // 16 rated items (point/rating/evidence/action/owner/timeframe) plus
-      // top_actions and scores — 3000 truncated this mid-JSON in practice.
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Be specific and honest — no generic consulting filler.', 8000)
+      // 12 rated items (3 per quadrant) + top_actions + scores, with word limits — sized to finish well
+      // inside the 60s function limit (16 unbounded items used to run past 3,000 output tokens).
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Be specific and honest — no generic consulting filler.', 4000, undefined, 'haiku', 'swot')
       if (cacheJSON('swot', raw, 'SWOT')) { toast('SWOT analysis ready!'); status = 'ok' }
     } catch(e) { toast('Error: '+(e as Error).message); noteRunError('swot', e); if (e instanceof AiLimitError) status = 'limit' }
     setLoad('swot', false)
@@ -695,7 +694,7 @@ Output ONLY valid JSON:
 {"top_priority":"single most impactful specific 30-day action for THIS app","acquisition":[{"title":"specific tactic name","description":"specific 1 sentence action referencing app features or competitors","impact":"High","effort":"Low","timeframe":"Week 1-2"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Medium","timeframe":"Week 2-4"}],"activation":[{"title":"specific tactic","description":"specific action referencing actual app feature","impact":"High","effort":"Low","timeframe":"Week 1"},{"title":"specific tactic","description":"specific action","impact":"High","effort":"Medium","timeframe":"Week 2-3"}],"retention":[{"title":"specific tactic","description":"specific action unique to this app category","impact":"High","effort":"Low","timeframe":"Ongoing"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Medium","timeframe":"Month 2"}],"revenue":[{"title":"specific tactic","description":"specific monetisation action for this app","impact":"High","effort":"Medium","timeframe":"Month 1"},{"title":"specific tactic","description":"specific action","impact":"Medium","effort":"Low","timeframe":"Month 2"}],"referral":[{"title":"specific tactic","description":"specific referral mechanic for this app's users","impact":"Medium","effort":"Low","timeframe":"Month 2"},{"title":"specific tactic","description":"specific action","impact":"High","effort":"Medium","timeframe":"Month 3"}]}`
 
       // 5 lanes x 2 tactics x 5 fields, plus top_priority.
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Every tactic must be specific to this exact app — no generic advice. No trailing commas.', 5000)
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON. Every tactic must be specific to this exact app — no generic advice. No trailing commas.', 5000, undefined, 'haiku', 'growth')
       if (cacheJSON('growth', raw, 'Growth playbook')) { toast('Growth playbook ready!'); status = 'ok' }
     } catch(e) { toast('Error: '+(e as Error).message); noteRunError('growth', e); if (e instanceof AiLimitError) status = 'limit' }
     setLoad('growth', false)
@@ -726,7 +725,7 @@ Output ONLY valid JSON:
 {"strategy_type":"Freemium/Usage-based/Flat-rate/Tiered","strategy_rationale":"2 sentence explanation","tiers":[{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":true,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"},{"name":"tier","price":"$X/mo","target":"5 words","features":["3-4 features"],"recommended":false,"conversion_note":"1 sentence"}],"monetization_angles":[{"angle":"name","description":"1 sentence","revenue_potential":"High"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Medium"},{"angle":"name","description":"1 sentence","revenue_potential":"Low"}],"pricing_risks":["risk 1","risk 2","risk 3"],"benchmark_note":"1 sentence"}`
 
       // 3 tiers with nested feature lists, 4 monetization angles, risks.
-      const raw = await callClaude(prompt, 'Output ONLY valid JSON.', 3000)
+      const raw = await callClaude(prompt, 'Output ONLY valid JSON.', 3000, undefined, 'haiku', 'pricing')
       if (cacheJSON('pricing', raw, 'Pricing plan')) { toast('Pricing plan ready!'); status = 'ok' }
     } catch(e) { toast('Error: '+(e as Error).message); noteRunError('pricing', e); if (e instanceof AiLimitError) status = 'limit' }
     setLoad('pricing', false)
@@ -1115,6 +1114,7 @@ Output ONLY valid JSON:
           <>
             {activeTab !== 'product' && cache[activeTab] && isOutdated(currentApp, activeTab as AnalysisKey) && (
               <OutdatedNotice
+                reason={outdatedReason(currentApp, activeTab as AnalysisKey) ?? 'inputs'}
                 onRerun={() => { void runAnalysis(activeTab as AnalysisKey) }}
                 busy={!!loading[activeTab] || refreshing}
                 oneTimeUsed={isOneTimeUsed(currentApp, plan)}

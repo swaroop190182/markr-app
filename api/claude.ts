@@ -348,9 +348,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ content: [{ type: 'text', text: JSON.stringify(r.json) }], provider: 'anthropic' })
   }
 
+  const callStarted = Date.now()
   const anthropicResult = await callAnthropic(prompt, sys, tok, doStream, res, images)
   if (anthropicResult && !('failStatus' in anthropicResult)) {
-    console.log('[callClaude] provider: anthropic')
+    // Timing per feature (e.g. feature=swot) to check calls stay well inside the 60s function limit
+    console.log(`[callClaude] provider: anthropic feature=${feature} ms=${Date.now() - callStarted} out=${anthropicResult.outputTokens} max=${tok} stream=${!!doStream}`)
     logUsage(supabase, userId, feature, anthropicResult)
     return
   }

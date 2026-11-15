@@ -2,7 +2,7 @@
 // Run with: npm test
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isOutdated, inputsChangedAt, outdatedKeys, callCost, canBypassLock, isOneTimeUsed } from '../src/lib/outdated.ts'
+import { isOutdated, inputsChangedAt, outdatedKeys, callCost, canBypassLock, isOneTimeUsed, outdatedReason, markGenerated, hasLegacyProductTest } from '../src/lib/outdated.ts'
 import { stampFounderBrief, hasFounderBrief, normalizeFounderBrief } from '../src/lib/founder.ts'
 
 const app = (over: Record<string, unknown>) => ({ id: 1, name: 'X', ...over }) as any
@@ -76,4 +76,46 @@ test('outdated analyses skip the refresh lock, except a used one-time Analysis P
   assert.equal(canBypassLock(app({ ...base, analysis_used_at: '2026-11-02T00:00:00Z' }), 'analysis', 'swot'), false)
   assert.equal(isOneTimeUsed(app({ analysis_used_at: '2026-11-02T00:00:00Z' }), 'pro'), false)            // only Analysis Pack is one-time
   assert.equal(canBypassLock(app({ ...base, swot_analyzed_at: '2026-11-12T00:00:00Z' }), 'pro', 'swot'), false)   // not outdated
+})
+
+// ── Analyses built while simulated product-test data could be in the prompt ──
+const legacyPt  = { overall_score: 62, verdict: 'Good with gaps', bugs_and_issues: [{ title: 'Data loss' }] }
+const realPt    = { score: 71, checks: [{ id: 'x', status: 'pass' }] }
+const oldSwot   = JSON.stringify({ verdict: 'Fix response submission data loss' })   // no marker
+const newSwot   = markGenerated(JSON.stringify({ verdict: 'Fresh' }))
+
+test('markGenerated stamps analysis JSON; non-JSON is left unchanged', () => {
+  assert.equal(JSON.parse(newSwot)._markr_ctx, 2)
+  assert.equal(markGenerated('not json'), 'not json')
+})
+
+test('legacy-format product test flags unmarked BMC/SWOT/Growth/Pricing/GTM as outdated', () => {
+  const a = app({ productTest: legacyPt, swot_analysis: oldSwot, gtm_analysis: oldSwot,
+    competitive_analysis: oldSwot, positioning_analysis: oldSwot })
+  assert.equal(hasLegacyProductTest(a), true)
+  assert.equal(outdatedReason(a, 'swot'), 'legacy_test')
+  assert.equal(outdatedReason(a, 'gtm'), 'legacy_test')            // reads the saved SWOT/Growth
+  assert.equal(outdatedReason(a, 'competitive'), null)              // never received test data
+  assert.equal(outdatedReason(a, 'positioning'), null)
+  assert.equal(outdatedReason(a, 'bmc'), null)                      // nothing saved → nothing to flag
+  assert.deepEqual(outdatedKeys(a), ['swot'])
+})
+
+test('re-running clears the legacy flag; rule-based or no test never flags', () => {
+  assert.equal(outdatedReason(app({ productTest: legacyPt, swot_analysis: newSwot }), 'swot'), null)
+  assert.equal(outdatedReason(app({ productTest: realPt, swot_analysis: oldSwot }), 'swot'), null)
+  assert.equal(outdatedReason(app({ productTest: { error: 'failed' }, swot_analysis: oldSwot }), 'swot'), null)
+  assert.equal(outdatedReason(app({ swot_analysis: oldSwot }), 'swot'), null)
+})
+
+test('legacy flag skips the lock for subscribers, not for a used one-time run', () => {
+  const a = { productTest: legacyPt, swot_analysis: oldSwot, swot_analyzed_at: new Date().toISOString() }
+  assert.equal(canBypassLock(app(a), 'pro', 'swot'), true)
+  assert.equal(canBypassLock(app({ ...a, analysis_used_at: '2026-11-01T00:00:00Z' }), 'analysis', 'swot'), false)
+})
+
+test('a brief/screenshot change is still reported as "inputs"', () => {
+  const a = app({ founder_brief: { vision: 'v', updated_at: '2026-11-10T00:00:00Z' },
+    swot_analyzed_at: '2026-11-01T00:00:00Z', swot_analysis: newSwot })
+  assert.equal(outdatedReason(a, 'swot'), 'inputs')
 })

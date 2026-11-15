@@ -4,7 +4,7 @@ import { CopyButton } from '../components/ui'
 import { callClaude, extractJSON, getInstagramContext, getVisionContext, getFounderContext } from '../lib/claude'
 import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
-import { isOutdated } from '../lib/outdated'
+import { isOutdated, markGenerated } from '../lib/outdated'
 import OutdatedNotice from '../components/OutdatedNotice'
 
 export default function Strategy() {
@@ -136,7 +136,7 @@ Rules:
       if (!parsed.positioningStatement) throw new Error('Invalid response')
 
       await updateApp(currentApp.id, {
-        positioning_analysis:   JSON.stringify(parsed),
+        positioning_analysis:   markGenerated(JSON.stringify(parsed)),
         positioning_analyzed_at: new Date().toISOString(),
       } as any)
       toast('Positioning generated!')
