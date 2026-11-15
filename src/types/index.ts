@@ -203,13 +203,15 @@ export interface ScreenshotImage {
   image: string                     // JPEG data URL, ≤1024px wide
 }
 
-// Stored in markr_apps.founder_brief. All fields optional; an empty brief is saved as null.
+// Stored in markr_apps.founder_brief. All fields optional. An empty brief is saved as null,
+// or as { updated_at } when a filled brief was cleared (so the change is still recorded).
 export interface FounderBrief {
   intended_audience?: string        // ≤200 chars
   focus_competitors?: string[]      // names or URLs, max 5 — analyzed first in Competitive
   excluded_competitors?: string[]   // names or URLs, max 10 — never listed as competitors
   vision?: string                   // ≤200 chars
   mission?: string                  // ≤200 chars
+  updated_at?: string               // when the brief's content last changed — drives "outdated" analyses
 }
 
 export interface ContentContext {

@@ -4,6 +4,8 @@ import { CopyButton } from '../components/ui'
 import { callClaude, extractJSON, getInstagramContext, getVisionContext, getFounderContext } from '../lib/claude'
 import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
+import { isOutdated } from '../lib/outdated'
+import OutdatedNotice from '../components/OutdatedNotice'
 
 export default function Strategy() {
   const { currentApp, updateApp, plan } = useStore()
@@ -165,6 +167,11 @@ Rules:
           {loading ? '⏳ Generating…' : cached ? '🔄 Regenerate' : '✨ Generate Positioning'}
         </button>
       </div>
+
+      {/* Positioning has no refresh lock, so Re-run is available on every plan */}
+      {cached && !loading && isOutdated(currentApp, 'positioning') && (
+        <OutdatedNotice onRerun={generate} busy={loading} />
+      )}
 
       {!cached && !loading && (
         <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--surface)', borderRadius: 'var(--r2)', border: '1px solid var(--surface3)', color: 'var(--text3)', fontSize: 13 }}>

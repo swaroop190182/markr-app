@@ -52,6 +52,15 @@ async function checkRateLimit(supabase: any, userId: string, plan: PlanKey): Pro
   return { allowed: true, remaining: limit - count - 1 }
 }
 
+// Today's AI-call usage, read-only — does not count as a call
+async function readUsage(supabase: any, userId: string, plan: PlanKey) {
+  const today = new Date().toISOString().split('T')[0]
+  const { data } = await supabase.from('markr_rate_limits').select('count').eq('user_id', userId).eq('date', today).maybeSingle()
+  const used  = data?.count ?? 0
+  const limit = RATE_LIMITS[plan]
+  return { plan, limit, used, remaining: Math.max(0, limit - used) }
+}
+
 type UsageInfo = { inputTokens: number; outputTokens: number; model: string }
 
 async function logUsage(supabase: any, userId: string, feature: string, u: UsageInfo) {
@@ -272,7 +281,7 @@ async function callGroq(prompt: string, system: string, maxTokens: number, doStr
 
 // ── Main handler ───────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error:'Method not allowed' })
+  if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error:'Method not allowed' })
 
   const token     = req.headers.authorization?.slice(7)
   const isCronJob = req.headers['x-cron-job'] === 'true' &&
@@ -287,6 +296,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data:{ user }, error } = await supabase.auth.getUser(token)
     if (error || !user) return res.status(401).json({ error:'Invalid session' })
     userId = user.id; userEmail = user.email ?? ''
+  }
+
+  // GET = "how many AI calls do I have left today?" — read-only, never consumes a call
+  if (req.method === 'GET') {
+    if (isCronJob) return res.status(400).json({ error: 'Not available for cron' })
+    const plan = await getPlan(supabase, userId, userEmail)
+    return res.status(200).json(await readUsage(supabase, userId, plan))
   }
 
   const { prompt, system, maxTokens, stream: doStream, feature = 'general', images, webSearch } = req.body
@@ -304,7 +320,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(429).json({
         error: plan === 'free'
           ? `Free plan limit: ${RATE_LIMITS.free} AI calls/day. Upgrade to Pro for ${RATE_LIMITS.pro}/day.`
-          : `Pro plan limit: ${RATE_LIMITS.pro} calls/day. Resets at midnight.`,
+          : `Daily limit reached: ${RATE_LIMITS[plan]} AI calls/day on your plan. Resets at midnight UTC.`,
         remaining: 0, plan,
       })
     }

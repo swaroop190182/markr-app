@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
-import { callClaude, extractJSON, getInstagramContext } from '../lib/claude'
+import { callClaude, extractJSON, getInstagramContext, getFounderContext, getVisionContext } from '../lib/claude'
+import { isOutdated, canBypassLock, isOneTimeUsed } from '../lib/outdated'
+import OutdatedNotice from '../components/OutdatedNotice'
 import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
 import GoToMarketTab from './insights/GoToMarket'
@@ -31,7 +33,7 @@ function lastUpdatedLabel(ts: string | null | undefined): string {
   return `Updated ${days} days ago`
 }
 
-export default function Marketing() {
+export default function Marketing({ onUpgrade }: { onUpgrade?: () => void } = {}) {
   const { currentApp, updateApp, userEmail, plan, setView } = useStore()
   const [loading, setLoading] = useState(false)
   const canUseAnalysis = plan === 'analysis' || plan === 'pro' || plan === 'guest_pro'
@@ -118,6 +120,12 @@ export default function Marketing() {
       }
     }
 
+    // Founder intent + real product screens — re-running GTM after either changes now reflects it
+    const fCtx = getFounderContext(currentApp)
+    if (fCtx) lines.push(fCtx)
+    const vCtx = getVisionContext(currentApp)
+    if (vCtx) lines.push(vCtx)
+
     lines.push(`\n${getInstagramContext(currentApp, 'If followers exceed 10,000, recommend converting the existing audience rather than building a new presence; if under 1,000, treat Instagram as a channel to build.')}`)
 
     return lines.filter(Boolean).join('\n')
@@ -125,7 +133,7 @@ export default function Marketing() {
 
   // ── Full generation ────────────────────────────────────────────────────────
   async function genMarketingAll() {
-    if (!canRefresh(currentApp.gtm_analyzed_at, userEmail)) {
+    if (!canRefresh(currentApp.gtm_analyzed_at, userEmail) && !canBypassLock(currentApp, plan, 'gtm')) {
       toast(`Marketing plan updated ${lastUpdatedLabel(currentApp.gtm_analyzed_at).toLowerCase()}. Refreshes once per month.`)
       return
     }
@@ -242,6 +250,8 @@ Return JSON only, no markdown:
 
   // ── Smart refresh ──────────────────────────────────────────────────────────
   async function genSmartRefresh() {
+    // Outdated (brief/screenshots changed): channels and templates must be redone too, not just the playbook
+    if (isOutdated(currentApp, 'gtm')) { await genMarketingAll(); return }
     const currentScore = currentApp.url_analysis?.overall ?? null
     let storedScore: number | null = null
     try { if (currentApp.gtm_analysis) storedScore = JSON.parse(currentApp.gtm_analysis).generatedAtScore ?? null } catch {}
@@ -259,6 +269,9 @@ Return JSON only, no markdown:
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 960, margin: '0 auto' }}>
+      {currentApp.gtm_analysis && isOutdated(currentApp, 'gtm') && (
+        <OutdatedNotice onRerun={genMarketingAll} busy={loading} oneTimeUsed={isOneTimeUsed(currentApp, plan)} onUpgrade={onUpgrade} />
+      )}
       <GoToMarketTab
         data={currentApp.gtm_analysis ?? undefined}
         loading={loading}

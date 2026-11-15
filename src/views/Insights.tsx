@@ -1,8 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useStore } from '../lib/store'
 import { Card, CardHeader, Banner, LoadingCard, ErrorCard, CopyButton } from '../components/ui'
-import { callClaude, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
-import { readCompetitive, filterExcluded, orderFocusFirst, applyBriefWebsites } from '../lib/founder'
+import { callClaude, AiLimitError, getAiUsage, getTestContext, getVisionContext, getFounderContext, getInstagramContext, safeParseJSON, extractJSON, looksTruncated } from '../lib/claude'
+import { readCompetitive, filterExcluded, orderFocusFirst, applyBriefWebsites, hasFounderBrief } from '../lib/founder'
+import { ANALYSES, isOutdated, outdatedKeys, callCost, canBypassLock, isOneTimeUsed, type AnalysisKey } from '../lib/outdated'
+import OutdatedNotice from '../components/OutdatedNotice'
+
+// What one analysis run achieved — lets "Refresh all outdated" stop cleanly at the daily limit
+type RunStatus = 'ok' | 'failed' | 'locked' | 'limit' | 'saved_then_limit'
+type StepState = 'pending' | 'active' | 'done' | 'failed' | 'skipped'
 import { itunesNameMatches, applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
 
 // Pass 2 (live sources) runs competitors in batches to stay inside the 60s API limit.
@@ -102,7 +108,7 @@ const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id:'product',     label:'AI Readiness Assessment', emoji:'🧪' },
 ]
 
-export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
+export default function Insights({ onUpgrade, onEditApp }: { onUpgrade?: () => void; onEditApp?: (id: number) => void }) {
   const { currentApp, updateApp, userEmail, plan } = useStore()
   const canUseAnalysis = plan === 'analysis' || plan === 'pro' || plan === 'guest_pro'
   const [activeTab, setActiveTab] = useState<Tab>('competitive')
@@ -111,6 +117,12 @@ export default function Insights({ onUpgrade }: { onUpgrade?: () => void }) {
   const [factsChecking, setFactsChecking] = useState(false)   // competitive pass 2 (live sources) in progress
   const [runningFull, setRunningFull] = useState(false)
   const [fullSteps, setFullSteps] = useState<Record<string,string>>({})
+  // "Refresh all outdated": confirm panel, then a progress list
+  const [refreshPlan, setRefreshPlan] = useState<{ keys: AnalysisKey[]; cost: number; remaining: number | null; others: AnalysisKey[] } | null>(null)
+  const [refreshSteps, setRefreshSteps] = useState<Partial<Record<AnalysisKey, StepState>> | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshNote, setRefreshNote] = useState<string | null>(null)
+  const [briefPrompt, setBriefPrompt] = useState(false)   // one-time run with an empty founder brief
 
   // Load persisted analysis from app on mount / app change
   useEffect(() => {
@@ -220,13 +232,14 @@ ${rc.trim()}
   }
 
   // ── COMPETITIVE ─────────────────────────────────────────────────────────────
-  async function genCompetitive() {
-    // 7-day refresh for competitive (shorter window than other tabs)
+  async function genCompetitive(): Promise<RunStatus> {
+    // 7-day refresh for competitive (shorter window than other tabs); outdated analyses skip it
     const daysOld = daysSince(currentApp.competitive_analyzed_at)
-    if (!isAdmin(userEmail) && daysOld !== null && daysOld < 7) {
+    if (!isAdmin(userEmail) && daysOld !== null && daysOld < 7 && !canBypassLock(currentApp, plan, 'competitive')) {
       toast(`Competitive analysis was last run ${lastUpdatedLabel(currentApp.competitive_analyzed_at).toLowerCase()}. Refreshes after 7 days.`)
-      return
+      return 'locked'
     }
+    let status: RunStatus = 'failed'
     setLoad('competitive', true)
     const rcCtx = getRecentContext()
     const vCtx  = getVisionContext(currentApp)
@@ -243,7 +256,7 @@ ${focus.length < 5 ? `- Then fill the remaining ${5 - focus.length} slot(s) usin
     const excludeBlock = excluded.length ? `
 
 NEVER include these as competitors, or their rebrands/sub-products: ${excluded.join(', ')}` : ''
-    const hasBrief = !!currentApp.founder_brief
+    const hasBrief = hasFounderBrief(currentApp.founder_brief)   // a cleared { updated_at } brief doesn't count
     const intentGapsRule = hasBrief ? `
 
 INTENT GAPS (required): "intentGaps" = 1–3 short sentences naming specific gaps between the FOUNDER INTENT above and what the landing page/screenshots show, or [] if there are none.` : ''
@@ -353,23 +366,34 @@ JSON only, no markdown:
       toast('Competitive intelligence ready — checking live sources…')
 
       // Pass 2: sourced facts via server-side web search
+      status = 'ok'   // pass 1 is saved from here on
+
       setFactsChecking(true)
+      let limitHit = false
       try {
-        const { comps, note, searchesUsed, budget } = await addLiveFacts(parsed.comps)
+        const { comps, note, searchesUsed, budget, limitHit: factsLimit } = await addLiveFacts(parsed.comps)
         parsed.comps = comps
+        limitHit = factsLimit
         if (note) parsed.facts_note = note; else delete parsed.facts_note
         // Websites still unconfirmed after pass 2 get one targeted search each, if budget remains
         const remaining = budget - searchesUsed
-        if (remaining > 0 && parsed.comps.some(needsWebsiteSearch)) {
-          parsed.comps = await findMissingWebsites(parsed.comps, remaining)
+        if (!limitHit && remaining > 0 && parsed.comps.some(needsWebsiteSearch)) {
+          const found = await findMissingWebsites(parsed.comps, remaining)
+          parsed.comps = found.comps
+          limitHit = found.limitHit
         }
       } finally {
         setFactsChecking(false)
       }
       setTabCache('competitive', JSON.stringify(parsed))   // final save + URL analysis on verified site
       toast(parsed.facts_note ? 'Live source check incomplete — see note' : 'Live sources checked ✓')
-    } catch(e) { toast('Error: '+(e as Error).message) }
+      if (limitHit) status = 'saved_then_limit'
+    } catch(e) {
+      toast('Error: '+(e as Error).message)
+      if (e instanceof AiLimitError) status = status === 'ok' ? 'saved_then_limit' : 'limit'
+    }
     setLoad('competitive', false)
+    return status
   }
 
   // ── COMPETITIVE pass 2: sourced facts ──────────────────────────────────────
@@ -401,9 +425,10 @@ Output ONLY JSON (website, pricing, funding and team_size may each be null):
 
   // Sequential batches: each call counts against the daily limit, and the
   // rate-limit counter is read-then-write, so parallel calls could undercount.
-  async function addLiveFacts(comps: any[]): Promise<{ comps: any[]; note: string | null; searchesUsed: number; budget: number }> {
+  async function addLiveFacts(comps: any[]): Promise<{ comps: any[]; note: string | null; searchesUsed: number; budget: number; limitHit: boolean }> {
     const out = [...comps]
     const failures: string[] = []
+    let limitHit = false
     const batches = Math.ceil(comps.length / FACTS_BATCH)
     let searchesUsed = 0
     for (let i = 0; i < comps.length; i += FACTS_BATCH) {
@@ -419,12 +444,14 @@ Output ONLY JSON (website, pricing, funding and team_size may each be null):
       } catch (e) {
         failures.push((e as Error).message)
         searchesUsed += FACTS_MAX_USES   // don't spend more after a failure
+        if (e instanceof AiLimitError) { limitHit = true; break }
       }
     }
     return {
       comps: out,
       budget: batches * FACTS_MAX_USES,
       searchesUsed,
+      limitHit,
       note: failures.length
         ? `Live source check skipped for ${failures.length === batches ? 'all' : 'some'} competitors — ${failures[0]}`
         : null,
@@ -446,32 +473,36 @@ RULES:
 Output ONLY JSON:
 {"competitors":[{"name":"…","website":{"value":"https://…","source_url":"https://…"}}]}`
 
-  async function findMissingWebsites(comps: any[], maxSearches: number): Promise<any[]> {
+  async function findMissingWebsites(comps: any[], maxSearches: number): Promise<{ comps: any[]; limitHit: boolean }> {
     const targets = comps.filter(needsWebsiteSearch).slice(0, maxSearches)
-    if (!targets.length) return comps
+    if (!targets.length) return { comps, limitHit: false }
     try {
       const raw = await callClaude(websitePrompt(targets.map(c => c.name)), FACTS_SYSTEM, 1500, undefined, 'haiku', 'competitive_facts', undefined, { webSearch: { maxUses: targets.length } })
       const result  = JSON.parse(raw)
       const entries = Array.isArray(result.competitors) ? result.competitors : []
       const checkedAt = typeof result.checked_at === 'string' ? result.checked_at : new Date().toISOString()
-      return comps.map(c => {
-        const j = targets.indexOf(c)
-        return j === -1 ? c : applyWebsiteFact(c, findFactsEntry(entries, c, j), checkedAt)
-      })
+      return {
+        comps: comps.map(c => {
+          const j = targets.indexOf(c)
+          return j === -1 ? c : applyWebsiteFact(c, findFactsEntry(entries, c, j), checkedAt)
+        }),
+        limitHit: false,
+      }
     } catch (e) {
       // Not worth a user-facing note: pass 2's facts are already saved; these stay unconfirmed
       console.warn('[competitive] targeted website search skipped:', (e as Error).message)
-      return comps
+      return { comps, limitHit: e instanceof AiLimitError }
     }
   }
 
   // ── BMC ──────────────────────────────────────────────────────────────────────
-  async function genBMC() {
-    // Monthly limit check — skip for admin
-    if (!canRefresh(currentApp.bmc_analyzed_at, userEmail)) {
+  async function genBMC(): Promise<RunStatus> {
+    // Monthly limit check — skip for admin; outdated analyses skip it too
+    if (!canRefresh(currentApp.bmc_analyzed_at, userEmail) && !canBypassLock(currentApp, plan, 'bmc')) {
       toast(`Analysis was last run ${lastUpdatedLabel(currentApp.bmc_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
-      return
+      return 'locked'
     }
+    let status: RunStatus = 'failed'
     setLoad('bmc', true)
     const ptCtx = getTestContext(currentApp)
     const vCtx  = getVisionContext(currentApp)
@@ -485,18 +516,20 @@ Output ONLY valid JSON:
 {"key_partners":["3-4 real partner types"],"key_activities":["3-4 core activities"],"key_resources":["3-4 key assets"],"value_propositions":["3-4 specific value props"],"customer_relationships":["2-3 relationship modes"],"channels":["3-4 channels"],"customer_segments":["2-3 specific segments"],"cost_structure":["3-4 major costs"],"revenue_streams":["2-3 revenue streams"],"unfair_advantage":"1 sentence"}`
 
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. No markdown.', 2500)
-      if (cacheJSON('bmc', raw, 'Business Model Canvas')) toast('Business Model Canvas ready!')
-    } catch(e) { toast('Error: '+(e as Error).message) }
+      if (cacheJSON('bmc', raw, 'Business Model Canvas')) { toast('Business Model Canvas ready!'); status = 'ok' }
+    } catch(e) { toast('Error: '+(e as Error).message); if (e instanceof AiLimitError) status = 'limit' }
     setLoad('bmc', false)
+    return status
   }
 
   // ── SWOT ─────────────────────────────────────────────────────────────────────
-  async function genSWOT() {
-    // Monthly limit check — skip for admin
-    if (!canRefresh(currentApp.swot_analyzed_at, userEmail)) {
+  async function genSWOT(): Promise<RunStatus> {
+    // Monthly limit check — skip for admin; outdated analyses skip it too
+    if (!canRefresh(currentApp.swot_analyzed_at, userEmail) && !canBypassLock(currentApp, plan, 'swot')) {
       toast(`Analysis was last run ${lastUpdatedLabel(currentApp.swot_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
-      return
+      return 'locked'
     }
+    let status: RunStatus = 'failed'
     setLoad('swot', true)
     const ptCtx = getTestContext(currentApp)
     const vCtx  = getVisionContext(currentApp)
@@ -566,18 +599,20 @@ Output ONLY valid JSON, no markdown:
       // 16 rated items (point/rating/evidence/action/owner/timeframe) plus
       // top_actions and scores — 3000 truncated this mid-JSON in practice.
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. Be specific and honest — no generic consulting filler.', 8000)
-      if (cacheJSON('swot', raw, 'SWOT')) toast('SWOT analysis ready!')
-    } catch(e) { toast('Error: '+(e as Error).message) }
+      if (cacheJSON('swot', raw, 'SWOT')) { toast('SWOT analysis ready!'); status = 'ok' }
+    } catch(e) { toast('Error: '+(e as Error).message); if (e instanceof AiLimitError) status = 'limit' }
     setLoad('swot', false)
+    return status
   }
 
   // ── GROWTH ───────────────────────────────────────────────────────────────────
-  async function genGrowth() {
-    // Monthly limit check — skip for admin
-    if (!canRefresh(currentApp.growth_analyzed_at, userEmail)) {
+  async function genGrowth(): Promise<RunStatus> {
+    // Monthly limit check — skip for admin; outdated analyses skip it too
+    if (!canRefresh(currentApp.growth_analyzed_at, userEmail) && !canBypassLock(currentApp, plan, 'growth')) {
       toast(`Analysis was last run ${lastUpdatedLabel(currentApp.growth_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
-      return
+      return 'locked'
     }
+    let status: RunStatus = 'failed'
     setLoad('growth', true)
     const ptCtx  = getTestContext(currentApp)
     const vCtx   = getVisionContext(currentApp)
@@ -633,18 +668,20 @@ Output ONLY valid JSON:
 
       // 5 lanes x 2 tactics x 5 fields, plus top_priority.
       const raw = await callClaude(prompt, 'Output ONLY valid JSON. Every tactic must be specific to this exact app — no generic advice. No trailing commas.', 5000)
-      if (cacheJSON('growth', raw, 'Growth playbook')) toast('Growth playbook ready!')
-    } catch(e) { toast('Error: '+(e as Error).message) }
+      if (cacheJSON('growth', raw, 'Growth playbook')) { toast('Growth playbook ready!'); status = 'ok' }
+    } catch(e) { toast('Error: '+(e as Error).message); if (e instanceof AiLimitError) status = 'limit' }
     setLoad('growth', false)
+    return status
   }
 
   // ── PRICING ──────────────────────────────────────────────────────────────────
-  async function genPricing() {
-    // Monthly limit check — skip for admin
-    if (!canRefresh(currentApp.pricing_analyzed_at, userEmail)) {
+  async function genPricing(): Promise<RunStatus> {
+    // Monthly limit check — skip for admin; outdated analyses skip it too
+    if (!canRefresh(currentApp.pricing_analyzed_at, userEmail) && !canBypassLock(currentApp, plan, 'pricing')) {
       toast(`Analysis was last run ${lastUpdatedLabel(currentApp.pricing_analyzed_at).toLowerCase()}. Refreshes once per month to avoid redundant AI calls.`)
-      return
+      return 'locked'
     }
+    let status: RunStatus = 'failed'
     setLoad('pricing', true)
     const ptCtx = getTestContext(currentApp)
     const vCtx  = getVisionContext(currentApp)
@@ -660,9 +697,10 @@ Output ONLY valid JSON:
 
       // 3 tiers with nested feature lists, 4 monetization angles, risks.
       const raw = await callClaude(prompt, 'Output ONLY valid JSON.', 3000)
-      if (cacheJSON('pricing', raw, 'Pricing plan')) toast('Pricing plan ready!')
-    } catch(e) { toast('Error: '+(e as Error).message) }
+      if (cacheJSON('pricing', raw, 'Pricing plan')) { toast('Pricing plan ready!'); status = 'ok' }
+    } catch(e) { toast('Error: '+(e as Error).message); if (e instanceof AiLimitError) status = 'limit' }
     setLoad('pricing', false)
+    return status
   }
 
   // ── RUN ALL ──────────────────────────────────────────────────────────────────
@@ -689,6 +727,69 @@ Output ONLY valid JSON:
     if (plan === 'analysis' && !currentApp.analysis_used_at) {
       await updateApp(currentApp.id, { analysis_used_at: new Date().toISOString() } as any)
     }
+  }
+
+  // One-time (Analysis Pack) runs can't be redone for free — nudge for the founder brief first
+  function requestRunFull() {
+    if (plan === 'analysis' && !currentApp.analysis_used_at && !hasFounderBrief(currentApp.founder_brief)) {
+      setBriefPrompt(true)
+      return
+    }
+    runFullAnalysis()
+  }
+
+  // ── Re-run one analysis / refresh all outdated ─────────────────────────────
+  // Generators are read from a ref updated every render, so a later step in
+  // "Refresh all" sees the results an earlier step just saved (e.g. Growth
+  // cross-references the freshly re-run Competitive and SWOT).
+  const genRef = useRef<Partial<Record<AnalysisKey, () => Promise<RunStatus>>>>({})
+  genRef.current = { competitive: genCompetitive, bmc: genBMC, swot: genSWOT, growth: genGrowth, pricing: genPricing }
+  const runAnalysis = (key: AnalysisKey): Promise<RunStatus> =>
+    genRef.current[key]?.() ?? Promise.resolve<RunStatus>('failed')
+
+  async function openRefreshAll() {
+    const keys = outdatedKeys(currentApp)
+    if (!keys.length) return
+    setRefreshNote(null)
+    setRefreshSteps(null)
+    const usage = await getAiUsage()
+    setRefreshPlan({
+      keys,
+      cost: callCost(keys),
+      remaining: usage ? usage.remaining : null,
+      others: outdatedKeys(currentApp, ['positioning', 'gtm']).filter(k => k === 'positioning' ? !!currentApp.positioning_analysis : !!currentApp.gtm_analysis),
+    })
+  }
+
+  async function startRefreshAll() {
+    if (!refreshPlan) return
+    const keys = refreshPlan.keys
+    setRefreshPlan(null)
+    setRefreshing(true)
+    const steps: Partial<Record<AnalysisKey, StepState>> = Object.fromEntries(keys.map(k => [k, 'pending' as StepState]))
+    setRefreshSteps({ ...steps })
+    let done = 0
+    let stoppedAt: number | null = null
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i]
+      steps[k] = 'active'; setRefreshSteps({ ...steps })
+      setActiveTab(k as Tab)
+      const status = await runAnalysis(k)
+      const saved = status === 'ok' || status === 'saved_then_limit'
+      steps[k] = saved ? 'done' : 'failed'
+      if (saved) done++
+      setRefreshSteps({ ...steps })
+      if (status === 'limit' || status === 'saved_then_limit') { stoppedAt = i + 1; break }
+      await new Promise(r => setTimeout(r, 0))   // let React re-render so the next step sees fresh results
+    }
+    if (stoppedAt !== null) {
+      const notRun = keys.slice(stoppedAt)
+      notRun.forEach(k => { steps[k] = 'skipped' })
+      setRefreshSteps({ ...steps })
+      setRefreshNote(`Daily AI limit reached — ${notRun.length} ${notRun.length === 1 ? 'analysis' : 'analyses'} not run. Completed ones are saved.`)
+    }
+    setRefreshing(false)
+    toast(stoppedAt !== null ? `Refreshed ${done} of ${keys.length} — daily limit reached` : `Refreshed ${done} of ${keys.length} outdated analyses ✓`, 5000)
   }
 
   const stepLabels: Record<string,string> = {
@@ -744,7 +845,7 @@ Output ONLY valid JSON:
         ) : (
           <button
             id="run-full-analysis-btn"
-            onClick={runFullAnalysis}
+            onClick={requestRunFull}
             disabled={runningFull}
             style={{ width:'100%', padding:14, background: runningFull ? 'linear-gradient(135deg,rgba(124,111,247,.2),rgba(226,111,175,.15))' : 'linear-gradient(135deg,rgba(124,111,247,.15),rgba(226,111,175,.1))', border:'1px solid rgba(124,111,247,.3)', borderRadius:'var(--r2)', fontFamily:'DM Sans,sans-serif', fontSize:14, fontWeight:700, color:'var(--accent2)', cursor: runningFull ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, transition:'all .2s', opacity: runningFull ? .8 : 1 }}
           >
@@ -776,6 +877,89 @@ Output ONLY valid JSON:
             })}
           </div>
         )}
+
+        {/* One-time run with an empty founder brief */}
+        {briefPrompt && !runningFull && (
+          <div style={{ marginTop:14, padding:'14px 16px', borderRadius:'var(--r)', background:'rgba(124,111,247,.06)', border:'1px solid rgba(124,111,247,.3)' }}>
+            <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.6, marginBottom:10 }}>
+              <strong>Add your founder brief first</strong> — this analysis will use it, and one-time runs can't be redone for free.
+            </div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' as const }}>
+              <button className="gen-btn" style={{ fontSize:12, padding:'7px 16px' }}
+                onClick={() => { setBriefPrompt(false); onEditApp?.(currentApp.id) }}>
+                Add brief
+              </button>
+              <button className="vbtn" onClick={() => { setBriefPrompt(false); runFullAnalysis() }}>Run anyway</button>
+            </div>
+          </div>
+        )}
+
+        {/* Refresh all outdated — subscribers only; a used one-time run re-runs via "Buy another analysis" */}
+        {canUseAnalysis && !isOneTimeUsed(currentApp, plan) && !runningFull && (() => {
+          const outdated = outdatedKeys(currentApp)
+          const showButton = outdated.length > 0 && !refreshPlan && !refreshing
+          if (!showButton && !refreshPlan && !refreshSteps) return null
+          return (
+            <div style={{ marginTop:14 }}>
+              {showButton && (
+                <button className="vbtn" onClick={openRefreshAll}
+                  style={{ fontSize:12, color:'var(--amber)', borderColor:'rgba(245,166,35,.4)' }}>
+                  ⚠️ Refresh all outdated ({outdated.length})
+                </button>
+              )}
+
+              {refreshPlan && (
+                <div style={{ padding:'14px 16px', borderRadius:'var(--r)', background:'rgba(245,166,35,.06)', border:'1px solid rgba(245,166,35,.3)' }}>
+                  <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.6 }}>
+                    Re-runs <strong>{refreshPlan.keys.length} {refreshPlan.keys.length === 1 ? 'analysis' : 'analyses'}</strong>: {refreshPlan.keys.map(k => ANALYSES[k].label).join(', ')}
+                    {' · '}uses up to <strong>{refreshPlan.cost} AI calls</strong>{refreshPlan.keys.includes('competitive') && ' (Competitive counts as up to 3)'}
+                    {' · '}{refreshPlan.remaining !== null
+                      ? <><strong>{refreshPlan.remaining} left today</strong></>
+                      : <>couldn't check how many calls you have left today</>}
+                  </div>
+                  {refreshPlan.remaining !== null && refreshPlan.cost > refreshPlan.remaining && (
+                    <div style={{ fontSize:12, color:'var(--amber)', marginTop:6 }}>
+                      May stop partway at the daily limit — completed analyses stay saved.
+                    </div>
+                  )}
+                  {refreshPlan.others.length > 0 && (
+                    <div style={{ fontSize:12, color:'var(--text3)', marginTop:6 }}>
+                      Also outdated: {refreshPlan.others.map(k => ANALYSES[k].label).join(', ')} — re-run {refreshPlan.others.length === 1 ? 'it' : 'them'} from {refreshPlan.others.length === 1 ? 'its' : 'their'} own tab.
+                    </div>
+                  )}
+                  <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                    <button className="gen-btn" style={{ fontSize:12, padding:'7px 16px' }} onClick={startRefreshAll}>Start</button>
+                    <button className="vbtn" onClick={() => setRefreshPlan(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {refreshSteps && (
+                <div style={{ marginTop: refreshPlan || showButton ? 10 : 0, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'var(--r)', padding:'12px 16px', display:'flex', flexDirection:'column', gap:6 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--text3)', letterSpacing:'.06em', textTransform:'uppercase' as const, marginBottom:4 }}>
+                    {refreshing ? 'Refreshing outdated analyses…' : 'Refresh finished'}
+                  </div>
+                  {(Object.entries(refreshSteps) as [AnalysisKey, StepState][]).map(([k, s]) => (
+                    <div key={k} style={{ display:'flex', alignItems:'center', gap:10, fontSize:12,
+                      color: s==='done' ? 'var(--green)' : s==='active' ? 'var(--accent2)' : s==='failed' ? 'var(--red)' : 'var(--text3)' }}>
+                      <span style={{ fontSize:13, width:16, textAlign:'center' as const, flexShrink:0 }}>
+                        {s==='done' ? '✓' : s==='active' ? '◉' : s==='failed' ? '✗' : s==='skipped' ? '⏸' : '○'}
+                      </span>
+                      <span style={{ flex:1 }}>{ANALYSES[k].label}</span>
+                      {s==='active'  && <span style={{ fontSize:10 }}>Re-running…</span>}
+                      {s==='failed'  && <span style={{ fontSize:10 }}>Failed — see message</span>}
+                      {s==='skipped' && <span style={{ fontSize:10 }}>Not run</span>}
+                    </div>
+                  ))}
+                  {refreshNote && <div style={{ fontSize:12, color:'var(--amber)', marginTop:4 }}>{refreshNote}</div>}
+                  {!refreshing && (
+                    <button className="vbtn" style={{ alignSelf:'flex-start', marginTop:4, fontSize:11 }} onClick={() => { setRefreshSteps(null); setRefreshNote(null) }}>Dismiss</button>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Tabs */}
@@ -829,7 +1013,8 @@ Output ONLY valid JSON:
               }
               const ts = tsMap[activeTab]
               const days = daysSince(ts)
-              const locked = !canRefresh(ts, userEmail)
+              // An outdated analysis can be re-run now, so don't show the lock countdown for it
+              const locked = !canRefresh(ts, userEmail) && !canBypassLock(currentApp, plan, activeTab as AnalysisKey)
               return locked && days !== null ? (
                 <span style={{ fontSize:10, color:'var(--text3)' }}>
                   🔒 Refresh available in {MONTHLY_LIMIT_DAYS - days} days
@@ -867,6 +1052,14 @@ Output ONLY valid JSON:
           </div>
         ) : (
           <>
+            {activeTab !== 'product' && cache[activeTab] && isOutdated(currentApp, activeTab as AnalysisKey) && (
+              <OutdatedNotice
+                onRerun={() => { void runAnalysis(activeTab as AnalysisKey) }}
+                busy={!!loading[activeTab] || refreshing}
+                oneTimeUsed={isOneTimeUsed(currentApp, plan)}
+                onUpgrade={onUpgrade}
+              />
+            )}
             {activeTab === 'competitive' && (
               <CompetitiveTab data={cache.competitive} loading={loading.competitive} checking={factsChecking} onGenerate={genCompetitive} appName={currentApp.name} />
             )}

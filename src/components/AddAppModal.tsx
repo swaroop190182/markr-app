@@ -7,7 +7,7 @@ import type { AppData } from '../types'
 import { COLORS } from '../lib/data'
 import { normalizeInstagramHandle } from '../lib/instagram'
 import FounderBriefFields, { draftFromBrief, type FounderBriefDraft } from './FounderBriefFields'
-import { normalizeFounderBrief } from '../lib/founder'
+import { normalizeFounderBrief, stampFounderBrief } from '../lib/founder'
 
 type Step = 'pending' | 'active' | 'done' | 'skip'
 
@@ -169,7 +169,7 @@ BRAND_VOICE: [3-4 sentences on voice — what to always do, what to NEVER say]`,
         url_analysis: savedUrlAnalysis,
         primary_market: primaryMarket,
         instagram_handle: normalizedHandle || null,
-        founder_brief: normalizeFounderBrief(briefDraft),
+        founder_brief: stampFounderBrief(null, normalizeFounderBrief(briefDraft)),
         analyzed: true
       }
       addApp(newApp)

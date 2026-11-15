@@ -6,7 +6,7 @@ import { toast } from './Toast'
 import type { AppData } from '../types'
 import { normalizeInstagramHandle } from '../lib/instagram'
 import FounderBriefFields, { draftFromBrief, type FounderBriefDraft } from './FounderBriefFields'
-import { normalizeFounderBrief, competitorListsChanged } from '../lib/founder'
+import { normalizeFounderBrief, competitorListsChanged, stampFounderBrief, hasFounderBrief } from '../lib/founder'
 
 const PLATFORMS  = ['Web', 'Mobile', 'Both'] as const
 const STAGES     = ['Idea', 'Early', 'Launch', 'Growth'] as const
@@ -47,7 +47,8 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
 
   // Normalized brief + reset competitive's 7-day gate when focus/excluded lists change
   function briefUpdates(): Partial<AppData> {
-    const founder_brief = normalizeFounderBrief(briefDraft)
+    // updated_at moves only when the brief's content changed — drives "outdated" analyses
+    const founder_brief = stampFounderBrief(app.founder_brief, normalizeFounderBrief(briefDraft))
     return {
       founder_brief,
       ...(competitorListsChanged(app.founder_brief, founder_brief) && { competitive_analyzed_at: null }),
@@ -275,7 +276,7 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} />
       </Field>
 
-      <FounderBriefFields value={briefDraft} onChange={setBriefDraft} defaultOpen={!!app.founder_brief} />
+      <FounderBriefFields value={briefDraft} onChange={setBriefDraft} defaultOpen={hasFounderBrief(app.founder_brief)} />
 
       {/* Recent Context */}
       <div style={{ background:'rgba(124,111,247,.05)', border:'1px solid rgba(124,111,247,.2)', borderRadius:'var(--r)', padding:'12px 14px', marginBottom:14 }}>

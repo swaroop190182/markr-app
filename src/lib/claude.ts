@@ -7,6 +7,22 @@ async function getToken(): Promise<string> {
   return data.session?.access_token ?? ''
 }
 
+// Thrown when the daily AI-call limit is reached (HTTP 429), so batch work can stop cleanly
+export class AiLimitError extends Error {
+  constructor(message: string) { super(message); this.name = 'AiLimitError' }
+}
+
+// Today's AI-call usage for the signed-in user; null if it can't be read
+export async function getAiUsage(): Promise<{ plan: string; limit: number; used: number; remaining: number } | null> {
+  try {
+    const token = await getToken()
+    const res = await fetch('/api/claude', { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } })
+    if (!res.ok) return null
+    const d = await res.json()
+    return typeof d?.remaining === 'number' ? d : null
+  } catch { return null }
+}
+
 // ── Core API call — routes through /api/claude proxy ──────────────────────────
 export async function callClaude(
   prompt: string,
@@ -56,7 +72,7 @@ export async function callClaude(
   // Handle rate limit
   if (res.status === 429) {
     const data = await readJson()
-    throw new Error(data?.error ?? friendlyError(429))
+    throw new AiLimitError(data?.error ?? friendlyError(429))
   }
 
   if (!onChunk) {

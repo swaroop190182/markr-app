@@ -31,6 +31,24 @@ export function normalizeFounderBrief(input: {
   return Object.keys(b).length ? b : null
 }
 
+const BRIEF_FIELDS = ['intended_audience', 'focus_competitors', 'excluded_competitors', 'vision', 'mission'] as const
+
+// Does the brief contain anything? A cleared brief ({ updated_at } only) does not count.
+export function hasFounderBrief(b: FounderBrief | null | undefined): boolean {
+  return !!b && BRIEF_FIELDS.some(k => { const v = b[k]; return Array.isArray(v) ? v.length > 0 : !!v })
+}
+
+// Content signature, ignoring updated_at
+const briefSignature = (b: FounderBrief | null | undefined) => JSON.stringify(BRIEF_FIELDS.map(k => b?.[k] ?? null))
+
+// The brief to save. updated_at changes only when the content actually changed;
+// an unchanged save keeps the old timestamp. Clearing a filled brief keeps { updated_at }.
+export function stampFounderBrief(prev: FounderBrief | null | undefined, next: FounderBrief | null, now = new Date().toISOString()): FounderBrief | null {
+  if (briefSignature(prev) === briefSignature(next)) return prev ?? null
+  if (!next) return hasFounderBrief(prev) ? { updated_at: now } : (prev ?? null)
+  return { ...next, updated_at: now }
+}
+
 // ── Competitor matching: names and URLs ─────────────────────────────────────
 const looksLikeDomain = (s: string) => /^(https?:\/\/)?[^\s/]+\.[a-z]{2,}(\/|$)/i.test(s.trim())
 export const domainOf = (s: string) =>

@@ -520,13 +520,18 @@ function ContentContextSetup({ existing, onSaved, onCancel }: {
     const prev = currentApp.screenshot_vision
     const sig  = (xs: { id: string; analyzed_at: string | null; label: string }[]) =>
       xs.map(x => `${x.id}:${x.analyzed_at}:${x.label}`).sort().join('|')
-    const changed = !prev || sig(prev.screenshots) !== sig(entries)
+    const prevEntries = prev?.screenshots ?? []
+    const changed = sig(prevEntries) !== sig(entries)   // screenshots, labels or analyses differ
     const summary = !entries.some(e => e.analysis) ? null
       : (changed || !prev?.product_understanding) ? await summarizeProduct(currentApp, entries)
-      : prev.product_understanding
-    const vision: ScreenshotVision | null = entries.length
-      ? { screenshots: entries, product_understanding: summary, updated_at: new Date().toISOString() }
-      : null
+      : prev!.product_understanding
+    // updated_at drives "outdated" analyses, so it moves only when the screenshots actually changed;
+    // saving the form for other edits (e.g. the user quote) keeps the previous date
+    const updated_at = changed ? new Date().toISOString() : (prev?.updated_at ?? new Date().toISOString())
+    const vision: ScreenshotVision | null =
+      entries.length       ? { screenshots: entries, product_understanding: summary, updated_at }
+      : prevEntries.length ? { screenshots: [], product_understanding: null, updated_at }   // all removed: keep the change date
+      : (prev ?? null)                                                                       // none before, none now
     const images: ScreenshotImage[] = shots.map(s => ({ id: s.id, label: s.label, image: s.image }))
     await saveScreenshots(currentApp.id, vision, images, ctx)
     setSaving(false); onSaved()
@@ -1117,14 +1122,20 @@ You are an expert Instagram content strategist. Output ONLY valid JSON. Follow t
         </div>
       )}
 
-      {pt && !pt.error && (
-        <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
-          <span>🧪</span>
-          <div style={{ flex:1, fontSize:12 }}>
-            <strong style={{ color:'var(--green)' }}>AI Readiness Assessment active</strong> — posts are grounded in your assessment findings (score: {pt.overall_score}/100). Features: <span style={{ color:'var(--text2)' }}>{(pt.features_found??[]).map(f=>f.name).join(', ')}</span>
+      {pt && !pt.error && typeof (pt.overall_score ?? pt.score) === 'number' && (() => {
+        // overall_score = older AI test format, score = current rule-based format
+        const score    = pt.overall_score ?? pt.score
+        const features = (pt.features_found ?? []).map(f => f.name).filter(Boolean)
+        return (
+          <div style={{ background:'rgba(52,201,138,.06)', border:'1px solid rgba(52,201,138,.25)', borderRadius:'var(--r)', padding:'10px 14px', marginBottom:14, display:'flex', alignItems:'center', gap:10 }}>
+            <span>🧪</span>
+            <div style={{ flex:1, fontSize:12 }}>
+              <strong style={{ color:'var(--green)' }}>AI Readiness Assessment active</strong> — posts are grounded in your assessment findings (score: {score}/100)
+              {features.length > 0 && <>. Features: <span style={{ color:'var(--text2)' }}>{features.join(', ')}</span></>}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* User context section */}
       {contentContext ? (
