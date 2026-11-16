@@ -138,19 +138,39 @@ export function parsePageAge(age: unknown, now = Date.now()): number | null {
 export type ReturnedResult = { url: string; page_age?: string }
 const STALE_MS = 730 * 24 * 3600 * 1000   // ~2 years
 
+export type DropReason = 'no name' | 'no url' | 'not a community page' | 'no returned result in this community'
+export interface PlaceReport {
+  proposed: number                     // places the model listed
+  confirmed: number                    // kept after the check
+  dropped: Array<{ name: string; url: string; reason: DropReason; same_host_results: number }>
+}
+
+const hostKey = (u: string) => { try { return new URL(u).hostname.toLowerCase().replace(/^(www|old|new|np|m)\./, '') } catch { return '' } }
+
 // Keep a place only if a returned search result is that community's page or a page inside it.
 // The shown URL is the community root rebuilt from that result (never the model's URL). Freshness comes
 // from the newest matching result's page_age: older than ~2 years → possibly_inactive, sorted last.
-export function keepReturnedPlaces(json: any, results: ReturnedResult[], stats: FactStats, now = Date.now()): void {
-  if (!Array.isArray(json?.places)) return
+// Returns a per-place report (separate from fact counts) for logging and for the client's message.
+export function keepReturnedPlaces(json: any, results: ReturnedResult[], now = Date.now()): PlaceReport {
+  const report: PlaceReport = { proposed: 0, confirmed: 0, dropped: [] }
+  if (!Array.isArray(json?.places)) { if (json && typeof json === 'object') json.places = []; return report }
+  report.proposed = json.places.length
   const kept: any[] = []
   for (const p of json.places) {
-    const want = typeof p?.url === 'string' ? communityRoot(p.url) : null
+    const name = typeof p?.name === 'string' ? p.name.trim() : ''
+    const url = typeof p?.url === 'string' ? p.url.trim() : ''
+    const want = url ? communityRoot(url) : null
     const matches = want ? results.filter(r => communityRoot(r.url)?.key === want.key) : []
-    if (!want || !matches.length || typeof p?.name !== 'string' || !p.name.trim()) { stats.dropped++; continue }
+    const reason: DropReason | null = !name ? 'no name' : !url ? 'no url' : !want ? 'not a community page'
+      : !matches.length ? 'no returned result in this community' : null
+    if (reason) {
+      const h = hostKey(url)
+      report.dropped.push({ name: name.slice(0, 80), url: url.slice(0, 200), reason, same_host_results: h ? results.filter(r => hostKey(r.url) === h).length : 0 })
+      continue
+    }
     const ages = matches.map(m => parsePageAge(m.page_age, now)).filter((t): t is number => t !== null)
     const newest = ages.length ? Math.max(...ages) : null
-    stats.kept++
+    report.confirmed++
     kept.push({
       ...p,
       url: communityRoot(matches[0].url)!.url,              // derived from the returned result
@@ -161,4 +181,5 @@ export function keepReturnedPlaces(json: any, results: ReturnedResult[], stats: 
   }
   // Keep the model's market-first order, but anything that may be inactive goes last
   json.places = [...kept.filter(p => !p.possibly_inactive), ...kept.filter(p => p.possibly_inactive)]
+  return report
 }

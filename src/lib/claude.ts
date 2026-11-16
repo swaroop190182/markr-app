@@ -12,6 +12,12 @@ export class AiLimitError extends Error {
   constructor(message: string) { super(message); this.name = 'AiLimitError' }
 }
 
+// A failed /api/claude request: HTTP status (0 = network) and the server's error code, if any
+// (e.g. 'search_timeout', 'search_unavailable'), so a view can say exactly what went wrong.
+export class AiRequestError extends Error {
+  constructor(message: string, public status: number, public code?: string) { super(message); this.name = 'AiRequestError' }
+}
+
 // Report currency corrections to the server log (fire-and-forget; never blocks or fails a save)
 export function logCurrencyFixes(app: { id: number; name: string }, analysis: string, fixes: { from: string; to: string }[]): void {
   if (!fixes.length) return
@@ -66,7 +72,7 @@ export async function callClaude(
       }),
     })
   } catch {
-    throw new Error('Could not reach the AI service — check your connection and try again.')
+    throw new AiRequestError('Could not reach the AI service — check your connection and try again.', 0)
   }
 
   // A crashed or timed-out function returns Vercel's plain-text/HTML error page, not JSON.
@@ -76,6 +82,7 @@ export async function callClaude(
   }
   const friendlyError = (status: number) =>
     status === 429 ? 'Daily AI limit reached — try again tomorrow or upgrade your plan.'
+    : status === 504 ? 'The request took too long and timed out (HTTP 504). Please try again.'
     : status >= 500 ? `The AI service had a server error (HTTP ${status}). Please try again in a moment.`
     : `The AI service returned an unexpected response (HTTP ${status}). Please try again.`
 
@@ -87,8 +94,8 @@ export async function callClaude(
 
   if (!onChunk) {
     const data = await readJson()
-    if (!res.ok || !data) throw new Error(data?.error ?? friendlyError(res.status))
-    if (data.error) throw new Error(data.error)
+    if (!res.ok || !data) throw new AiRequestError(data?.error ?? friendlyError(res.status), res.status, data?.code)
+    if (data.error) throw new AiRequestError(data.error, res.status, data?.code)
     // Which provider actually served this — a 200 may come from a fallback
     // provider whose JSON adherence is weaker than Anthropic's.
     if (data.provider) console.log(`[callClaude] served by: ${data.provider} (feature: ${feature})`)

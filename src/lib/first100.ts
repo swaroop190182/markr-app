@@ -53,8 +53,13 @@ ${c.founder ? c.founder + '\n' : ''}PRIMARY MARKET: ${c.market}
 ${c.competitorNames.length ? `Similar products (use only to find where these users talk; never name them in output): ${c.competitorNames.join(', ')}\n` : ''}
 Places can be: subreddit, facebook group, forum, newsletter, online community (Discord/Slack/Telegram/Indie Hackers group…), creator (YouTube/Instagram/X/Substack account whose audience matches).
 
+HOW TO SEARCH — find the community pages themselves, not articles about communities:
+- Good queries: site:reddit.com/r/ <topic>, site:facebook.com/groups <topic> ${c.market}, <topic> newsletter site:substack.com, <topic> discord invite, <topic> forum ${c.market}, site:youtube.com <topic> channel.
+- An article listing communities ("best subreddits for…") does NOT confirm them. If one names a community, search for that community's own page (e.g. "r/Name" or the group's name) and list it only if its own page or a post inside it appears in your results.
+- Spend your searches confirming communities. Leave out anything you could not confirm — fewer confirmed places are better than more guessed ones.
+
 RULES:
-- Use web search. Only list a place you saw in a search result in this conversation. Its "url" must be that community's own URL (e.g. https://www.reddit.com/r/Name), never a guess.
+- Only list a place whose own page, or a post inside it, appeared in a search result in this conversation. Its "url" must be that community's own URL taken from that result (for a post inside a subreddit, give https://www.reddit.com/r/Name), never a guess.
 - Never invent a community, a member count or a rule. If you did not find the posting rules or the member count in a search result, use null.
 - "rules" and "members" are {"value": "...", "source_url": "<the search result URL where you saw it>"} or null. "rules" = a one-line summary of what the rules say about self-promotion/links.
 - Order: places in the primary market and its main language first, then global English ones.
@@ -170,4 +175,38 @@ export function carryFirst100<T extends object>(prevGtmRaw: string | null | unde
 export function isFirst100Outdated(s: First100Section | null, inputsChangedAt: number | null): boolean {
   const ran = s ? Date.parse(s.generated_at) : NaN
   return Number.isFinite(ran) && inputsChangedAt !== null && ran < inputsChangedAt
+}
+
+// ── What the user sees for each outcome (never fail silently) ────────────────
+// Errors are matched by shape (name / status / code) so this module stays free of runtime imports.
+export type RunFailure = 'limit' | 'timeout' | 'unavailable' | 'network' | 'other'
+
+export function classifyError(e: any): RunFailure {
+  if (e?.name === 'AiLimitError' || e?.status === 429) return 'limit'
+  if (e?.code === 'search_timeout' || e?.status === 504) return 'timeout'
+  if (e?.code === 'search_unavailable' || e?.status === 503) return 'unavailable'
+  if (e?.status === 0) return 'network'
+  return 'other'
+}
+
+export function searchErrorMessage(e: any): string {
+  switch (classifyError(e)) {
+    case 'limit':       return 'Daily AI limit reached — try again tomorrow or upgrade your plan.'
+    case 'timeout':     return 'Live search took too long and was stopped. Nothing was saved — please try again.'
+    case 'unavailable': return 'Live search is unavailable right now. Nothing was saved — please try again later.'
+    case 'network':     return 'Could not reach Markr — check your connection and try again.'
+    default:            return `The search failed: ${typeof e?.message === 'string' && e.message ? e.message : 'unknown error'}. Nothing was saved — please try again.`
+  }
+}
+
+// The search ran but nothing survived the check (proposed = places the model listed before it)
+export function noneConfirmedMessage(proposed: number): string {
+  return proposed > 0
+    ? `The search found ${proposed} place${proposed === 1 ? '' : 's'}, but none could be confirmed by a returned search result, so nothing was saved. Retrying often finds different results.`
+    : 'The search did not return any places, so nothing was saved. Please try again.'
+}
+
+export function draftsFailedMessage(failed: number, total: number, e: any): string {
+  const why = classifyError(e) === 'limit' ? ' — daily AI limit reached' : classifyError(e) === 'timeout' ? ' — the request timed out' : ''
+  return `Drafts could not be written for ${failed} of ${total} place${total === 1 ? '' : 's'}${why}. The places are saved; use "Write missing drafts" to try again.`
 }

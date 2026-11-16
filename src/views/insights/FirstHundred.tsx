@@ -1,5 +1,6 @@
 // "Where your first 100 users are" — real public communities confirmed by live web search,
 // with draft posts the founder publishes manually. Markr never posts.
+// Every outcome ends in a visible status message in this card (not only a toast).
 import { useState } from 'react'
 import { useStore } from '../../lib/store'
 import { callClaude, getAiUsage, getFounderContext, extractJSON } from '../../lib/claude'
@@ -11,10 +12,13 @@ import { CopyButton } from '../../components/ui'
 import { toast } from '../../components/Toast'
 import {
   searchPrompt, draftPrompt, normalizePlaces, mergeDrafts, readFirst100, isFirst100Outdated,
+  searchErrorMessage, noneConfirmedMessage, draftsFailedMessage,
   SEARCH_SYSTEM, DRAFT_SYSTEM, FIRST100_MAX_USES, DRAFT_BATCH, FIRST100_CALLS,
   type First100Place, type First100Section,
 } from '../../lib/first100'
 import type { AppData } from '../../types'
+
+type Status = { tone: 'error' | 'warn' | 'ok'; text: string; action?: 'retry' | 'drafts' } | null
 
 const box: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '16px 18px' }
 const btn = (primary = true): React.CSSProperties => ({
@@ -23,6 +27,11 @@ const btn = (primary = true): React.CSSProperties => ({
   border: primary ? 'none' : '1px solid var(--border)',
 })
 const chip: React.CSSProperties = { fontSize: 10, padding: '2px 7px', borderRadius: 10, background: 'var(--surface2, rgba(124,111,247,.08))', color: 'var(--text3)', textTransform: 'capitalize' }
+const TONE = {
+  error: { bg: 'rgba(229,72,77,.08)',  border: 'rgba(229,72,77,.3)',  icon: '⛔' },
+  warn:  { bg: 'rgba(245,166,35,.08)', border: 'rgba(245,166,35,.3)', icon: '⚠️' },
+  ok:    { bg: 'rgba(52,201,138,.08)', border: 'rgba(52,201,138,.3)', icon: '✅' },
+}
 const srcLink = (url: string) => <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 6 }}>source</a>
 
 export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; plan: string; onUpgrade?: () => void }) {
@@ -30,6 +39,7 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
   const [confirming, setConfirming] = useState(false)
   const [remaining, setRemaining] = useState<number | null>(null)
   const [busy, setBusy] = useState<'' | 'search' | 'drafts'>('')
+  const [status, setStatus] = useState<Status>(null)
 
   const isPro = plan === 'pro' || plan === 'guest_pro'
   const section = readFirst100(app.gtm_analysis)
@@ -50,21 +60,23 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
     .map(c => (typeof c?.name === 'string' ? c.name.trim() : '')).filter(Boolean)
   const product = app.screenshot_vision?.product_understanding || app.desc || ''
 
-  function save(places: First100Place[], market: string, generatedAt: string) {
+  // Writes the section into the GTM JSON (gtm_analyzed_at — the plan's own date and lock — is left alone).
+  // `base` is the GTM JSON to write into: the second save of a run passes the first save's result,
+  // since `app` in this closure is still the pre-run snapshot. Returns the JSON written, or null if the save failed.
+  async function save(places: First100Place[], market: string, generatedAt: string, base = app.gtm_analysis): Promise<string | null> {
     let gtm: any = {}
-    try { if (app.gtm_analysis) gtm = JSON.parse(app.gtm_analysis) } catch {}
+    try { if (base) gtm = JSON.parse(base) } catch {}
     const fixed = fixAnalysisCurrency(app, 'first100', { places })
     const next: First100Section = { places: fixed.places, market, generated_at: generatedAt }
-    // Only the section changes — gtm_analyzed_at (the GTM plan's own date and lock) is left alone
-    updateApp(app.id, { gtm_analysis: markGenerated(JSON.stringify({ ...gtm, first100: next })) } as any)
+    const json = markGenerated(JSON.stringify({ ...gtm, first100: next }))
+    return (await updateApp(app.id, { gtm_analysis: json } as any)) ? json : null
   }
 
   // Draft posts for the given places (batches of DRAFT_BATCH in parallel). A failed batch leaves draft: null.
-  async function writeDrafts(places: First100Place[], only?: (p: First100Place) => boolean): Promise<First100Place[]> {
-    const idx = places.map((p, i) => i).filter(i => !only || only(places[i]))
+  async function writeDrafts(places: First100Place[], only?: (p: First100Place) => boolean) {
+    const idx = places.map((_, i) => i).filter(i => !only || only(places[i]))
     const batches: number[][] = []
     for (let i = 0; i < idx.length; i += DRAFT_BATCH) batches.push(idx.slice(i, i + DRAFT_BATCH))
-    let out = places
     const results = await Promise.allSettled(batches.map(async b => {
       // Places keep their position in the saved list, so drafts come back keyed by it
       const raw = await callClaude(
@@ -72,17 +84,18 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
         DRAFT_SYSTEM, 3000, undefined, 'haiku', 'first_100_drafts')
       return JSON.parse(extractJSON(raw))
     }))
-    let failed = 0
-    for (const r of results) {
+    let out = places, firstError: any = null
+    results.forEach(r => {
       if (r.status === 'fulfilled') out = mergeDrafts(out, r.value, competitorNames)
-      else failed++
-    }
-    if (failed) toast(`${failed} draft batch${failed > 1 ? 'es' : ''} failed — use "Write missing drafts" to retry.`)
-    return out
+      else { firstError ??= r.reason; console.warn('[first_100] draft batch failed:', r.reason) }
+    })
+    const missing = idx.filter(i => !out[i].draft).length   // failed batches + drafts emptied by the clean-up
+    return { places: out, missing, total: idx.length, firstError }
   }
 
   async function openConfirm() {
     setConfirming(true)
+    setStatus(null)
     setRemaining(null)
     const u = await getAiUsage()
     setRemaining(u ? u.remaining : null)
@@ -90,21 +103,57 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
 
   async function run() {
     setConfirming(false)
+    setStatus(null)
     setBusy('search')
     const market = effectiveMarket(app)
     try {
-      const raw = await callClaude(
-        searchPrompt({ appName: app.name, category: app.category, market, product, founder: getFounderContext(app), competitorNames }),
-        SEARCH_SYSTEM, 4000, undefined, 'haiku', 'first_100', undefined, { webSearch: { maxUses: FIRST100_MAX_USES } })
-      const places = normalizePlaces(JSON.parse(raw))
-      if (!places.length) { toast('No communities could be confirmed by live search — try again later.'); return }
+      // 1. Find places (live search)
+      let raw: string
+      try {
+        raw = await callClaude(
+          searchPrompt({ appName: app.name, category: app.category, market, product, founder: getFounderContext(app), competitorNames }),
+          SEARCH_SYSTEM, 4000, undefined, 'haiku', 'first_100', undefined, { webSearch: { maxUses: FIRST100_MAX_USES } })
+      } catch (e) {
+        console.warn('[first_100] search failed:', e)
+        setStatus({ tone: 'error', text: searchErrorMessage(e), action: 'retry' })
+        return
+      }
+      let json: any
+      try { json = JSON.parse(raw) } catch {
+        console.warn('[first_100] unreadable search response:', raw.slice(0, 300))
+        setStatus({ tone: 'error', text: 'The search response could not be read. Nothing was saved — please try again.', action: 'retry' })
+        return
+      }
+      const places = normalizePlaces(json)
+      const proposed = Number(json?.place_check?.proposed ?? json?.places?.length ?? 0)
+      console.log(`[first_100] proposed=${proposed} confirmed=${json?.place_check?.confirmed ?? '?'} usable=${places.length}`)
+      if (!places.length) {
+        setStatus({ tone: 'warn', text: noneConfirmedMessage(proposed), action: 'retry' })
+        return
+      }
+
+      // 2. Save the places first, so they are kept even if drafting fails
       const generatedAt = new Date().toISOString()
-      save(places, market, generatedAt)               // places are kept even if drafting fails
+      const firstSave = await save(places, market, generatedAt)
+
+      // 3. Drafts
       setBusy('drafts')
-      save(await writeDrafts(places), market, generatedAt)
-      toast(`Found ${places.length} places to post`)
+      const d = await writeDrafts(places)
+      const finalSave = await save(d.places, market, generatedAt, firstSave ?? app.gtm_analysis)
+
+      const found = `Found ${places.length} confirmed place${places.length === 1 ? '' : 's'}${proposed > places.length ? ` (of ${proposed} the search suggested)` : ''}.`
+      if (!firstSave || !finalSave) {
+        setStatus({ tone: 'error', text: `${found} They couldn't be saved, so they will disappear when you reload — please try again.`, action: 'retry' })
+      } else if (d.missing) {
+        setStatus({ tone: 'warn', text: `${found} ${draftsFailedMessage(d.missing, d.total, d.firstError)}`, action: 'drafts' })
+      } else {
+        setStatus({ tone: 'ok', text: `${found} Drafts are ready — check each community's rules before posting.` })
+        toast(`Found ${places.length} places to post`)
+      }
     } catch (e: any) {
-      toast(e?.message ?? 'Could not find places — please try again.')
+      // Anything unexpected (bug, storage) — still visible
+      console.error('[first_100] run failed:', e)
+      setStatus({ tone: 'error', text: `Something went wrong: ${e?.message ?? 'unknown error'}. Please try again.`, action: 'retry' })
     } finally {
       setBusy('')
     }
@@ -112,9 +161,20 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
 
   async function retryDrafts() {
     if (!section) return
+    setStatus(null)
     setBusy('drafts')
-    try { save(await writeDrafts(section.places, p => !p.draft), section.market, section.generated_at) }
-    finally { setBusy('') }
+    try {
+      const d = await writeDrafts(section.places, p => !p.draft)
+      const saved = await save(d.places, section.market, section.generated_at)
+      if (!saved) setStatus({ tone: 'error', text: 'The drafts were written but could not be saved — please try again.', action: 'drafts' })
+      else if (d.missing) setStatus({ tone: 'warn', text: draftsFailedMessage(d.missing, d.total, d.firstError), action: 'drafts' })
+      else setStatus({ tone: 'ok', text: 'Drafts are ready.' })
+    } catch (e: any) {
+      console.error('[first_100] retry drafts failed:', e)
+      setStatus({ tone: 'error', text: `Something went wrong: ${e?.message ?? 'unknown error'}. Please try again.`, action: 'drafts' })
+    } finally {
+      setBusy('')
+    }
   }
 
   const missingDrafts = section?.places.filter(p => !p.draft).length ?? 0
@@ -129,12 +189,23 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
         {busy ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text3)' }}>
             <span className="spinner" style={{ color: 'var(--accent)' }} />
-            {busy === 'search' ? 'Searching for real communities…' : 'Writing drafts…'}
+            {busy === 'search' ? 'Searching for real communities… (up to a minute)' : 'Writing drafts…'}
           </div>
         ) : !confirming && (
           <button style={btn(!section)} onClick={openConfirm}>{section ? 'Re-run' : 'Find places'}</button>
         )}
       </div>
+
+      {status && !busy && (
+        <div role="status" style={{ fontSize: 12, lineHeight: 1.6, padding: '10px 12px', borderRadius: 8, background: TONE[status.tone].bg, border: `1px solid ${TONE[status.tone].border}` }}>
+          {TONE[status.tone].icon} {status.text}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            {status.action === 'retry' && <button style={{ ...btn(), padding: '5px 12px', fontSize: 11 }} onClick={openConfirm}>Retry</button>}
+            {status.action === 'drafts' && <button style={{ ...btn(), padding: '5px 12px', fontSize: 11 }} onClick={retryDrafts}>Write missing drafts</button>}
+            <button style={{ ...btn(false), padding: '5px 12px', fontSize: 11 }} onClick={() => setStatus(null)}>Dismiss</button>
+          </div>
+        </div>
+      )}
 
       {outdated && !busy && (
         <div style={{ fontSize: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.25)' }}>
@@ -151,7 +222,7 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
             <button style={btn(false)} onClick={() => setConfirming(false)}>Cancel</button>
           </div>
           {remaining !== null && remaining < FIRST100_CALLS && (
-            <div style={{ color: 'var(--text3)', marginTop: 6 }}>Not enough AI calls left today — try again tomorrow.</div>
+            <div style={{ color: 'var(--text3)', marginTop: 6 }}>Daily AI limit reached — not enough calls left for a run. Try again tomorrow or upgrade your plan.</div>
           )}
         </div>
       )}
@@ -176,7 +247,7 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
               👥 Members: <span style={{ color: 'var(--text2)' }}>{p.members.value}</span>{srcLink(p.members.source_url)}
             </div>
           )}
-          {p.draft && (
+          {p.draft ? (
             <div style={{ marginTop: 10 }}>
               <div style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, padding: '10px 12px', borderRadius: 8, background: 'rgba(124,111,247,.05)', border: '1px solid rgba(124,111,247,.15)' }}>{p.draft}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
@@ -184,6 +255,8 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
                 {p.no_link && <span style={{ fontSize: 11, color: 'var(--text3)' }}>No link included — this community's rules limit promotion.</span>}
               </div>
             </div>
+          ) : !busy && (
+            <div style={{ fontSize: 11, marginTop: 8, color: 'var(--text3)' }}>No draft yet — use "Write missing drafts" below.</div>
           )}
         </div>
       ))}

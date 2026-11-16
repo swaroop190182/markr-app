@@ -147,7 +147,7 @@ const WEB_SEARCH_HARD_MS   = 55_000   // stay under the 60s function limit
 
 type SearchResult =
   | { ok: true; json: any; inputTokens: number; outputTokens: number; searches: number }
-  | { ok: false; reason: string }
+  | { ok: false; reason: string; timeout?: boolean }
 
 async function callAnthropicWithSearch(prompt: string, system: string, maxTokens: number, maxUses: number, feature: string): Promise<SearchResult> {
   const key = process.env.ANTHROPIC_API_KEY
@@ -156,11 +156,12 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
   const assistant: any[] = []          // all assistant content so far (resent unchanged on pause_turn)
   const allowed = new Map<string, string>()   // normalized → original URL of every search result returned
   const returned: ReturnedResult[] = []        // every result with its page_age (freshness for first_100 places)
+  const queries: string[] = []                 // what the model searched for (logged for first_100)
   let inputTokens = 0, outputTokens = 0, searches = 0, pauses = 0, stop = ''
   try {
     while (true) {
       const remaining = WEB_SEARCH_HARD_MS - (Date.now() - started)
-      if (remaining < 5_000) return { ok: false, reason: 'time budget exhausted' }
+      if (remaining < 5_000) return { ok: false, reason: 'time budget exhausted', timeout: true }
       const messages: any[] = [{ role: 'user', content: prompt }]
       if (assistant.length) messages.push({ role: 'assistant', content: assistant })
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -179,6 +180,7 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
       searches     += data.usage?.server_tool_use?.web_search_requests ?? 0
       for (const b of data.content ?? []) {
         assistant.push(b)
+        if (b.type === 'server_tool_use' && typeof b.input?.query === 'string') queries.push(b.input.query)
         // Success content is a list of results; an error (e.g. max_uses_exceeded) is a single object — skip it
         if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) {
           for (const r of b.content) {
@@ -192,24 +194,38 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
       if (stop === 'pause_turn' && pauses < 3 && Date.now() - started < WEB_SEARCH_BUDGET_MS) { pauses++; continue }
       break
     }
-    if (stop !== 'end_turn') return { ok: false, reason: `stopped: ${stop}` }
+    if (stop !== 'end_turn') return { ok: false, reason: `stopped: ${stop}`, timeout: stop === 'pause_turn' }
 
     const text = assistant.filter(b => b.type === 'text').map(b => b.text).join('')
     const body = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '')
     const start = body.indexOf('{'), end = body.lastIndexOf('}')
     if (start === -1 || end <= start) return { ok: false, reason: 'no JSON in response' }
-    const stats: FactStats = { kept: 0, dropped: 0, derived: 0 }
-    const json = keepSourcedFacts(JSON.parse(body.slice(start, end + 1)), allowed, stats)
+    let parsed: any
+    try { parsed = JSON.parse(body.slice(start, end + 1)) }
+    catch (e) {
+      console.warn(`[web_search] feature=${feature} JSON parse error: ${(e as Error).message} out=${outputTokens} tail=${JSON.stringify(body.slice(-120))}`)
+      return { ok: false, reason: 'JSON parse error' }
+    }
+    const stats: FactStats = { kept: 0, dropped: 0, derived: 0 }   // sourced facts only ({value, source_url}); places are reported separately
+    const json = keepSourcedFacts(parsed, allowed, stats)
     if (feature === 'competitive_facts') fillWebsitesFromResults(json, allowed, stats)
-    if (feature === 'first_100') keepReturnedPlaces(json, returned, stats)   // place kept only if a returned result is inside that community
+    if (feature === 'first_100') {
+      // Place kept only if a returned result is inside that community
+      const report = keepReturnedPlaces(json, returned)
+      json.place_check = { proposed: report.proposed, confirmed: report.confirmed }   // for the client's message
+      console.log(`[first_100] queries=${JSON.stringify(queries)}`)
+      console.log(`[first_100] places proposed=${report.proposed} confirmed=${report.confirmed} dropped=${report.dropped.length} results=${returned.length}`)
+      for (const d of report.dropped) console.log(`[first_100] dropped name=${JSON.stringify(d.name)} url=${JSON.stringify(d.url)} reason=${d.reason} same_host_results=${d.same_host_results}`)
+    }
     json.checked_at = new Date().toISOString()
     json.search_requests = searches   // lets the client spend any remaining search budget
 
-    // Timing line for tuning FACTS_BATCH
-    console.log(`[web_search] feature=${feature} ms=${Date.now() - started} searches=${searches} pauses=${pauses} stop=${stop} in=${inputTokens} out=${outputTokens} sources=${allowed.size} kept=${stats.kept} dropped=${stats.dropped} sites_from_results=${stats.derived}`)
+    // Timing line for tuning FACTS_BATCH (kept/dropped = sourced facts, not places)
+    console.log(`[web_search] feature=${feature} ms=${Date.now() - started} searches=${searches} pauses=${pauses} stop=${stop} in=${inputTokens} out=${outputTokens} sources=${allowed.size} facts_kept=${stats.kept} facts_dropped=${stats.dropped} sites_from_results=${stats.derived}`)
     return { ok: true, json, inputTokens, outputTokens, searches }
   } catch (e) {
-    return { ok: false, reason: (e as Error).message }
+    const err = e as Error
+    return { ok: false, reason: err.message, timeout: err.name === 'TimeoutError' || err.name === 'AbortError' }
   } finally {
     console.log(`[web_search] feature=${feature} finished ms=${Date.now() - started} searches=${searches} pauses=${pauses} stop=${stop}`)
   }
@@ -345,7 +361,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!r.ok) {
       console.warn('[web_search] failed:', r.reason)
       // No Gemini/Groq fallback — they can't search, and recalled facts are not acceptable here
-      return res.status(503).json({ error: 'Live source check unavailable — please try again later.' })
+      if (r.timeout) return res.status(504).json({ error: 'Live search took too long and was stopped — please try again.', code: 'search_timeout' })
+      return res.status(503).json({ error: 'Live source check unavailable — please try again later.', code: 'search_unavailable' })
     }
     logUsage(supabase, userId, feature, { inputTokens: r.inputTokens, outputTokens: r.outputTokens, model: ANTHROPIC_MODEL })
     return res.status(200).json({ content: [{ type: 'text', text: JSON.stringify(r.json) }], provider: 'anthropic' })

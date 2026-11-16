@@ -97,3 +97,28 @@ test('prompts carry the honesty rules, market and no-link marks', () => {
   assert.ok(dp.includes('NO LINK'))
   assert.ok(dp.includes('"i":5'))
 })
+
+test('every failure has a specific visible message', async () => {
+  const { searchErrorMessage, noneConfirmedMessage, draftsFailedMessage, classifyError } = await import('../src/lib/first100.ts')
+  const limit = Object.assign(new Error('x'), { name: 'AiLimitError' })
+  assert.equal(classifyError(limit), 'limit')
+  assert.match(searchErrorMessage(limit), /Daily AI limit/)
+  assert.match(searchErrorMessage({ status: 504, code: 'search_timeout' }), /took too long/)
+  assert.match(searchErrorMessage({ status: 504 }), /took too long/)
+  assert.match(searchErrorMessage({ status: 503, code: 'search_unavailable' }), /unavailable/)
+  assert.match(searchErrorMessage({ status: 0, message: 'net' }), /connection/)
+  assert.match(searchErrorMessage({ status: 500, message: 'boom' }), /The search failed: boom/)
+  assert.match(searchErrorMessage(undefined), /unknown error/)
+  assert.equal(noneConfirmedMessage(9).startsWith('The search found 9 places, but none could be confirmed'), true)
+  assert.match(noneConfirmedMessage(1), /found 1 place,/)
+  assert.match(noneConfirmedMessage(0), /did not return any places/)
+  assert.match(draftsFailedMessage(5, 10, limit), /5 of 10 places — daily AI limit reached/)
+  assert.match(draftsFailedMessage(1, 1, { status: 504 }), /1 of 1 place — the request timed out/)
+})
+
+test('search prompt asks for community pages, not listicles', () => {
+  const sp = searchPrompt({ appName: 'Markr', category: 'Productivity', market: 'India', product: 'Growth tool', founder: '', competitorNames: [] })
+  assert.ok(sp.includes('site:reddit.com/r/'))
+  assert.ok(sp.includes('does NOT confirm them'))
+  assert.ok(sp.includes('site:facebook.com/groups <topic> India'))
+})

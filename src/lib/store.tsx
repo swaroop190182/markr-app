@@ -90,7 +90,7 @@ interface AppStore {
   setView: (v: ViewType) => void
   setCurrentApp: (id: number) => void
   addApp: (app: AppData) => Promise<void>
-  updateApp: (id: number, updates: Partial<AppData>) => Promise<void>
+  updateApp: (id: number, updates: Partial<AppData>) => Promise<boolean>   // false = the database write failed
   removeApp: (id: number) => Promise<boolean>   // true = deleted
   loadScreenshotImages: (id: number) => Promise<ScreenshotImage[] | null>  // null = fetch failed
   saveScreenshots: (id: number, vision: ScreenshotVision | null, images: ScreenshotImage[], contentContext?: ContentContext) => Promise<void>
@@ -284,7 +284,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
   }, [apps, userId])
 
   // ── Update app ────────────────────────────────────────────────────────────
-  const updateApp = useCallback(async (id: number, updates: Partial<AppData>) => {
+  const updateApp = useCallback(async (id: number, updates: Partial<AppData>): Promise<boolean> => {
     // Optimistic update
     setApps(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a))
 
@@ -337,6 +337,7 @@ export function StoreProvider({ children, userId, userEmail }: { children: React
       .eq('user_id', userId)
 
     if (error) console.error('updateApp error:', error)
+    return !error
   }, [userId])
 
   // ── Remove app ────────────────────────────────────────────────────────────

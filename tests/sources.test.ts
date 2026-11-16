@@ -101,10 +101,9 @@ import { communityRoot, parsePageAge, keepReturnedPlaces } from '../api/_lib/sou
 
 const NOW = Date.parse('2026-11-16T00:00:00Z')
 const run = (places: any[], results: { url: string; page_age?: string }[]) => {
-  const stats = { kept: 0, dropped: 0, derived: 0 }
   const json: any = { places: structuredClone(places) }
-  keepReturnedPlaces(json, results, stats, NOW)
-  return { places: json.places, stats }
+  const report = keepReturnedPlaces(json, results, NOW)
+  return { places: json.places, report }
 }
 
 test('communityRoot names the community, not just the host', () => {
@@ -121,14 +120,15 @@ test('communityRoot names the community, not just the host', () => {
 })
 
 test('a place is kept only when a returned result is inside that community', () => {
-  const { places, stats } = run(
+  const { places, report } = run(
     [{ name: 'r/SaaS', type: 'subreddit', url: 'https://reddit.com/r/saas' }],
     [{ url: 'https://www.reddit.com/r/SaaS/comments/abc/thread', page_age: '3 weeks ago' }])
   assert.equal(places.length, 1)
   assert.equal(places[0].url, 'https://www.reddit.com/r/SaaS')          // derived from the result, not the model's spelling
   assert.equal(places[0].evidence_url, 'https://www.reddit.com/r/SaaS/comments/abc/thread')
   assert.equal(places[0].possibly_inactive, false)
-  assert.equal(stats.kept, 1)
+  assert.equal(report.confirmed, 1)
+  assert.equal(report.proposed, 1)
 })
 
 test('cross-community false positives are dropped', () => {
@@ -145,9 +145,9 @@ test('cross-community false positives are dropped', () => {
     ['https://www.reddit.com',                      'https://www.reddit.com/r/SaaS/comments/x/t',     'model gave no community path'],
   ]
   for (const [want, got, what] of cases) {
-    const { places, stats } = run([{ name: 'X', type: 'forum', url: want }], [{ url: got }])
+    const { places, report } = run([{ name: 'X', type: 'forum', url: want }], [{ url: got }])
     assert.equal(places.length, 0, what)
-    assert.equal(stats.dropped, 1, what)
+    assert.equal(report.dropped.length, 1, what)
   }
 })
 
@@ -176,4 +176,35 @@ test('parsePageAge handles relative and absolute dates', () => {
   assert.equal(parsePageAge('', NOW), null)
   assert.equal(parsePageAge(undefined, NOW), null)
   assert.equal(parsePageAge('not a date', NOW), null)
+})
+
+test('place report: proposed / confirmed counted apart from facts, with a reason per dropped place', () => {
+  const { places, report } = run(
+    [
+      { name: 'r/SaaS', url: 'https://www.reddit.com/r/SaaS' },                       // confirmed
+      { name: 'r/startups', url: 'https://www.reddit.com/r/startups' },               // only a listicle about it was returned
+      { name: 'Reddit', url: 'https://www.reddit.com' },                              // not a community page
+      { name: 'No URL group' },                                                       // no url
+      { name: '  ', url: 'https://forum.example.org' },                               // no name
+    ],
+    [
+      { url: 'https://www.reddit.com/r/SaaS/comments/a/b' },
+      { url: 'https://www.reddit.com/r/Entrepreneur/comments/c/d' },
+      { url: 'https://blog.example.com/best-subreddits-for-founders' },
+    ])
+  assert.equal(places.length, 1)
+  assert.equal(report.proposed, 5)
+  assert.equal(report.confirmed, 1)
+  assert.deepEqual(report.dropped.map(d => [d.name, d.reason, d.same_host_results]), [
+    ['r/startups', 'no returned result in this community', 2],   // 2 other reddit results, none in r/startups
+    ['Reddit', 'not a community page', 2],
+    ['No URL group', 'no url', 0],
+    ['', 'no name', 0],
+  ])
+})
+
+test('place report: no places array → empty report, places set to []', () => {
+  const json: any = { foo: 1 }
+  assert.deepEqual(keepReturnedPlaces(json, [], NOW), { proposed: 0, confirmed: 0, dropped: [] })
+  assert.deepEqual(json.places, [])
 })
