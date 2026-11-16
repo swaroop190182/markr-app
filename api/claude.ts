@@ -212,7 +212,8 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
     if (feature === 'first_100') {
       // Place kept only if a returned result is inside that community
       const report = keepReturnedPlaces(json, returned)
-      json.place_check = { proposed: report.proposed, confirmed: report.confirmed }   // for the client's message
+      // for the client: counts for its message, and the dropped candidates a top-up search can look for directly
+      json.place_check = { proposed: report.proposed, confirmed: report.confirmed, dropped: report.dropped.slice(0, 10).map(d => ({ name: d.name, url: d.url, reason: d.reason })) }
       console.log(`[first_100] queries=${JSON.stringify(queries)}`)
       console.log(`[first_100] places proposed=${report.proposed} confirmed=${report.confirmed} dropped=${report.dropped.length} results=${returned.length}`)
       for (const d of report.dropped) console.log(`[first_100] dropped name=${JSON.stringify(d.name)} url=${JSON.stringify(d.url)} reason=${d.reason} same_host_results=${d.same_host_results}`)

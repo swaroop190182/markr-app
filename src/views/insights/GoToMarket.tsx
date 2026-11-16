@@ -169,6 +169,7 @@ interface Props {
   onGoToOverview:  () => void
   app:             AppData
   canUseAnalysis:  boolean
+  afterChannels?:  React.ReactNode   // rendered between Channel Recommendations and Budget Planner
 }
 
 function daysSinceDate(ts: string | null | undefined): number | null {
@@ -181,7 +182,7 @@ const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
 const EFFORT_COLOR: Record<string, string> = { Low: 'var(--green)', Medium: 'var(--amber)', High: 'var(--red)' }
 const EFFORT_BG:    Record<string, string> = { Low: 'rgba(52,201,138,.12)', Medium: 'rgba(245,166,35,.12)', High: 'rgba(229,85,85,.12)' }
 
-export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, onGoToOverview, app, canUseAnalysis }: Props) {
+export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, onGoToOverview, app, canUseAnalysis, afterChannels }: Props) {
   const [budget, setBudget] = useState('0')
 
   if (!canUseAnalysis) return (
@@ -320,6 +321,8 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
           </div>
         )}
       </Section>
+
+      {afterChannels}
 
       {/* ── 2. Budget Planner ── */}
       <Section title="💰 Budget Planner" subtitle="How to allocate your monthly marketing budget">

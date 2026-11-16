@@ -4,16 +4,17 @@
 import { useState } from 'react'
 import { useStore } from '../../lib/store'
 import { callClaude, getAiUsage, getFounderContext, extractJSON } from '../../lib/claude'
-import { readCompetitive } from '../../lib/founder'
+import { readCompetitive, hasFounderBrief } from '../../lib/founder'
 import { effectiveMarket } from '../../lib/market'
 import { inputsChangedAt, markGenerated } from '../../lib/outdated'
 import { fixAnalysisCurrency } from '../../lib/prices'
 import { CopyButton } from '../../components/ui'
 import { toast } from '../../components/Toast'
 import {
-  searchPrompt, draftPrompt, normalizePlaces, mergeDrafts, readFirst100, isFirst100Outdated,
+  searchPrompt, topUpPrompt, draftPrompt, normalizePlaces, mergePlaces, mergeDrafts, unconfirmedCandidates,
+  readFirst100, isFirst100Outdated, placeTypeLabel, linkPolicy, linkNote, detectLanguage,
   searchErrorMessage, noneConfirmedMessage, draftsFailedMessage,
-  SEARCH_SYSTEM, DRAFT_SYSTEM, FIRST100_MAX_USES, DRAFT_BATCH, FIRST100_CALLS,
+  SEARCH_SYSTEM, DRAFT_SYSTEM, FIRST100_MAX_USES, FIRST100_SEARCHES, TOPUP_BELOW, MAX_PLACES, DRAFT_BATCH, FIRST100_CALLS,
   type First100Place, type First100Section,
 } from '../../lib/first100'
 import type { AppData } from '../../types'
@@ -34,11 +35,12 @@ const TONE = {
 }
 const srcLink = (url: string) => <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 6 }}>source</a>
 
-export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; plan: string; onUpgrade?: () => void }) {
+export default function FirstHundred({ app, plan, onUpgrade, onEditApp }: { app: AppData; plan: string; onUpgrade?: () => void; onEditApp?: (id: number) => void }) {
   const { updateApp } = useStore()
   const [confirming, setConfirming] = useState(false)
+  const [briefNotice, setBriefNotice] = useState(false)
   const [remaining, setRemaining] = useState<number | null>(null)
-  const [busy, setBusy] = useState<'' | 'search' | 'drafts'>('')
+  const [busy, setBusy] = useState<'' | 'search' | 'topup' | 'drafts'>('')
   const [status, setStatus] = useState<Status>(null)
 
   const isPro = plan === 'pro' || plan === 'guest_pro'
@@ -59,6 +61,11 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
   const competitorNames = ((readCompetitive(app)?.comps ?? []) as any[])
     .map(c => (typeof c?.name === 'string' ? c.name.trim() : '')).filter(Boolean)
   const product = app.screenshot_vision?.product_understanding || app.desc || ''
+  // The app's primary language, from its own product copy (landing page headline, screenshot headlines and buttons)
+  const appLanguage = detectLanguage([
+    app.url_analysis?.headline,
+    ...(app.screenshot_vision?.screenshots ?? []).flatMap(s => [s.analysis?.extracted_copy?.headline, ...(s.analysis?.extracted_copy?.ctas ?? [])]),
+  ].filter(Boolean).join('. '))
 
   // Writes the section into the GTM JSON (gtm_analyzed_at — the plan's own date and lock — is left alone).
   // `base` is the GTM JSON to write into: the second save of a run passes the first save's result,
@@ -80,20 +87,28 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
     const results = await Promise.allSettled(batches.map(async b => {
       // Places keep their position in the saved list, so drafts come back keyed by it
       const raw = await callClaude(
-        draftPrompt({ appName: app.name, appUrl: app.url || '', product, founder: getFounderContext(app), places: b.map(i => places[i]), startIndex: b[0], indexes: b }),
+        draftPrompt({ appName: app.name, appUrl: app.url || '', product, founder: getFounderContext(app), places: b.map(i => places[i]), startIndex: b[0], indexes: b, appLanguage }),
         DRAFT_SYSTEM, 3000, undefined, 'haiku', 'first_100_drafts')
       return JSON.parse(extractJSON(raw))
     }))
     let out = places, firstError: any = null
     results.forEach(r => {
-      if (r.status === 'fulfilled') out = mergeDrafts(out, r.value, competitorNames)
+      if (r.status === 'fulfilled') out = mergeDrafts(out, r.value, competitorNames, appLanguage, app.name)
       else { firstError ??= r.reason; console.warn('[first_100] draft batch failed:', r.reason) }
     })
     const missing = idx.filter(i => !out[i].draft).length   // failed batches + drafts emptied by the clean-up
     return { places: out, missing, total: idx.length, firstError }
   }
 
+  // Without a founder brief, drafts can only describe the product from the landing page — say so first
+  function startRun() {
+    setStatus(null)
+    if (!hasFounderBrief(app.founder_brief)) { setBriefNotice(true); return }
+    openConfirm()
+  }
+
   async function openConfirm() {
+    setBriefNotice(false)
     setConfirming(true)
     setStatus(null)
     setRemaining(null)
@@ -124,11 +139,32 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
         setStatus({ tone: 'error', text: 'The search response could not be read. Nothing was saved — please try again.', action: 'retry' })
         return
       }
-      const places = normalizePlaces(json)
-      const proposed = Number(json?.place_check?.proposed ?? json?.places?.length ?? 0)
-      console.log(`[first_100] proposed=${proposed} confirmed=${json?.place_check?.confirmed ?? '?'} usable=${places.length}`)
+      let places = normalizePlaces(json)
+      let proposed = Number(json?.place_check?.proposed ?? json?.places?.length ?? 0)
+      console.log(`[first_100] search 1: proposed=${proposed} confirmed=${json?.place_check?.confirmed ?? '?'} usable=${places.length}`)
+
+      // 1b. Too few confirmed → one targeted search: look up the unconfirmed candidates' own pages
+      //     and cover the platforms the first call didn't reach. Same server check applies.
+      let topUpNote = ''
+      if (places.length < TOPUP_BELOW) {
+        setBusy('topup')
+        try {
+          const raw2 = await callClaude(
+            topUpPrompt({ appName: app.name, category: app.category, market, product,
+              confirmed: places.map(p => ({ name: p.name, url: p.url })), unconfirmed: unconfirmedCandidates(json), want: MAX_PLACES - places.length }),
+            SEARCH_SYSTEM, 4000, undefined, 'haiku', 'first_100', undefined, { webSearch: { maxUses: FIRST100_MAX_USES } })
+          const json2 = JSON.parse(raw2)
+          const before = places.length
+          places = mergePlaces(places, normalizePlaces(json2))
+          proposed += Number(json2?.place_check?.proposed ?? 0)
+          console.log(`[first_100] search 2 (top-up): proposed=${json2?.place_check?.proposed ?? '?'} confirmed=${json2?.place_check?.confirmed ?? '?'} new=${places.length - before}`)
+        } catch (e) {
+          console.warn('[first_100] top-up search failed:', e)
+          topUpNote = ` The follow-up search couldn't run (${searchErrorMessage(e).split(/[.—]/)[0].trim().toLowerCase()}), so fewer places may have been found.`
+        }
+      }
       if (!places.length) {
-        setStatus({ tone: 'warn', text: noneConfirmedMessage(proposed), action: 'retry' })
+        setStatus({ tone: 'warn', text: noneConfirmedMessage(proposed) + topUpNote, action: 'retry' })
         return
       }
 
@@ -141,7 +177,7 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
       const d = await writeDrafts(places)
       const finalSave = await save(d.places, market, generatedAt, firstSave ?? app.gtm_analysis)
 
-      const found = `Found ${places.length} confirmed place${places.length === 1 ? '' : 's'}${proposed > places.length ? ` (of ${proposed} the search suggested)` : ''}.`
+      const found = `Found ${places.length} confirmed place${places.length === 1 ? '' : 's'}${proposed > places.length ? ` (of ${proposed} the search suggested)` : ''}.${topUpNote}`
       if (!firstSave || !finalSave) {
         setStatus({ tone: 'error', text: `${found} They couldn't be saved, so they will disappear when you reload — please try again.`, action: 'retry' })
       } else if (d.missing) {
@@ -189,12 +225,24 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
         {busy ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text3)' }}>
             <span className="spinner" style={{ color: 'var(--accent)' }} />
-            {busy === 'search' ? 'Searching for real communities… (up to a minute)' : 'Writing drafts…'}
+            {busy === 'search' ? 'Searching for real communities… (up to a minute)'
+              : busy === 'topup' ? 'Searching specific platforms for more communities…'
+              : 'Writing drafts…'}
           </div>
-        ) : !confirming && (
-          <button style={btn(!section)} onClick={openConfirm}>{section ? 'Re-run' : 'Find places'}</button>
+        ) : !confirming && !briefNotice && (
+          <button style={btn(!section)} onClick={startRun}>{section ? 'Re-run' : 'Find places'}</button>
         )}
       </div>
+
+      {briefNotice && !busy && (
+        <div style={{ fontSize: 12, lineHeight: 1.6, padding: '10px 12px', borderRadius: 8, background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.3)' }}>
+          ⚠️ Add your founder brief first — drafts will describe your product from it.
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            {onEditApp && <button style={{ ...btn(), padding: '5px 12px', fontSize: 11 }} onClick={() => { setBriefNotice(false); onEditApp(app.id) }}>Add brief</button>}
+            <button style={{ ...btn(false), padding: '5px 12px', fontSize: 11 }} onClick={openConfirm}>Run anyway</button>
+          </div>
+        </div>
+      )}
 
       {status && !busy && (
         <div role="status" style={{ fontSize: 12, lineHeight: 1.6, padding: '10px 12px', borderRadius: 8, background: TONE[status.tone].bg, border: `1px solid ${TONE[status.tone].border}` }}>
@@ -215,7 +263,7 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
 
       {confirming && (
         <div style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12, lineHeight: 1.6 }}>
-          Uses up to {FIRST100_CALLS} AI calls and up to {FIRST100_MAX_USES} live web searches.{' '}
+          Uses up to {FIRST100_CALLS} AI calls and up to {FIRST100_SEARCHES} live web searches (a second, targeted search runs only if the first confirms fewer than {TOPUP_BELOW} places).{' '}
           {remaining === null ? 'Checking your remaining calls…' : `You have ${remaining} AI call${remaining === 1 ? '' : 's'} left today.`}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button style={btn()} disabled={remaining !== null && remaining < FIRST100_CALLS} onClick={run}>Find places</button>
@@ -231,7 +279,7 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
         <div key={p.url + i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', opacity: p.possibly_inactive ? 0.85 : 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{p.name} ↗</a>
-            <span style={chip}>{p.type}</span>
+            <span style={chip}>{placeTypeLabel(p)}</span>
             {p.language && p.language !== 'English' && <span style={chip}>{p.language}</span>}
             {p.possibly_inactive && <span style={{ ...chip, color: '#b7791f' }}>⏳ may be inactive — check before posting</span>}
             <a href={p.evidence_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 'auto' }}>found via</a>
@@ -252,7 +300,7 @@ export default function FirstHundred({ app, plan, onUpgrade }: { app: AppData; p
               <div style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, padding: '10px 12px', borderRadius: 8, background: 'rgba(124,111,247,.05)', border: '1px solid rgba(124,111,247,.15)' }}>{p.draft}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
                 <CopyButton text={p.draft} />
-                {p.no_link && <span style={{ fontSize: 11, color: 'var(--text3)' }}>No link included — this community's rules limit promotion.</span>}
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>{linkNote(p.link_policy ?? linkPolicy(p.rules))}</span>
               </div>
             </div>
           ) : !busy && (

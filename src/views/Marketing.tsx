@@ -37,7 +37,7 @@ function lastUpdatedLabel(ts: string | null | undefined): string {
   return `Updated ${days} days ago`
 }
 
-export default function Marketing({ onUpgrade }: { onUpgrade?: () => void } = {}) {
+export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => void; onEditApp?: (id: number) => void } = {}) {
   const { currentApp, updateApp, userEmail, plan, setView } = useStore()
   const [loading, setLoading] = useState(false)
   const canUseAnalysis = plan === 'analysis' || plan === 'pro' || plan === 'guest_pro'
@@ -296,12 +296,8 @@ Return JSON only, no markdown:
         onGoToOverview={() => setView('overview')}
         app={currentApp}
         canUseAnalysis={canUseAnalysis}
+        afterChannels={<FirstHundred app={currentApp} plan={plan} onUpgrade={onUpgrade} onEditApp={onEditApp} />}
       />
-      {canUseAnalysis && currentApp.url_analysis && (
-        <div style={{ marginTop: 18 }}>
-          <FirstHundred app={currentApp} plan={plan} onUpgrade={onUpgrade} />
-        </div>
-      )}
     </div>
   )
 }

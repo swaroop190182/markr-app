@@ -16,7 +16,7 @@ const place = (o: any = {}) => ({
 test('normalizePlaces keeps well-formed places, caps the list and "why", maps unknown types', () => {
   const longWhy = Array.from({ length: 30 }, (_, i) => 'w' + i).join(' ')
   const ps = normalizePlaces({ places: [
-    place({ why: longWhy, type: 'telegram channel' }),
+    place({ why: longWhy, type: 'telegram channel', url: 'https://forum.example.org', evidence_url: 'https://forum.example.org/t/1' }),   // URL says nothing: model type checked
     { name: 'No evidence', url: 'https://a.org' },             // not confirmed by the server → dropped
     { name: '', url: 'https://b.org', evidence_url: 'https://b.org/x' },
     ...Array.from({ length: 12 }, (_, i) => place({ name: 'P' + i })),
@@ -121,4 +121,116 @@ test('search prompt asks for community pages, not listicles', () => {
   assert.ok(sp.includes('site:reddit.com/r/'))
   assert.ok(sp.includes('does NOT confirm them'))
   assert.ok(sp.includes('site:facebook.com/groups <topic> India'))
+})
+
+// ── Coverage, links, language, type labels ───────────────────────────────────
+import {
+  typeFromUrl, placeTypeLabel, allowsPromotion, linkPolicy, linkNote, detectLanguage, draftLanguage, keepOneScript,
+  mergePlaces, unconfirmedCandidates, topUpPrompt,
+} from '../src/lib/first100.ts'
+
+test('type comes from the confirmed URL: Substack = Newsletter, Discord/Slack = Community, reddit = Subreddit', () => {
+  assert.equal(typeFromUrl('https://www.reddit.com/r/SaaS'), 'subreddit')
+  assert.equal(typeFromUrl('https://lenny.substack.com'), 'newsletter')
+  assert.equal(typeFromUrl('https://substack.com/@someone'), 'newsletter')
+  assert.equal(typeFromUrl('https://weekly.beehiiv.com'), 'newsletter')
+  assert.equal(typeFromUrl('https://discord.gg/abc'), 'online community')
+  assert.equal(typeFromUrl('https://join.slack.com/t/founders'), 'online community')
+  assert.equal(typeFromUrl('https://www.indiehackers.com/group/saas'), 'online community')
+  assert.equal(typeFromUrl('https://www.facebook.com/groups/123'), 'facebook group')
+  assert.equal(typeFromUrl('https://www.linkedin.com/groups/999'), 'linkedin group')
+  assert.equal(typeFromUrl('https://www.youtube.com/@chan'), 'creator')
+  assert.equal(typeFromUrl('https://forum.example.org'), null)
+  // the model said "creator" for a Substack: the URL wins, also for already-saved places
+  assert.equal(placeTypeLabel({ type: 'creator', url: 'https://lenny.substack.com' }), 'Newsletter')
+  assert.equal(placeTypeLabel({ type: 'online community', url: 'https://discord.gg/x' }), 'Community')
+  assert.equal(placeTypeLabel({ type: 'subreddit', url: 'https://www.reddit.com/r/SaaS' }), 'Subreddit')
+  assert.equal(placeTypeLabel({ type: 'forum', url: 'https://forum.example.org' }), 'Forum')
+  const [p] = normalizePlaces({ places: [place({ type: 'creator', url: 'https://lenny.substack.com', evidence_url: 'https://lenny.substack.com/p/x' })] })
+  assert.equal(p.type, 'newsletter')
+})
+
+test('link only when sourced rules allow promotion; unknown rules = no link', () => {
+  for (const r of ['Self-promotion is allowed on Fridays', 'Feel free to share your project', 'Links are welcome', 'Promoting your startup is encouraged'])
+    assert.equal(allowsPromotion(r), true, r)
+  for (const r of ['No self-promotion', 'Be kind', 'Links are not allowed', ''])
+    assert.equal(allowsPromotion(r), false, r)
+  assert.equal(linkPolicy({ value: 'Self-promotion is allowed', source_url: 's' }), 'allowed')
+  assert.equal(linkPolicy({ value: 'No self-promotion', source_url: 's' }), 'forbidden')
+  assert.equal(linkPolicy({ value: 'Be kind', source_url: 's' }), 'unknown')
+  assert.equal(linkPolicy(null), 'unknown')
+  const [unknown, allowed] = normalizePlaces({ places: [place(), place({ name: 'B', rules: { value: 'Share your project — self-promotion allowed', source_url: 'https://s' } })] })
+  assert.deepEqual([unknown.link_policy, unknown.no_link], ['unknown', true])
+  assert.deepEqual([allowed.link_policy, allowed.no_link], ['allowed', false])
+  assert.match(linkNote('unknown'), /rules weren't found/)
+  assert.match(linkNote('forbidden'), /rules limit promotion/)
+  assert.match(linkNote('allowed'), /Link included/)
+  // the unknown-rules draft loses its link
+  const out = mergeDrafts([unknown, allowed], { drafts: [{ i: 0, text: 'Try it: https://markr.app' }, { i: 1, text: 'Try it: https://markr.app' }] }, [])
+  assert.ok(!out[0].draft!.includes('markr.app'))
+  assert.ok(out[1].draft!.includes('https://markr.app'))
+})
+
+test('language: English unless the community and the app share another language', () => {
+  assert.equal(detectLanguage('Track your mood in 10 seconds. Start free'), 'English')
+  assert.equal(detectLanguage('अपने मूड को ट्रैक करें'), 'Hindi')
+  assert.equal(detectLanguage('Controla tu estado de ánimo con la app para que estés bien'), 'Spanish')
+  assert.equal(detectLanguage(''), 'English')
+  assert.equal(draftLanguage('Hindi', 'English'), 'English')     // community in Hindi, app in English → English
+  assert.equal(draftLanguage('Hindi', 'Hindi'), 'Hindi')
+  assert.equal(draftLanguage('hindi', 'Hindi'), 'Hindi')
+  assert.equal(draftLanguage('Hinglish', 'Hindi'), 'English')
+  assert.equal(draftLanguage('English', 'Hindi'), 'English')
+  assert.equal(draftLanguage('', 'Hindi'), 'English')
+})
+
+test('never mix scripts in one draft', () => {
+  assert.equal(keepOneScript('I built Markr. यह बहुत अच्छा है। What do you use?', 'English'), 'I built Markr. What do you use?')
+  // a Hindi draft keeps the app name and the URL in Latin, drops an English sentence
+  assert.equal(keepOneScript('मैंने Markr बनाया। Try it now. https://markr.app', 'Hindi', ['Markr']), 'मैंने Markr बनाया। https://markr.app')
+  assert.equal(cleanDraft('Hello there. नमस्ते दोस्तों।', false, [], 'English'), 'Hello there.')
+  assert.equal(cleanDraft('Prices from ₹49/mo. Ask me anything!', false, [], 'English'), 'Prices from ₹49/mo. Ask me anything!')
+})
+
+test('top-up: unconfirmed candidates are searched directly; merged without duplicates', () => {
+  const json = { place_check: { proposed: 3, confirmed: 1, dropped: [
+    { name: 'r/startups', url: 'https://www.reddit.com/r/startups', reason: 'no returned result in this community' },
+    { name: '', url: 'https://x', reason: 'no name' },
+  ] } }
+  assert.deepEqual(unconfirmedCandidates(json), [{ name: 'r/startups', url: 'https://www.reddit.com/r/startups' }])
+  assert.deepEqual(unconfirmedCandidates({}), [])
+  const tp = topUpPrompt({ appName: 'Markr', category: 'Productivity', market: 'India', product: 'p',
+    confirmed: [{ name: 'r/SaaS', url: 'https://www.reddit.com/r/SaaS' }], unconfirmed: unconfirmedCandidates(json), want: 9 })
+  assert.ok(tp.includes('- r/SaaS https://www.reddit.com/r/SaaS'))
+  assert.ok(tp.includes('- r/startups'))
+  assert.ok(tp.includes('already covered: subreddit'))
+  assert.ok(tp.includes('site:linkedin.com/groups') && tp.includes('site:indiehackers.com/group'))
+  assert.ok(tp.includes('does NOT confirm them'))
+  const a = normalizePlaces({ places: [place()] })
+  const b = normalizePlaces({ places: [
+    place({ url: 'https://old.reddit.com/r/IndianStartups/' }),      // same community, different spelling → dropped
+    place({ name: 'Old', url: 'https://oldforum.example.org', possibly_inactive: true }),
+    place({ name: 'New', url: 'https://www.indiehackers.com/group/saas' }),
+  ] })
+  assert.deepEqual(mergePlaces(a, b).map(p => p.name), ['r/IndianStartups', 'New', 'Old'])
+})
+
+test('search prompt covers Reddit, LinkedIn groups, Indie Hackers and more, one platform per query', () => {
+  const sp = searchPrompt({ appName: 'Markr', category: 'Productivity', market: 'India', product: 'p', founder: '', competitorNames: [] })
+  for (const q of ['site:reddit.com/r/', 'site:linkedin.com/groups', 'site:indiehackers.com/group', 'site:facebook.com/groups', 'site:substack.com', 'discord invite'])
+    assert.ok(sp.includes(q), q)
+})
+
+test('draft prompt gives each place its language and link status', () => {
+  const ps = normalizePlaces({ places: [
+    place({ language: 'Hindi' }),
+    place({ name: 'B', rules: { value: 'Self-promotion is allowed', source_url: 'https://s' } }),
+  ] })
+  const en = draftPrompt({ appName: 'Markr', appUrl: 'https://markr.app', product: 'p', founder: '', places: ps, startIndex: 0, appLanguage: 'English' })
+  assert.ok(en.includes('0. r/IndianStartups (subreddit) — write in English'))
+  assert.ok(en.includes('— NO LINK'))
+  assert.ok(en.includes('1. B (subreddit) — write in English — rules: Self-promotion is allowed — link allowed'))
+  assert.ok(en.includes('Never mix scripts'))
+  const hi = draftPrompt({ appName: 'Markr', appUrl: '', product: 'p', founder: '', places: ps, startIndex: 0, appLanguage: 'Hindi' })
+  assert.ok(hi.includes('0. r/IndianStartups (subreddit) — write in Hindi'))
 })
