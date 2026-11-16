@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { getAiUsage } from '../../lib/claude'
+import { isLegacyPlaybook, type GtmPart } from '../../lib/gtm'
 import { CopyButton } from '../../components/ui'
 import type { AppData } from '../../types'
 
@@ -170,6 +172,10 @@ interface Props {
   app:             AppData
   canUseAnalysis:  boolean
   afterChannels?:  React.ReactNode   // rendered between Channel Recommendations and Budget Planner
+  progress?:       { label: string; n: number; of: number } | null   // the part being written
+  missing?:        Array<{ part: GtmPart; error: string | null }>     // parts of the last run that didn't complete
+  onRetryPart?:    (part: GtmPart) => void
+  callsPerRun?:    number
 }
 
 function daysSinceDate(ts: string | null | undefined): number | null {
@@ -182,8 +188,30 @@ const BAR_COLORS = ['#7c6ff7', '#34c98a', '#4f9cf7', '#f5a623', '#e26faf']
 const EFFORT_COLOR: Record<string, string> = { Low: 'var(--green)', Medium: 'var(--amber)', High: 'var(--red)' }
 const EFFORT_BG:    Record<string, string> = { Low: 'rgba(52,201,138,.12)', Medium: 'rgba(245,166,35,.12)', High: 'rgba(229,85,85,.12)' }
 
-export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, onGoToOverview, app, canUseAnalysis, afterChannels }: Props) {
+export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, onGoToOverview, app, canUseAnalysis, afterChannels, progress, missing = [], onRetryPart, callsPerRun = 3 }: Props) {
   const [budget, setBudget] = useState('0')
+  const [confirming, setConfirming] = useState(false)
+  const [remaining, setRemaining] = useState<number | null>(null)
+
+  async function openConfirm() {
+    setConfirming(true)
+    setRemaining(null)
+    const u = await getAiUsage()
+    setRemaining(u ? u.remaining : null)
+  }
+
+  // A part of the last run that didn't complete: say so, and offer Retry for just that part
+  const missingOf = (part: GtmPart) => missing.find(m => m.part === part)
+  const MissingNote = ({ part, hasPrevious }: { part: GtmPart; hasPrevious: boolean }) => {
+    const m = missingOf(part)
+    if (!m || loading) return null
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontSize: 12, padding: '8px 12px', marginBottom: 12, borderRadius: 8, background: 'rgba(245,166,35,.08)', border: '1px solid rgba(245,166,35,.3)' }}>
+        <span>⚠️ {hasPrevious ? 'Not updated in this run' : 'Could not be written'}{m.error ? ` (${m.error})` : ''}{hasPrevious ? ' — showing your previous version.' : '.'}</span>
+        {onRetryPart && <button className="gen-btn" style={{ fontSize: 11, padding: '5px 12px' }} onClick={() => onRetryPart(part)}>Retry</button>}
+      </div>
+    )
+  }
 
   if (!canUseAnalysis) return (
     <div style={{ textAlign: 'center', padding: '40px 24px', background: 'var(--surface)', borderRadius: 'var(--r)', border: '1px solid var(--border)' }}>
@@ -240,20 +268,36 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne,sans-serif' }}>📣 Go-to-Market Strategy</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-            {data ? 'All sections generated from your stored analysis data' : 'Generates channels, outreach templates, and category playbook in one shot'}
+            {data ? 'All sections generated from your stored analysis data' : `Generates channels, outreach templates and a category playbook (${callsPerRun} AI calls)`}
           </div>
         </div>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text3)' }}>
             <span className="spinner" style={{ color: 'var(--accent)' }} />
-            Generating…
+            {progress ? `${progress.label} (${progress.n}/${progress.of})` : 'Generating…'}
           </div>
-        ) : (
-          <button className="gen-btn" style={{ fontSize: 12, padding: '8px 18px' }} onClick={onGenerate}>
+        ) : !confirming && (
+          <button className="gen-btn" style={{ fontSize: 12, padding: '8px 18px' }} onClick={openConfirm}>
             {data ? '🔄 Refresh All' : '✨ Generate GTM Strategy'}
           </button>
         )}
       </div>
+
+      {confirming && !loading && (
+        <div style={{ padding: '12px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)', fontSize: 12, lineHeight: 1.6 }}>
+          Uses {callsPerRun} AI calls (channels, outreach templates, playbook — written one after another).{' '}
+          {remaining === null ? 'Checking your remaining calls…' : `You have ${remaining} AI call${remaining === 1 ? '' : 's'} left today.`}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button className="gen-btn" style={{ fontSize: 12, padding: '7px 16px' }} disabled={remaining !== null && remaining < callsPerRun}
+              onClick={() => { setConfirming(false); onGenerate() }}>Generate</button>
+            <button style={{ fontSize: 12, padding: '7px 16px', borderRadius: 8, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }}
+              onClick={() => setConfirming(false)}>Cancel</button>
+          </div>
+          {remaining !== null && remaining < callsPerRun && (
+            <div style={{ color: 'var(--text3)', marginTop: 6 }}>Daily AI limit reached — try again tomorrow.</div>
+          )}
+        </div>
+      )}
 
       {/* ── Staleness banner ── */}
       {(() => {
@@ -289,10 +333,11 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
         title="📡 Channel Recommendations"
         subtitle={`Best 3 marketing channels for ${app.name}`}
       >
+        <MissingNote part="channels" hasPrevious={channels.length > 0} />
         {loading && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>Analyzing best channels…</div>
         )}
-        {!loading && !data && (
+        {!loading && !data && !missingOf('channels') && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>
             Generate GTM Strategy above to get channel recommendations tailored to {app.name}.
           </div>
@@ -397,10 +442,11 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
         title="✉️ Outreach Templates"
         subtitle={`Ready-to-use templates for ${app.name}`}
       >
+        <MissingNote part="templates" hasPrevious={!!templates} />
         {loading && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>Writing templates…</div>
         )}
-        {!loading && !templates && (
+        {!loading && !templates && !missingOf('templates') && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>
             Generate GTM Strategy above to get outreach templates.
           </div>
@@ -424,10 +470,8 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <div>
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>🤖 Reddit Post</span>
-                    {templates.redditPost.subreddit && (
-                      <span style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 8 }}>{templates.redditPost.subreddit}</span>
-                    )}
+                    {/* No community named here — real, checked ones are in "Where your first 100 users are" */}
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>🤖 Community post</span>
                   </div>
                   <CopyButton text={`${templates.redditPost.title ?? ''}\n\n${templates.redditPost.body ?? ''}`} />
                 </div>
@@ -466,32 +510,39 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
 
       {/* ── 5. What Worked for Others ── */}
       <Section
-        title="🏆 What Worked for Others"
-        subtitle={`Category playbook, failure patterns, and proven formulas for ${app.category} apps`}
+        title={`🧭 Patterns for ${app.category} apps`}
+        subtitle="General patterns for the category — not case studies or verified results"
       >
-        {!playbook && !loading && (
+        <MissingNote part="playbook" hasPrevious={!!playbook} />
+        {!playbook && !loading && !missingOf('playbook') && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>
-            Generate GTM Strategy above to see what worked (and failed) for real companies in the {app.category} space.
+            Generate GTM Strategy above to see common patterns, failure modes and a step-by-step formula for {app.category} apps.
           </div>
         )}
         {loading && (
-          <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>Researching playbooks and patterns…</div>
+          <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, padding: '12px 0' }}>Writing the playbook…</div>
         )}
 
         {playbook && !loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* ── Part 1: Category Playbook ── */}
+            {isLegacyPlaybook(playbook) && (
+              <div style={{ fontSize: 11, color: 'var(--text3)', padding: '8px 12px', borderRadius: 8, border: '1px dashed var(--border)' }}>
+                From an earlier version — names and results were not verified. Regenerate for general patterns.
+              </div>
+            )}
+
+            {/* ── Part 1: Category patterns ── */}
             {playbook.categoryPlaybook?.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.06em', color: 'var(--green)', marginBottom: 10 }}>
-                  ✅ Category Playbook — What successful players did
+                  ✅ Patterns that tend to work
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {playbook.categoryPlaybook.map((item: any, i: number) => (
                     <div key={i} style={{ padding: '10px 12px', background: 'rgba(52,201,138,.04)', border: '1px solid rgba(52,201,138,.15)', borderRadius: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700 }}>{item.company}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>{item.pattern ?? item.company}</span>
                         {item.when && (
                           <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 20, background: 'rgba(52,201,138,.12)', color: 'var(--green)', fontWeight: 600 }}>{item.when}</span>
                         )}
@@ -499,9 +550,16 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
                       <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5, marginBottom: 5 }}>
                         <span style={{ fontWeight: 600, color: 'var(--text)' }}>What: </span>{item.what}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--green)', lineHeight: 1.5 }}>
-                        <span style={{ fontWeight: 700 }}>Results: </span>{item.results}
-                      </div>
+                      {item.why && (
+                        <div style={{ fontSize: 11, color: 'var(--green)', lineHeight: 1.5 }}>
+                          <span style={{ fontWeight: 700 }}>Why it works: </span>{item.why}
+                        </div>
+                      )}
+                      {item.results && (
+                        <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.5 }}>
+                          <span style={{ fontWeight: 700 }}>Claimed result (unverified): </span>{item.results}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -512,17 +570,17 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
             {playbook.whatNotToDo?.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.06em', color: 'var(--red)', marginBottom: 10 }}>
-                  ❌ What NOT to Do — Channels and approaches that failed
+                  ❌ Common mistakes
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {playbook.whatNotToDo.map((item: any, i: number) => (
                     <div key={i} style={{ padding: '10px 12px', background: 'rgba(229,85,85,.04)', border: '1px solid rgba(229,85,85,.12)', borderRadius: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 5 }}>{item.example}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 5 }}>{item.pattern ?? item.example}</div>
                       <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5, marginBottom: 5 }}>
                         <span style={{ fontWeight: 600, color: 'var(--text)' }}>Tried: </span>{item.approach}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--red)', lineHeight: 1.5 }}>
-                        <span style={{ fontWeight: 700 }}>Failed because: </span>{item.why}
+                        <span style={{ fontWeight: 700 }}>Why it fails: </span>{item.why}
                       </div>
                     </div>
                   ))}

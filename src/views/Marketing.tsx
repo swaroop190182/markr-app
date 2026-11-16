@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
-import { callClaude, extractJSON, getInstagramContext, getFounderContext, getVisionContext } from '../lib/claude'
+import { callClaude, extractJSON, getInstagramContext, getFounderContext, getVisionContext, AiLimitError } from '../lib/claude'
 import { isOutdated, outdatedReason, canBypassLock, isOneTimeUsed, markGenerated } from '../lib/outdated'
 import { CURRENCY_RULE, fixAnalysisCurrency } from '../lib/prices'
 import { isAdminEmail } from '../lib/admin'
@@ -9,7 +9,7 @@ import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
 import GoToMarketTab from './insights/GoToMarket'
 import FirstHundred from './insights/FirstHundred'
-import { carryFirst100 } from '../lib/first100'
+import { GTM_PARTS, GTM_PART_INFO, GTM_PROMPTS, gtmMandatory, parseGtmPart, startRun, applyPart, failPart, missingParts, isRunComplete, readGtm, type GtmPart } from '../lib/gtm'
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -40,9 +40,12 @@ function lastUpdatedLabel(ts: string | null | undefined): string {
 export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => void; onEditApp?: (id: number) => void } = {}) {
   const { currentApp, updateApp, userEmail, plan, setView } = useStore()
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState<{ part: GtmPart; n: number; of: number } | null>(null)
   const canUseAnalysis = plan === 'analysis' || plan === 'pro' || plan === 'guest_pro'
   // The saved GTM JSON can hold only the "first 100" section — that is not a generated plan
-  const hasGtmPlan = (() => { try { return Array.isArray(JSON.parse(currentApp.gtm_analysis ?? '')?.channels) } catch { return false } })()
+  const savedGtm = readGtm(currentApp.gtm_analysis)
+  const hasGtmPlan = Array.isArray(savedGtm.channels) || !!savedGtm.templates || !!savedGtm.playbook
+  const missing = missingParts(savedGtm).map(p => ({ part: p, error: savedGtm._gtm_run?.errors?.[p] ?? null }))
 
   function saveMarketing(json: any) {
     updateApp(currentApp.id, {
@@ -137,125 +140,77 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
     return lines.filter(Boolean).join('\n')
   }
 
+  // ── Generation in parts ────────────────────────────────────────────────────
+  // Three sequential calls (channels, templates, playbook), each well under the 60s limit.
+  // Each part is saved as it completes; gtm_analyzed_at moves only once every part of the run is done.
+  // A failed part keeps its previous version and can be retried alone (see retryPart).
+  function savePlan(obj: any) {
+    const complete = isRunComplete(obj)
+    return updateApp(currentApp.id, {
+      gtm_analysis: markGenerated(JSON.stringify(fixAnalysisCurrency(currentApp, 'gtm', obj))),   // original currencies + current context rules
+      ...(complete ? { gtm_analyzed_at: new Date().toISOString() } : {}),
+    } as any)
+  }
+
+  async function runParts(parts: GtmPart[], resume = false) {
+    setLoading(true)
+    const ua      = currentApp.url_analysis
+    const context = buildGTMContext()
+    let swot: any = null
+    try { if (currentApp.swot_analysis) swot = JSON.parse(currentApp.swot_analysis) } catch {}
+    const mandatory  = gtmMandatory(ua, readCompetitive(currentApp), swot)
+    const targetUser = currentApp.content_context?.typical_user ?? `${currentApp.category} users`
+
+    // A retry continues the saved run; a new run keeps everything already saved (first100, other parts)
+    let obj = resume ? readGtm(currentApp.gtm_analysis)
+      : startRun(currentApp.gtm_analysis, parts, crypto.randomUUID(), undefined, { generatedAtScore: ua?.overall ?? null })
+    let limitHit = false
+    try {
+      for (const [n, part] of parts.entries()) {
+        if (limitHit) { obj = failPart(obj, part, 'Daily AI limit reached'); continue }
+        setProgress({ part, n: n + 1, of: parts.length })
+        const info = GTM_PART_INFO[part]
+        try {
+          const raw = await callClaude(
+            GTM_PROMPTS[part]({ appName: currentApp.name, category: currentApp.category, context, targetUser, currencyRule: CURRENCY_RULE, mandatory: mandatory[part] }),
+            'Output ONLY valid JSON. No markdown fences.', info.maxTokens, undefined, 'sonnet', info.feature)
+          const cleaned = extractJSON(raw)
+          if (!cleaned) throw new Error('the response was empty')
+          obj = applyPart(obj, part, parseGtmPart(part, JSON.parse(cleaned), context).data)
+        } catch (e: any) {
+          if (e instanceof AiLimitError) limitHit = true
+          const msg = e instanceof AiLimitError ? 'Daily AI limit reached' : (e?.message ?? 'unknown error')
+          console.warn(`[gtm] ${part} failed:`, e)
+          obj = failPart(obj, part, msg)
+        }
+        await savePlan(obj)   // keep what succeeded so far
+      }
+      const missing = missingParts(obj)
+      if (!missing.length) toast(parts.length === 1 ? `${GTM_PART_INFO[parts[0]].label} updated` : 'Marketing strategy ready!')
+      else toast(`${parts.length - missing.length} of ${parts.length} parts updated — retry ${missing.map(p => GTM_PART_INFO[p].label).join(', ')}`, 6000)
+    } finally {
+      setProgress(null)
+      setLoading(false)
+    }
+  }
+
   // ── Full generation ────────────────────────────────────────────────────────
   async function genMarketingAll() {
     if (!canRefresh(currentApp.gtm_analyzed_at, userEmail) && !canBypassLock(currentApp, plan, 'gtm')) {
       toast(`Marketing plan updated ${lastUpdatedLabel(currentApp.gtm_analyzed_at).toLowerCase()}. Refreshes once per month.`)
       return
     }
-    setLoading(true)
-    try {
-      const ua      = currentApp.url_analysis
-      const ctx     = currentApp.content_context
-      const context = buildGTMContext()
-
-      const mandatory: string[] = []
-      const trustScore = ua?.dimensions?.find((d: any) => d.label === 'Trust')?.score
-      const convScore  = ua?.dimensions?.find((d: any) => d.label === 'Conversion Readiness')?.score
-      if (ua && ua.overall < 7)
-        mandatory.push(`Landing page is ${ua.overall}/10 — BELOW ad-ready threshold. In channels, flag that paid spend should wait until the page is fixed. Say so explicitly.`)
-      if (trustScore != null && trustScore < 7)
-        mandatory.push(`Trust score is ${trustScore}/10 — cite this in channel reasoning: paid ads to a low-trust page waste budget. The fix: ${ua?.bottleneck?.issue ?? 'add social proof'}.`)
-      if (convScore != null && convScore < 5)
-        mandatory.push(`Conversion readiness is ${convScore}/10 — sign-up friction will kill paid ROI. Address in formula step ordering.`)
-      if (ua?.bottleneck)
-        mandatory.push(`#1 bottleneck is "${ua.bottleneck.label}": ${ua.bottleneck.issue} — the formula must address fixing this before any scaling.`)
-      let competitive: any = null
-      competitive = readCompetitive(currentApp)   // exclusions applied
-      const topGap = competitive?.comps?.[0]?.positioningGap
-      if (topGap) mandatory.push(`Top competitor gap: "${topGap}" — at least one channel's firstAction must exploit this positioning.`)
-      if (competitive?.winCond) mandatory.push(`Win condition: "${competitive.winCond}" — eternal principles should reference this.`)
-      let swot: any = null
-      try { if (currentApp.swot_analysis) swot = JSON.parse(currentApp.swot_analysis) } catch {}
-      const topOpp = swot?.opportunities?.[0]
-      const oppLabel = topOpp?.title ?? (typeof topOpp === 'string' ? topOpp : '')
-      if (oppLabel) mandatory.push(`Top SWOT opportunity: "${oppLabel}" — marketing formula should exploit this immediately.`)
-
-      const targetUser = ctx?.typical_user ?? `${currentApp.category} users`
-
-      const prompt = `You are a go-to-market strategist and marketing expert. Using the CONTEXT below (from this app's actual stored analyses), generate a complete marketing strategy. Reference specific scores, competitor names, gaps, and real findings — not generic advice.
-
-CONTEXT:
-${context}
-${mandatory.length ? '\nMANDATORY — weave these specific findings into your output:\n' + mandatory.map(m => `- ${m}`).join('\n') : ''}
-
-Target user: ${targetUser}
-
-Rules:
-- Channel "why" must cite a specific finding from context (score, competitor weakness, SWOT opportunity)
-- firstAction must be ultra-specific: real subreddit names, real hashtags, real influencer types
-- Templates: [Name], [Your Name], [App Name] as placeholders; cold DM under 150 words
-- ProductHunt tagline under 60 chars
-- Category playbook: real companies with real measurable outcomes
-- Marketing formula: steps must be ordered correctly — page fixes before paid scale
-
-${CURRENCY_RULE}
-
-Return JSON only, no markdown:
-{"channels":[{"name":"channel name","why":"cite specific score/gap/finding","timeline":"e.g. 2-4 weeks","cost":"e.g. ₹0/mo","effort":"Low","firstAction":"ultra-specific step with real names"},{"name":"...","why":"...","timeline":"...","cost":"...","effort":"Medium","firstAction":"..."},{"name":"...","why":"...","timeline":"...","cost":"...","effort":"High","firstAction":"..."}],"templates":{"coldDM":"Hey [Name],\\n\\n[specific observation].\\n\\n[Pain point]. [App Name] helps [target user] [specific outcome].\\n\\nHappy to give you free access.\\n\\n[Your Name]","redditPost":{"subreddit":"r/real_subreddit","title":"genuine helpful title — not an ad","body":"3-4 paragraph value-first post, [App Name] mentioned naturally"},"productHunt":{"tagline":"under 60 chars — punchy","description":"under 260 chars — what, who, differentiator"}},"playbook":{"categoryPlaybook":[{"company":"real company","what":"specific action they took","when":"year/period","results":"specific measurable outcome"},{"company":"...","what":"...","when":"...","results":"..."},{"company":"...","what":"...","when":"...","results":"..."}],"whatNotToDo":[{"example":"company or pattern","approach":"what was tried","why":"specific reason it failed or wasted money"},{"example":"...","approach":"...","why":"..."},{"example":"...","approach":"...","why":"..."}],"marketingFormula":[{"step":1,"action":"specific action","detail":"why first — reference bottleneck if relevant"},{"step":2,"action":"...","detail":"..."},{"step":3,"action":"...","detail":"..."},{"step":4,"action":"...","detail":"..."},{"step":5,"action":"...","detail":"..."},{"step":6,"action":"...","detail":"..."}],"eternalPrinciples":[{"principle":"Find where users already gather","action":"specific step for ${currentApp.name} from context"},{"principle":"Make first users successful before scaling","action":"..."},{"principle":"Word of mouth is the best channel","action":"..."},{"principle":"Content before ads","action":"..."},{"principle":"Positioning before promotion","action":"..."}]}}`
-
-      // channels + templates + a playbook of 3 + 3 + 6 + 5 nested entries.
-      const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 8000, undefined, 'sonnet', 'gtm')
-      const cleaned = extractJSON(raw)
-      if (!cleaned) throw new Error('Empty response')
-      const parsed  = JSON.parse(cleaned)
-      if (!Array.isArray(parsed.channels)) throw new Error('Invalid response — missing channels')
-      saveMarketing(carryFirst100(currentApp.gtm_analysis, { ...parsed, generatedAtScore: ua?.overall ?? null }))   // keep "first 100" places
-      toast('Marketing strategy ready!')
-    } catch (e: any) {
-      toast('Error generating marketing strategy: ' + (e?.message ?? 'Unknown'))
-    }
-    setLoading(false)
+    await runParts(GTM_PARTS)
   }
 
   // ── Playbook-only refresh ──────────────────────────────────────────────────
   async function genPlaybookOnly() {
-    setLoading(true)
-    try {
-      const ua         = currentApp.url_analysis
-      const ctx        = currentApp.content_context
-      const context    = buildGTMContext()
-      const targetUser = ctx?.typical_user ?? `${currentApp.category} users`
+    await runParts(['playbook'])
+  }
 
-      const mandatory: string[] = []
-      if (ua?.bottleneck) mandatory.push(`#1 bottleneck: "${ua.bottleneck.label}" — ${ua.bottleneck.issue}. Formula must address this.`)
-      let swot: any = null
-      try { if (currentApp.swot_analysis) swot = JSON.parse(currentApp.swot_analysis) } catch {}
-      const topOpp   = swot?.opportunities?.[0]
-      const oppLabel = topOpp?.title ?? (typeof topOpp === 'string' ? topOpp : '')
-      if (oppLabel) mandatory.push(`Top SWOT opportunity: "${oppLabel}" — exploit in formula.`)
-      let competitive: any = null
-      competitive = readCompetitive(currentApp)   // exclusions applied
-      if (competitive?.winCond) mandatory.push(`Win condition: "${competitive.winCond}" — reference in eternal principles.`)
-
-      const prompt = `You are a marketing expert. Use the CONTEXT below to build an updated category playbook, failure patterns, step-by-step formula, and eternal principles for this app. Be specific — cite real companies, real numbers, real market conditions as of today.
-
-CONTEXT:
-${context}
-${mandatory.length ? '\nMANDATORY:\n' + mandatory.map(m => `- ${m}`).join('\n') : ''}
-
-Target user: ${targetUser}
-
-${CURRENCY_RULE}
-
-Return JSON only, no markdown:
-{"categoryPlaybook":[{"company":"real company","what":"specific action","when":"year/period","results":"specific measurable outcome"},{"company":"...","what":"...","when":"...","results":"..."},{"company":"...","what":"...","when":"...","results":"..."}],"whatNotToDo":[{"example":"company or pattern","approach":"what was tried","why":"specific reason it failed"},{"example":"...","approach":"...","why":"..."},{"example":"...","approach":"...","why":"..."}],"marketingFormula":[{"step":1,"action":"specific action","detail":"why first — address bottleneck if relevant"},{"step":2,"action":"...","detail":"..."},{"step":3,"action":"...","detail":"..."},{"step":4,"action":"...","detail":"..."},{"step":5,"action":"...","detail":"..."},{"step":6,"action":"...","detail":"..."}],"eternalPrinciples":[{"principle":"Find where users already gather","action":"specific step for ${currentApp.name} from context"},{"principle":"Make first users successful before scaling","action":"..."},{"principle":"Word of mouth is the best channel","action":"..."},{"principle":"Content before ads","action":"..."},{"principle":"Positioning before promotion","action":"..."}]}`
-
-      // Playbook refresh: 3 + 3 + 6 + 5 nested entries.
-      const raw     = await callClaude(prompt, 'Output ONLY valid JSON. No markdown fences.', 5000, undefined, 'sonnet', 'gtm')
-      const cleaned = extractJSON(raw)
-      if (!cleaned) throw new Error('Empty response')
-      const parsed  = JSON.parse(cleaned)
-      if (!parsed.categoryPlaybook) throw new Error('Invalid response')
-
-      let existing: any = {}
-      try { if (currentApp.gtm_analysis) existing = JSON.parse(currentApp.gtm_analysis) } catch {}
-      saveMarketing({ ...existing, playbook: parsed, generatedAtScore: ua?.overall ?? existing.generatedAtScore ?? null })
-      toast('Playbook refreshed!')
-    } catch (e: any) {
-      toast('Error refreshing playbook: ' + (e?.message ?? 'Unknown'))
-    }
-    setLoading(false)
+  // ── Retry one part that didn't complete (not subject to the monthly lock) ───
+  async function retryPart(part: GtmPart) {
+    await runParts([part], true)
   }
 
   // ── Smart refresh ──────────────────────────────────────────────────────────
@@ -296,6 +251,10 @@ Return JSON only, no markdown:
         onGoToOverview={() => setView('overview')}
         app={currentApp}
         canUseAnalysis={canUseAnalysis}
+        progress={progress ? { label: GTM_PART_INFO[progress.part].progress, n: progress.n, of: progress.of } : null}
+        missing={loading ? [] : missing}
+        onRetryPart={retryPart}
+        callsPerRun={GTM_PARTS.length}
         afterChannels={<FirstHundred app={currentApp} plan={plan} onUpgrade={onUpgrade} onEditApp={onEditApp} />}
       />
     </div>

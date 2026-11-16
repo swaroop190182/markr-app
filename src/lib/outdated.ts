@@ -10,7 +10,7 @@ export const ANALYSES: Record<AnalysisKey, { label: string; field: keyof AppData
   growth:      { label: 'Growth',          field: 'growth_analyzed_at',      data: 'growth_analysis',      calls: 1 },
   pricing:     { label: 'Pricing',         field: 'pricing_analyzed_at',     data: 'pricing_analysis',     calls: 1 },
   positioning: { label: 'Positioning',     field: 'positioning_analyzed_at', data: 'positioning_analysis', calls: 1 },
-  gtm:         { label: 'Go-to-Market',    field: 'gtm_analyzed_at',         data: 'gtm_analysis',         calls: 1 },
+  gtm:         { label: 'Go-to-Market',    field: 'gtm_analyzed_at',         data: 'gtm_analysis',         calls: 3 },  // channels + templates + playbook
 }
 
 // ── Analyses built with the old simulated product-test data ─────────────────
