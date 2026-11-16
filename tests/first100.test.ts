@@ -310,3 +310,32 @@ test('draft prompt: members get a post, editors get a pitch, each with its angle
   const merged = mergeDrafts(ps, { drafts: [{ i: 0, point: 'ask what stops signups', text: 'What stops your signups?' }] }, [])
   assert.equal(merged[0].point, 'ask what stops signups')
 })
+
+// ── "Search them yourself" phrases ───────────────────────────────────────────
+import { cleanSearchPhrases, fallbackSearchPhrases, searchPhrasesFor } from '../src/lib/first100.ts'
+
+test('self-search phrases: phrases only — no community names, groups or links', () => {
+  assert.deepEqual(cleanSearchPhrases([
+    'Landing page feedback', '"indie app founders"', 'r/SaaS', 'SaaS subreddit', 'Indie Hackers LinkedIn group',
+    'https://reddit.com/r/x', 'growth.com tips', 'startup', 'a very long phrase that goes on and on forever', '@growthpros',
+    'landing page feedback', 42, 'early stage marketing', 'founder burnout help', 'app store optimization', 'pricing page tips',
+  ]), ['landing page feedback', 'indie app founders', 'early stage marketing', 'founder burnout help', 'app store optimization'])
+  assert.deepEqual(cleanSearchPhrases(null), [])
+})
+
+test('self-search phrases fall back to the audience and category; 3-5 shown', () => {
+  assert.deepEqual(fallbackSearchPhrases({ audience: 'Indie app founders who want more signups', category: 'Productivity' }),
+    ['indie app founders', 'productivity app feedback', 'productivity app recommendations', 'indie app advice'])
+  assert.deepEqual(fallbackSearchPhrases({}), [])
+  const own = ['landing page feedback', 'indie app founders', 'saas growth tips']
+  assert.deepEqual(searchPhrasesFor(own, { category: 'Productivity' }), own)
+  assert.deepEqual(searchPhrasesFor(['landing page feedback'], { audience: 'Indie app founders', category: 'Productivity' }),
+    ['landing page feedback', 'indie app founders', 'productivity app feedback', 'productivity app recommendations', 'indie app advice'])
+  assert.ok(searchPhrasesFor(undefined, { audience: 'Solo founders', category: 'Health' }).length >= 3)
+})
+
+test('search prompt asks for phrases, never community names', () => {
+  const sp = searchPrompt({ appName: 'Markr', category: 'Productivity', market: 'India', product: 'p', founder: '', competitorNames: [] })
+  assert.ok(sp.includes('"self_search_phrases"'))
+  assert.ok(sp.includes('never a community, subreddit, group or product name, never a URL'))
+})

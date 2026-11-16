@@ -12,7 +12,7 @@ import { CopyButton } from '../../components/ui'
 import { toast } from '../../components/Toast'
 import {
   searchPrompt, topUpPrompt, draftPrompt, normalizePlaces, mergePlaces, mergeDrafts, unconfirmedCandidates,
-  readFirst100, isFirst100Outdated, placeTypeLabel, linkPolicy, linkNote, detectLanguage, inferType, assignAngles, repeatedDrafts, draftHowTo,
+  readFirst100, isFirst100Outdated, cleanSearchPhrases, searchPhrasesFor, placeTypeLabel, linkPolicy, linkNote, detectLanguage, inferType, assignAngles, repeatedDrafts, draftHowTo,
   searchErrorMessage, noneConfirmedMessage, draftsFailedMessage,
   SEARCH_SYSTEM, DRAFT_SYSTEM, FIRST100_MAX_USES, FIRST100_SEARCHES, TOPUP_BELOW, MAX_PLACES, FIRST100_CALLS,
   type First100Place, type First100Section,
@@ -70,11 +70,11 @@ export default function FirstHundred({ app, plan, onUpgrade, onEditApp }: { app:
   // Writes the section into the GTM JSON (gtm_analyzed_at — the plan's own date and lock — is left alone).
   // `base` is the GTM JSON to write into: the second save of a run passes the first save's result,
   // since `app` in this closure is still the pre-run snapshot. Returns the JSON written, or null if the save failed.
-  async function save(places: First100Place[], market: string, generatedAt: string, base = app.gtm_analysis): Promise<string | null> {
+  async function save(places: First100Place[], market: string, generatedAt: string, base = app.gtm_analysis, phrases = section?.search_phrases): Promise<string | null> {
     let gtm: any = {}
     try { if (base) gtm = JSON.parse(base) } catch {}
     const fixed = fixAnalysisCurrency(app, 'first100', { places })
-    const next: First100Section = { places: fixed.places, market, generated_at: generatedAt }
+    const next: First100Section = { places: fixed.places, market, generated_at: generatedAt, ...(phrases?.length ? { search_phrases: phrases } : {}) }
     const json = markGenerated(JSON.stringify({ ...gtm, first100: next }))
     return (await updateApp(app.id, { gtm_analysis: json } as any)) ? json : null
   }
@@ -188,12 +188,13 @@ export default function FirstHundred({ app, plan, onUpgrade, onEditApp }: { app:
 
       // 2. Save the places first, so they are kept even if drafting fails
       const generatedAt = new Date().toISOString()
-      const firstSave = await save(places, market, generatedAt)
+      const phrases = cleanSearchPhrases(json?.self_search_phrases)   // from the first search call; fallback applied on display
+      const firstSave = await save(places, market, generatedAt, app.gtm_analysis, phrases)
 
       // 3. Drafts
       setBusy('drafts')
       const d = await writeDrafts(places)
-      const finalSave = await save(d.places, market, generatedAt, firstSave ?? app.gtm_analysis)
+      const finalSave = await save(d.places, market, generatedAt, firstSave ?? app.gtm_analysis, phrases)
 
       const found = `Found ${places.length} confirmed place${places.length === 1 ? '' : 's'}${proposed > places.length ? ` (of ${proposed} the search suggested)` : ''}.${topUpNote}`
       if (!firstSave || !finalSave) {
@@ -232,6 +233,11 @@ export default function FirstHundred({ app, plan, onUpgrade, onEditApp }: { app:
   }
 
   const missingDrafts = section?.places.filter(p => !p.draft).length ?? 0
+  // Phrases to search Reddit / LinkedIn by hand — the saved ones, topped up from the brief's audience and category
+  const selfSearch = section ? searchPhrasesFor(section.search_phrases, {
+    audience: app.founder_brief?.intended_audience || app.audience || app.content_context?.typical_user,
+    category: app.category,
+  }) : []
 
   return (
     <div style={{ ...box, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -330,6 +336,17 @@ export default function FirstHundred({ app, plan, onUpgrade, onEditApp }: { app:
           )}
         </div>
       ))}
+
+      {section && selfSearch.length > 0 && (
+        <div style={{ fontSize: 12, lineHeight: 1.6, padding: '10px 12px', borderRadius: 8, border: '1px dashed var(--border)', color: 'var(--text2)' }}>
+          Reddit and LinkedIn groups can't be checked automatically yet. Search them yourself for:
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            {selfSearch.map(q => (
+              <span key={q} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 12, background: 'rgba(124,111,247,.08)', color: 'var(--text)' }}>"{q}"</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {section && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: 'var(--text3)', flexWrap: 'wrap' }}>

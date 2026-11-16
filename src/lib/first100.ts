@@ -32,6 +32,7 @@ export interface First100Section {
   places: First100Place[]
   market: string
   generated_at: string
+  search_phrases?: string[]    // "search Reddit / LinkedIn yourself for…" — phrases only, never community names
 }
 
 export const FIRST100_MAX_USES = 10   // searches per place-finding call
@@ -311,7 +312,48 @@ HOW TO SEARCH — search for the community pages themselves, one platform per qu
 ${PLATFORM_QUERIES(c.market)}
 Order: places in the primary market first, then global ones.
 
-${PLACE_RULES}`
+${PLACE_RULES}
+
+ALSO add "self_search_phrases" next to "places": 3-5 short search phrases (2-4 words, lower case) that this app's target users would type to find discussions about the problem it solves — based on the founder context and audience, e.g. "landing page feedback", "indie app founders". Phrases only: never a community, subreddit, group or product name, never a URL.
+Full shape: {"places":[...],"self_search_phrases":["...","..."]}`
+}
+
+// ── "Search them yourself" phrases (Reddit and LinkedIn can't be checked automatically) ──
+// Phrases only: anything that names or links a specific community is dropped.
+export function cleanSearchPhrases(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  for (const v of raw) {
+    if (typeof v !== 'string') continue
+    const p = v.trim().replace(/^["'“”‘’]+|["'“”‘’.]+$/g, '').replace(/\s+/g, ' ').toLowerCase()
+    const n = p.split(' ').length
+    if (!p || p.length > 40 || n < 2 || n > 5) continue
+    if (/https?:|www\.|\.(com|org|net|io|app|co|in)\b|(^|\s)r\/|(^|\s)@|\bsubreddit\b|\breddit\b|\blinkedin\b|\bfacebook\b|\bdiscord\b|\bslack\b|\bgroup\b/.test(p)) continue
+    if (!/^[\p{L}\p{N} '&+-]+$/u.test(p)) continue
+    if (!out.includes(p)) out.push(p)
+  }
+  return out.slice(0, 5)
+}
+
+const FILLER = new Set(['a', 'an', 'the', 'and', 'or', 'of', 'for', 'to', 'in', 'on', 'with', 'who', 'that', 'their', 'our', 'my', 'your', 'are', 'is', 'want', 'wants', 'looking', 'people', 'users'])
+// When the model gave fewer than 3: generic phrases from the brief's audience and the app's category
+export function fallbackSearchPhrases(c: { audience?: string | null; category?: string | null }): string[] {
+  const words = (c.audience ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu)?.filter(w => !FILLER.has(w)) ?? []
+  const cat = (c.category ?? '').toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '').trim()
+  const phrases = [
+    words.length >= 2 ? words.slice(0, 3).join(' ') : '',
+    cat ? `${cat} app feedback` : '',
+    cat ? `${cat} app recommendations` : '',
+    words.length ? `${words.slice(0, 2).join(' ')} advice` : '',
+  ]
+  return cleanSearchPhrases(phrases)
+}
+
+// 3-5 phrases: the model's (cleaned) first, topped up from the fallback
+export function searchPhrasesFor(saved: unknown, ctx: { audience?: string | null; category?: string | null }): string[] {
+  const own = cleanSearchPhrases(saved)
+  if (own.length >= 3) return own
+  return cleanSearchPhrases([...own, ...fallbackSearchPhrases(ctx)]).slice(0, 5)
 }
 
 // Second search call, only when the first confirmed fewer than TOPUP_BELOW places: confirm the
