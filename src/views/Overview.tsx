@@ -119,6 +119,7 @@ export default function Overview({ onAddApp }: { onAddApp?: () => void }) {
             dimensions: result.dimensions,
             bottleneck: result.bottleneck,
             growth_teaser: result.growth_teaser,
+            currencies: result.currencies ?? [],
             pagesRead: result.pagesRead ?? [],
             closestCompetitor: result.closestCompetitor ?? null,
             instagram: result.instagram ?? null,

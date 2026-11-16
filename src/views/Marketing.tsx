@@ -8,6 +8,8 @@ import OutdatedNotice from '../components/OutdatedNotice'
 import { readCompetitive } from '../lib/founder'
 import { toast } from '../components/Toast'
 import GoToMarketTab from './insights/GoToMarket'
+import FirstHundred from './insights/FirstHundred'
+import { carryFirst100 } from '../lib/first100'
 
 const ADMIN_EMAILS = ['swaroop.raghu@gmail.com']
 const MONTHLY_LIMIT_DAYS = 30
@@ -39,6 +41,8 @@ export default function Marketing({ onUpgrade }: { onUpgrade?: () => void } = {}
   const { currentApp, updateApp, userEmail, plan, setView } = useStore()
   const [loading, setLoading] = useState(false)
   const canUseAnalysis = plan === 'analysis' || plan === 'pro' || plan === 'guest_pro'
+  // The saved GTM JSON can hold only the "first 100" section — that is not a generated plan
+  const hasGtmPlan = (() => { try { return Array.isArray(JSON.parse(currentApp.gtm_analysis ?? '')?.channels) } catch { return false } })()
 
   function saveMarketing(json: any) {
     updateApp(currentApp.id, {
@@ -196,7 +200,7 @@ Return JSON only, no markdown:
       if (!cleaned) throw new Error('Empty response')
       const parsed  = JSON.parse(cleaned)
       if (!Array.isArray(parsed.channels)) throw new Error('Invalid response — missing channels')
-      saveMarketing({ ...parsed, generatedAtScore: ua?.overall ?? null })
+      saveMarketing(carryFirst100(currentApp.gtm_analysis, { ...parsed, generatedAtScore: ua?.overall ?? null }))   // keep "first 100" places
       toast('Marketing strategy ready!')
     } catch (e: any) {
       toast('Error generating marketing strategy: ' + (e?.message ?? 'Unknown'))
@@ -285,7 +289,7 @@ Return JSON only, no markdown:
         } catch { return null }
       })()}
       <GoToMarketTab
-        data={currentApp.gtm_analysis ?? undefined}
+        data={hasGtmPlan ? currentApp.gtm_analysis! : undefined}
         loading={loading}
         onGenerate={genMarketingAll}
         onRefresh={genSmartRefresh}
@@ -293,6 +297,11 @@ Return JSON only, no markdown:
         app={currentApp}
         canUseAnalysis={canUseAnalysis}
       />
+      {canUseAnalysis && currentApp.url_analysis && (
+        <div style={{ marginTop: 18 }}>
+          <FirstHundred app={currentApp} plan={plan} onUpgrade={onUpgrade} />
+        </div>
+      )}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 // ".js" is required: package.json is "type": "module", so Vercel runs this as Node ESM,
 // which only resolves relative imports with an explicit extension (TS maps .js → .ts).
-import { normalizeSourceUrl, keepSourcedFacts, fillWebsitesFromResults, type FactStats } from './_lib/sources.js'
+import { normalizeSourceUrl, keepSourcedFacts, fillWebsitesFromResults, keepReturnedPlaces, type FactStats, type ReturnedResult } from './_lib/sources.js'
 
 type PlanKey = 'free' | 'analysis' | 'content' | 'guest_pro' | 'pro'
 const RATE_LIMITS: Record<PlanKey, number> = { free: 5, analysis: 10, content: 30, guest_pro: 30, pro: 50 }
@@ -139,7 +139,7 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
 // {value, source_url} whose source_url wasn't actually returned by a search
 // result in this call is replaced with null before it leaves the server, and a
 // website is kept only if a returned result is on that website's own domain.
-const WEB_SEARCH_FEATURES = new Set(['competitive_facts'])   // opt-in per feature; nothing else can spend searches
+const WEB_SEARCH_FEATURES = new Set(['competitive_facts', 'first_100'])   // opt-in per feature; nothing else can spend searches
 const WEB_SEARCH_MAX_USES = 10
 const WEB_SEARCH_BUDGET_MS = 45_000   // stop resuming pause_turn after this
 const WEB_SEARCH_HARD_MS   = 55_000   // stay under the 60s function limit
@@ -155,6 +155,7 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
   const started = Date.now()
   const assistant: any[] = []          // all assistant content so far (resent unchanged on pause_turn)
   const allowed = new Map<string, string>()   // normalized → original URL of every search result returned
+  const returned: ReturnedResult[] = []        // every result with its page_age (freshness for first_100 places)
   let inputTokens = 0, outputTokens = 0, searches = 0, pauses = 0, stop = ''
   try {
     while (true) {
@@ -183,6 +184,7 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
           for (const r of b.content) {
             const n = r?.type === 'web_search_result' && typeof r.url === 'string' ? normalizeSourceUrl(r.url) : null
             if (n && !allowed.has(n)) allowed.set(n, r.url)
+            if (n) returned.push({ url: r.url, page_age: typeof r.page_age === 'string' ? r.page_age : undefined })
           }
         }
       }
@@ -199,6 +201,7 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
     const stats: FactStats = { kept: 0, dropped: 0, derived: 0 }
     const json = keepSourcedFacts(JSON.parse(body.slice(start, end + 1)), allowed, stats)
     if (feature === 'competitive_facts') fillWebsitesFromResults(json, allowed, stats)
+    if (feature === 'first_100') keepReturnedPlaces(json, returned, stats)   // place kept only if a returned result is inside that community
     json.checked_at = new Date().toISOString()
     json.search_requests = searches   // lets the client spend any remaining search budget
 

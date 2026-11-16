@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Modal, Field, SelectField, ProgressStep } from './ui'
 import { useStore } from '../lib/store'
 import { callClaude } from '../lib/claude'
 import { toast } from './Toast'
 import type { AppData } from '../types'
 import { normalizeInstagramHandle } from '../lib/instagram'
+import { detectMarketForApp } from '../lib/market'
 import FounderBriefFields, { draftFromBrief, type FounderBriefDraft } from './FounderBriefFields'
 import { normalizeFounderBrief, competitorListsChanged, stampFounderBrief, hasFounderBrief } from '../lib/founder'
 
@@ -29,6 +30,9 @@ function EditAppForm({ app, onClose }: { app: AppData; onClose: () => void }) {
   const [category,  setCategory]  = useState(app.category)
   const [primaryMarket, setPrimaryMarket] = useState(app.primary_market ?? 'Auto-detect')
   const [desc,      setDesc]      = useState(app.desc ?? '')
+  const marketRef = useRef<HTMLSelectElement>(null)
+  // Live: uses the description being edited plus the saved landing-page and screenshot data
+  const detected = primaryMarket === 'Auto-detect' ? detectMarketForApp({ ...app, desc }) : null
   const [recentCtx, setRecentCtx] = useState(app.recent_context ?? '')
   const [credsOpen, setCredsOpen] = useState(!!(app.testCreds?.user))
   const [testUser,  setTestUser]  = useState(app.testCreds?.user ?? '')
@@ -231,9 +235,19 @@ BRAND_VOICE: [3-4 sentences on voice]`,
         </select>
       </Field>
       <Field label="Primary market">
-        <select value={primaryMarket} onChange={e => setPrimaryMarket(e.target.value)}>
+        <select ref={marketRef} value={primaryMarket} onChange={e => setPrimaryMarket(e.target.value)}>
           {MARKETS.map(o => <option key={o}>{o}</option>)}
         </select>
+        {detected && (
+          <div style={{ fontSize:11, color:'var(--text3)', marginTop:4 }}>
+            Detected: <strong style={{ color:'var(--text2)' }}>{detected}</strong>
+            {' — '}
+            <button type="button" onClick={() => marketRef.current?.focus()}
+              style={{ background:'none', border:'none', padding:0, color:'var(--accent2)', cursor:'pointer', fontSize:11, textDecoration:'underline' }}>
+              change?
+            </button>
+          </div>
+        )}
       </Field>
       <Field label="Description">
         <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} />

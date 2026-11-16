@@ -482,6 +482,8 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
 
   // Combine ALL text from ALL pages
   const allPagesText = Object.values(pages).map(p => p.allText).join(' ')
+  // Currency symbols seen next to a price on the crawled pages — a strong primary-market signal
+  const currencies = ['₹', '£', '€', '$'].filter(sym => new RegExp('\\' + sym + '\\s?\\d').test(allPagesText))
   const allH2s       = Object.values(pages).flatMap(p => p.h2s)
   const allH3s       = Object.values(pages).flatMap(p => p.h3s)
   const allParas     = Object.values(pages).flatMap(p => p.paras)
@@ -931,6 +933,7 @@ function score(pages: Record<string, ReturnType<typeof extract>>, url: string, r
     dimensions,
     bottleneck,
     growth_teaser,
+    currencies,
     confidence,
     confidencePercent,
     confidenceReason,

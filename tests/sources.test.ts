@@ -95,3 +95,85 @@ test('a website named after the company on a two-part TLD is found (amahahealth.
   const { json } = check({ competitors: [{ name: 'Amaha', website: null }] }, ['https://www.amahahealth.co.in/about'])
   assert.equal(json.competitors[0].website?.value, 'https://www.amahahealth.co.in')
 })
+
+// ── "Where your first 100 users are": path-aware community matching + freshness ──
+import { communityRoot, parsePageAge, keepReturnedPlaces } from '../api/_lib/sources.ts'
+
+const NOW = Date.parse('2026-11-16T00:00:00Z')
+const run = (places: any[], results: { url: string; page_age?: string }[]) => {
+  const stats = { kept: 0, dropped: 0, derived: 0 }
+  const json: any = { places: structuredClone(places) }
+  keepReturnedPlaces(json, results, stats, NOW)
+  return { places: json.places, stats }
+}
+
+test('communityRoot names the community, not just the host', () => {
+  assert.deepEqual(communityRoot('https://www.reddit.com/r/SaaS/comments/abc/how_we_got/'), { key: 'reddit.com/r/saas', url: 'https://www.reddit.com/r/SaaS' })
+  assert.equal(communityRoot('https://www.reddit.com/search?q=saas'), null)
+  assert.equal(communityRoot('https://reddit.com'), null)
+  assert.equal(communityRoot('https://www.youtube.com/@AliAbdaal/videos')?.key, 'youtube.com/@aliabdaal')
+  assert.equal(communityRoot('https://www.youtube.com/watch?v=xyz'), null)
+  assert.equal(communityRoot('https://discord.gg/abc123')?.key, 'discord.gg/abc123')
+  assert.equal(communityRoot('https://www.facebook.com/groups/123456/posts/789')?.key, 'facebook.com/groups/123456')
+  assert.equal(communityRoot('https://www.facebook.com/somebody'), null)
+  assert.equal(communityRoot('https://lenny.substack.com/p/how-to-grow')?.key, 'lenny.substack.com')   // subdomain = the newsletter
+  assert.equal(communityRoot('https://forum.indianstartups.org/t/thread/42')?.key, 'forum.indianstartups.org')
+})
+
+test('a place is kept only when a returned result is inside that community', () => {
+  const { places, stats } = run(
+    [{ name: 'r/SaaS', type: 'subreddit', url: 'https://reddit.com/r/saas' }],
+    [{ url: 'https://www.reddit.com/r/SaaS/comments/abc/thread', page_age: '3 weeks ago' }])
+  assert.equal(places.length, 1)
+  assert.equal(places[0].url, 'https://www.reddit.com/r/SaaS')          // derived from the result, not the model's spelling
+  assert.equal(places[0].evidence_url, 'https://www.reddit.com/r/SaaS/comments/abc/thread')
+  assert.equal(places[0].possibly_inactive, false)
+  assert.equal(stats.kept, 1)
+})
+
+test('cross-community false positives are dropped', () => {
+  const cases: Array<[string, string, string]> = [
+    // [model's place URL, only returned result, what it is]
+    ['https://www.reddit.com/r/SaaS',               'https://www.reddit.com/r/startups/comments/x/t', 'different subreddit'],
+    ['https://www.reddit.com/r/SaaS',               'https://www.reddit.com/search?q=saas',           'reddit search page'],
+    ['https://www.facebook.com/groups/111',         'https://www.facebook.com/groups/222/posts/1',    'different Facebook group'],
+    ['https://www.facebook.com/groups/111',         'https://www.facebook.com/someperson',            'personal Facebook page'],
+    ['https://www.youtube.com/@channelA',           'https://www.youtube.com/@channelB/videos',       'different YouTube channel'],
+    ['https://www.youtube.com/@channelA',           'https://www.youtube.com/watch?v=xyz',            'video with no channel path'],
+    ['https://a.substack.com',                      'https://b.substack.com/p/post',                  'different Substack'],
+    ['https://discord.gg/aaa',                      'https://discord.gg/bbb',                         'different Discord invite'],
+    ['https://www.reddit.com',                      'https://www.reddit.com/r/SaaS/comments/x/t',     'model gave no community path'],
+  ]
+  for (const [want, got, what] of cases) {
+    const { places, stats } = run([{ name: 'X', type: 'forum', url: want }], [{ url: got }])
+    assert.equal(places.length, 0, what)
+    assert.equal(stats.dropped, 1, what)
+  }
+})
+
+test('freshness: newest matching result wins; older than ~2 years is tagged and sorted last', () => {
+  const { places } = run(
+    [
+      { name: 'Old forum', type: 'forum', url: 'https://oldforum.example.org' },
+      { name: 'r/IndianStartups', type: 'subreddit', url: 'https://www.reddit.com/r/IndianStartups' },
+      { name: 'No date', type: 'newsletter', url: 'https://weekly.example.com' },
+    ],
+    [
+      { url: 'https://oldforum.example.org/t/1', page_age: 'March 1, 2021' },
+      { url: 'https://www.reddit.com/r/IndianStartups/comments/a/b', page_age: 'March 1, 2021' },
+      { url: 'https://www.reddit.com/r/IndianStartups/comments/c/d', page_age: '2 days ago' },   // newer evidence wins
+      { url: 'https://weekly.example.com/issue-12' },                                             // no page_age → not tagged
+    ])
+  assert.deepEqual(places.map((p: any) => p.name), ['r/IndianStartups', 'No date', 'Old forum'])
+  assert.deepEqual(places.map((p: any) => p.possibly_inactive), [false, false, true])
+  assert.equal(places[1].last_seen, null)
+})
+
+test('parsePageAge handles relative and absolute dates', () => {
+  assert.equal(parsePageAge('2 days ago', NOW), NOW - 2 * 8.64e7)
+  assert.equal(parsePageAge('2025-04-30', NOW), Date.parse('2025-04-30'))
+  assert.equal(parsePageAge('April 30, 2025', NOW), Date.parse('April 30, 2025'))
+  assert.equal(parsePageAge('', NOW), null)
+  assert.equal(parsePageAge(undefined, NOW), null)
+  assert.equal(parsePageAge('not a date', NOW), null)
+})

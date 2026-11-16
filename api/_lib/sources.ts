@@ -87,3 +87,78 @@ export function fillWebsitesFromResults(json: any, allowed: Map<string, string>,
     }
   }
 }
+
+// ── "Where your first 100 users are": places confirmed by returned search results ──────────────
+// A community is identified by host + the path segments that name it. On multi-tenant platforms a
+// page elsewhere on the host (reddit.com/search, facebook.com/someone) confirms nothing.
+type RootRule = { hosts: RegExp; segments: (p: string[]) => number }   // how many leading path segments name the community
+const ROOT_RULES: RootRule[] = [
+  { hosts: /(^|\.)reddit\.com$/,            segments: p => (p[0] === 'r' && p[1]) ? 2 : 0 },                    // /r/SaaS
+  { hosts: /(^|\.)facebook\.com$/,          segments: p => (p[0] === 'groups' && p[1]) ? 2 : 0 },               // /groups/123
+  { hosts: /(^|\.)linkedin\.com$/,          segments: p => (['groups', 'company', 'in'].includes(p[0]) && p[1]) ? 2 : 0 },
+  { hosts: /(^|\.)youtube\.com$/,           segments: p => p[0]?.startsWith('@') ? 1 : (['c', 'channel', 'user'].includes(p[0]) && p[1]) ? 2 : 0 },
+  { hosts: /(^|\.)(x|twitter|instagram|threads)\.(com|net)$/, segments: p => (p[0] && !['i', 'search', 'explore', 'hashtag', 'p', 'reel', 'status'].includes(p[0])) ? 1 : 0 },
+  { hosts: /(^|\.)tiktok\.com$/,            segments: p => p[0]?.startsWith('@') ? 1 : 0 },
+  { hosts: /^discord\.com$/,                segments: p => (p[0] === 'invite' && p[1]) ? 2 : 0 },
+  { hosts: /^discord\.gg$/,                 segments: p => p[0] ? 1 : 0 },
+  { hosts: /^join\.slack\.com$/,            segments: p => (p[0] === 't' && p[1]) ? 2 : 0 },
+  { hosts: /^t\.me$/,                       segments: p => p[0] ? 1 : 0 },
+  { hosts: /^groups\.google\.com$/,         segments: p => (p[0] === 'g' && p[1]) ? 2 : 0 },
+  { hosts: /(^|\.)indiehackers\.com$/,      segments: p => (p[0] === 'group' && p[1]) ? 2 : 0 },
+  { hosts: /^(substack|medium)\.com$/,      segments: p => (p[0] && p[0] !== 'p') ? 1 : 0 },   // substack.com/@x, medium.com/pub
+]
+// Anything else (own-domain forums, newsletters, X.substack.com, X.beehiiv.com, X.slack.com): the host is the community
+
+// Canonical community root of a URL — e.g. https://www.reddit.com/r/SaaS/comments/abc → { key: "reddit.com/r/saas", url: "https://www.reddit.com/r/SaaS" }
+export function communityRoot(u: string): { key: string; url: string } | null {
+  let url: URL
+  try { url = new URL(u.trim()) } catch { return null }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  const host = url.hostname.toLowerCase().replace(/^(www|old|new|np|m)\./, '')
+  const path = url.pathname.split('/').filter(Boolean)
+  const rule = ROOT_RULES.find(r => r.hosts.test(host))
+  const n = rule ? rule.segments(path) : 0
+  if (rule && n === 0) return null                                   // multi-tenant host, but not a community page
+  const seg = path.slice(0, n)
+  return { key: [host, ...seg.map(s => s.toLowerCase())].join('/'), url: 'https://' + url.hostname + (seg.length ? '/' + seg.join('/') : '') }
+}
+
+// Search results give page_age as e.g. "April 30, 2025", "2025-04-30" or "3 weeks ago". → ms timestamp or null
+export function parsePageAge(age: unknown, now = Date.now()): number | null {
+  if (typeof age !== 'string' || !age.trim()) return null
+  const rel = age.trim().match(/^(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago$/i)
+  if (rel) {
+    const units: Record<string, number> = { minute: 6e4, hour: 3.6e6, day: 8.64e7, week: 6.048e8, month: 2.63e9, year: 3.156e10 }
+    return now - Number(rel[1]) * units[rel[2].toLowerCase()]
+  }
+  const t = Date.parse(age)
+  return Number.isFinite(t) ? t : null
+}
+
+export type ReturnedResult = { url: string; page_age?: string }
+const STALE_MS = 730 * 24 * 3600 * 1000   // ~2 years
+
+// Keep a place only if a returned search result is that community's page or a page inside it.
+// The shown URL is the community root rebuilt from that result (never the model's URL). Freshness comes
+// from the newest matching result's page_age: older than ~2 years → possibly_inactive, sorted last.
+export function keepReturnedPlaces(json: any, results: ReturnedResult[], stats: FactStats, now = Date.now()): void {
+  if (!Array.isArray(json?.places)) return
+  const kept: any[] = []
+  for (const p of json.places) {
+    const want = typeof p?.url === 'string' ? communityRoot(p.url) : null
+    const matches = want ? results.filter(r => communityRoot(r.url)?.key === want.key) : []
+    if (!want || !matches.length || typeof p?.name !== 'string' || !p.name.trim()) { stats.dropped++; continue }
+    const ages = matches.map(m => parsePageAge(m.page_age, now)).filter((t): t is number => t !== null)
+    const newest = ages.length ? Math.max(...ages) : null
+    stats.kept++
+    kept.push({
+      ...p,
+      url: communityRoot(matches[0].url)!.url,              // derived from the returned result
+      evidence_url: matches[0].url,
+      last_seen: newest !== null ? new Date(newest).toISOString() : null,
+      possibly_inactive: newest !== null && now - newest > STALE_MS,
+    })
+  }
+  // Keep the model's market-first order, but anything that may be inactive goes last
+  json.places = [...kept.filter(p => !p.possibly_inactive), ...kept.filter(p => p.possibly_inactive)]
+}

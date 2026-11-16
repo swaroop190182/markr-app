@@ -12,6 +12,7 @@ type StepState = 'pending' | 'active' | 'done' | 'failed' | 'skipped'
 import { sourcedCompetitorFacts, correctMarketType, competitorProfiles, stripFiguresFromFreeText, itunesNameMatches, applyFacts, applyWebsiteFact, needsWebsiteSearch, findFactsEntry, competitorWebsite, confirmedWebsite, sourceDomain, isPreferredSource } from '../lib/competitors'
 import { CURRENCY_RULE, fixAnalysisCurrency } from '../lib/prices'
 import { isAdminEmail } from '../lib/admin'
+import { detectMarketForApp } from '../lib/market'
 
 // Pass 2 (live sources) runs competitors in batches to stay inside the 60s API limit.
 // Measured on the Vercel preview: 3 + 2 batches took ~9.8s / ~9.5s (8 searches, no pauses),
@@ -53,58 +54,6 @@ function lastUpdatedLabel(ts: string | null | undefined): string {
 }
 import { toast } from '../components/Toast'
 import ProductTest from './insights/ProductTest'
-
-// ── Market detection ──────────────────────────────────────────────────────────
-// url_analysis doesn't store the raw scraped page — only headline/category/
-// bottleneck/dimension issues/growth_teaser — so those plus the app description
-// stand in for "landing page text" below.
-function detectMarket(desc: string, url: string, ua?: {
-  headline?: string; category?: string
-  bottleneck?: { issue?: string }
-  dimensions?: Array<{ issue?: string }>
-  growth_teaser?: string
-} | null): string {
-  const text = [
-    desc, ua?.headline, ua?.growth_teaser, ua?.bottleneck?.issue,
-    ...(ua?.dimensions ?? []).map(d => d.issue),
-  ].filter(Boolean).join(' ')
-
-  // 1. Explicit country/city named in the description or landing page text
-  const places: Array<[RegExp, string]> = [
-    [/\bindia\b|\bindian\b|\bbengaluru\b|\bbangalore\b|\bmumbai\b|\bdelhi\b|\bhyderabad\b|\bpune\b|\bchennai\b|\bkolkata\b|\bgurgaon\b|\bgurugram\b|\bnoida\b/i, 'India'],
-    [/\bunited kingdom\b|\b(?<![a-z])uk(?![a-z])\b|\bbritain\b|\blondon\b|\bmanchester\b/i, 'UK'],
-    [/\bunited states\b|\b(?<![a-z])usa(?![a-z])\b|\bamerica\b|\bnew york\b|\bsan francisco\b|\bsilicon valley\b|\baustin\b|\bseattle\b/i, 'US'],
-    [/\bsingapore\b/i, 'Singapore'],
-    [/\baustralia\b|\bsydney\b|\bmelbourne\b/i, 'Australia'],
-    [/\bcanada\b|\btoronto\b|\bvancouver\b/i, 'Canada'],
-    [/\bdubai\b|\b(?<![a-z])uae(?![a-z])\b|\bunited arab emirates\b/i, 'UAE'],
-  ]
-  for (const [re, market] of places) if (re.test(text)) return market
-
-  // 2. Currency symbols
-  if (/₹/.test(text)) return 'India'
-  if (/£/.test(text)) return 'UK'
-  if (/€/.test(text)) return 'Europe'
-  if (/\$/.test(text)) return 'US'
-
-  // 3. TLD
-  try {
-    const host = new URL(url).hostname
-    if (/\.in$/.test(host)) return 'India'
-    if (/\.co\.uk$/.test(host)) return 'UK'
-    if (/\.ca$/.test(host)) return 'Canada'
-    if (/\.com\.au$/.test(host)) return 'Australia'
-    if (/\.sg$/.test(host)) return 'Singapore'
-    if (/\.ae$/.test(host)) return 'UAE'
-  } catch { /* invalid URL — skip TLD check */ }
-
-  // 4. Phone number format
-  if (/\+91[\s-]?\d{4,5}/.test(text)) return 'India'
-  if (/\+44[\s-]?\d/.test(text)) return 'UK'
-  if (/\+1[\s-]?\(?\d{3}\)?/.test(text)) return 'US'
-
-  return 'Global'
-}
 
 type Tab = 'competitive' | 'bmc' | 'swot' | 'growth' | 'pricing' | 'product'
 
@@ -306,7 +255,7 @@ INTENT GAPS (required): "intentGaps" = 1–3 short sentences naming specific gap
       const userMarket = currentApp.primary_market
       const detectedMarket = (userMarket && userMarket !== 'Auto-detect')
         ? userMarket
-        : detectMarket(currentApp.desc || '', currentApp.url, ua)
+        : detectMarketForApp(currentApp)
       const appContext = `PRODUCT DETAILS:
 Name: ${currentApp.name}
 Description: ${currentApp.desc || ''}

@@ -123,6 +123,7 @@ export interface AppData {
     dimensions: Array<{ label: string; score: number; issue: string }>
     bottleneck: { label: string; issue: string }
     growth_teaser: string
+    currencies?: string[]   // currency symbols seen next to prices on the landing page (market signal)
     pagesRead: string[]
     analyzed_at: string
     // Instagram metrics — populated when instagram_handle is set and the renderer
