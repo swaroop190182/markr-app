@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { getAiUsage } from '../../lib/claude'
-import { isLegacyPlaybook, type GtmPart } from '../../lib/gtm'
+import { isLegacyPlaybook, budgetLabel, type GtmPart } from '../../lib/gtm'
+import { isRealBottleneck, noBottleneck } from '../../lib/bottleneck'
 import { CopyButton } from '../../components/ui'
 import type { AppData } from '../../types'
 
@@ -41,7 +42,7 @@ function getBudgetPlan(budget: string): BudgetLine[] {
     { channel: 'SEO + content marketing',             pct: 15, reason: 'Build organic moat alongside paid — reduces CPL over time' },
   ]
   return [
-    { channel: 'Meta ads (Instagram + Facebook)',           pct: 35, reason: 'Proven primary channel — scale with retargeting and lookalike audiences' },
+    { channel: 'Meta ads (Instagram + Facebook)',           pct: 35, reason: 'Common primary channel at this budget — scale with retargeting and lookalike audiences' },
     { channel: 'Google Search + Display',                   pct: 25, reason: 'Full-funnel: Search captures intent, Display builds brand recall' },
     { channel: 'Influencer partnerships (mid-tier 50K–500K)', pct: 20, reason: 'Credibility at scale without mega-influencer rates' },
     { channel: 'SEO & content marketing',                   pct: 15, reason: 'Long-term organic compound growth — reduces paid dependency over 6+ months' },
@@ -57,7 +58,9 @@ function getLaunchCriteria(app: AppData): Criterion[] {
   const ua            = (app as any).url_analysis
   const dims          = ua?.dimensions ?? []
   const dim           = (label: string): number => dims.find((d: any) => d.label === label)?.score ?? 0
-  const isBottleneck  = (label: string): boolean => ua?.bottleneck?.label === label
+  // Only a dimension scoring below 7 is "the bottleneck"; if all score 7+, the stored one is "no bottleneck — maintain"
+  const isBottleneck  = (label: string): boolean => isRealBottleneck(ua, label)
+  const maintain      = (label: string): string => noBottleneck(ua) && ua?.bottleneck?.label === label ? ' — no bottleneck — maintain' : ''
   const hasPillars    = (app.pillars?.length ?? 0) >= 3 || !!(app as any).pillar_suggestions
   const hasCompetitive = !!(app as any).competitive_analysis
   const hasContentCtx  = !!(app as any).content_context?.typical_user
@@ -79,21 +82,21 @@ function getLaunchCriteria(app: AppData): Criterion[] {
       label:  'Clear value prop (Clarity ≥ 6)',
       pass:   clar >= 6,
       detail: ua
-        ? `${clar}/10${isBottleneck('Clarity') ? ' — ⚠️ this is your #1 bottleneck' : clar < 6 ? ' — visitors may not understand what you do' : ' — clear'}`
+        ? `${clar}/10${isBottleneck('Clarity') ? ' — ⚠️ this is your #1 bottleneck' : clar < 6 ? ' — visitors may not understand what you do' : ' — clear' + maintain('Clarity')}`
         : '—',
     },
     {
       label:  'Has social proof (Trust ≥ 6)',
       pass:   trust >= 6,
       detail: ua
-        ? `${trust}/10${isBottleneck('Trust') ? ' — ⚠️ this is your #1 bottleneck' : trust < 6 ? ' — add testimonials, ratings, or press mentions' : ' — credible'}`
+        ? `${trust}/10${isBottleneck('Trust') ? ' — ⚠️ this is your #1 bottleneck' : trust < 6 ? ' — add testimonials, ratings, or press mentions' : ' — credible' + maintain('Trust')}`
         : '—',
     },
     {
       label:  'Has CTA / conversion flow (Conversion ≥ 5)',
       pass:   conv >= 5,
       detail: ua
-        ? `${conv}/10${isBottleneck('Conversion Readiness') ? ' — ⚠️ this is your #1 bottleneck' : conv < 5 ? ' — sign-up friction is high' : ' — conversion ready'}`
+        ? `${conv}/10${isBottleneck('Conversion Readiness') ? ' — ⚠️ this is your #1 bottleneck' : conv < 5 ? ' — sign-up friction is high' : ' — conversion ready' + maintain('Conversion Readiness')}`
         : '—',
     },
     {
@@ -166,8 +169,8 @@ function Section({ title, subtitle, action, children }: {
 interface Props {
   data?:           string
   loading?:        boolean
-  onGenerate:      () => void
-  onRefresh:       () => void
+  onGenerate:      (budget: number) => void   // budget = the Budget Planner's monthly budget (₹)
+  onRefresh:       (budget: number) => void
   onGoToOverview:  () => void
   app:             AppData
   canUseAnalysis:  boolean
@@ -189,12 +192,15 @@ const EFFORT_COLOR: Record<string, string> = { Low: 'var(--green)', Medium: 'var
 const EFFORT_BG:    Record<string, string> = { Low: 'rgba(52,201,138,.12)', Medium: 'rgba(245,166,35,.12)', High: 'rgba(229,85,85,.12)' }
 
 export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, onGoToOverview, app, canUseAnalysis, afterChannels, progress, missing = [], onRetryPart, callsPerRun = 3 }: Props) {
-  const [budget, setBudget] = useState('0')
-  const [confirming, setConfirming] = useState(false)
+  // The budget the saved plan was written for (default ₹0 — free only)
+  const savedBudget = (() => { try { const b = data ? JSON.parse(data)?.budget : undefined; return typeof b === 'number' ? b : null } catch { return null } })()
+  const [budget, setBudget] = useState(String(savedBudget ?? 0))
+  const [confirming, setConfirming] = useState<null | 'generate' | 'refresh'>(null)
   const [remaining, setRemaining] = useState<number | null>(null)
 
-  async function openConfirm() {
-    setConfirming(true)
+  // Generate and the staleness banner's Refresh both go through the confirm panel
+  async function openConfirm(mode: 'generate' | 'refresh' = 'generate') {
+    setConfirming(mode)
     setRemaining(null)
     const u = await getAiUsage()
     setRemaining(u ? u.remaining : null)
@@ -277,7 +283,7 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
             {progress ? `${progress.label} (${progress.n}/${progress.of})` : 'Generating…'}
           </div>
         ) : !confirming && (
-          <button className="gen-btn" style={{ fontSize: 12, padding: '8px 18px' }} onClick={openConfirm}>
+          <button className="gen-btn" style={{ fontSize: 12, padding: '8px 18px' }} onClick={() => openConfirm('generate')}>
             {data ? '🔄 Refresh All' : '✨ Generate GTM Strategy'}
           </button>
         )}
@@ -285,17 +291,22 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
 
       {confirming && !loading && (
         <div style={{ padding: '12px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r)', fontSize: 12, lineHeight: 1.6 }}>
-          Uses {callsPerRun} AI calls (channels, outreach templates, playbook — written one after another).{' '}
+          {confirming === 'refresh'
+            ? <>Uses up to {callsPerRun} AI calls (only the playbook if your landing page score and budget haven't changed).{' '}</>
+            : <>Uses {callsPerRun} AI calls (channels, outreach templates, playbook — written one after another).{' '}</>}
           {remaining === null ? 'Checking your remaining calls…' : `You have ${remaining} AI call${remaining === 1 ? '' : 's'} left today.`}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button className="gen-btn" style={{ fontSize: 12, padding: '7px 16px' }} disabled={remaining !== null && remaining < callsPerRun}
-              onClick={() => { setConfirming(false); onGenerate() }}>Generate</button>
+              onClick={() => { const mode = confirming; setConfirming(null); (mode === 'refresh' ? onRefresh : onGenerate)(parseInt(budget) || 0) }}>{confirming === 'refresh' ? 'Refresh' : 'Generate'}</button>
             <button style={{ fontSize: 12, padding: '7px 16px', borderRadius: 8, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer' }}
-              onClick={() => setConfirming(false)}>Cancel</button>
+              onClick={() => setConfirming(null)}>Cancel</button>
           </div>
           {remaining !== null && remaining < callsPerRun && (
             <div style={{ color: 'var(--text3)', marginTop: 6 }}>Daily AI limit reached — try again tomorrow.</div>
           )}
+          <div style={{ color: 'var(--text3)', marginTop: 6 }}>
+            Channels will fit your Budget Planner setting: <strong style={{ color: 'var(--text2)' }}>{budgetLabel(parseInt(budget) || 0)}</strong> — change it in Budget Planner below.
+          </div>
         </div>
       )}
 
@@ -311,14 +322,14 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
                 Strategy generated {days} days ago
               </div>
               <div style={{ fontSize: 11, color: 'var(--text3)', lineHeight: 1.6 }}>
-                Market conditions may have changed. Channel recommendations will only regenerate if your landing page score changed by 0.5+ points — otherwise only the market playbook (competitor moves, category trends) is refreshed.
+                Channel recommendations regenerate if your landing page score changed by 0.5+ points or your budget changed — otherwise only the category patterns and step-by-step approach are refreshed.
               </div>
             </div>
             {loading ? (
               <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>Refreshing…</span>
             ) : (
               <button
-                onClick={onRefresh}
+                onClick={() => openConfirm('refresh')}
                 style={{ flexShrink: 0, padding: '6px 12px', borderRadius: 6, background: 'rgba(245,166,35,.15)', border: '1px solid rgba(245,166,35,.3)', color: 'var(--amber)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}
               >
                 Refresh strategy
@@ -381,6 +392,11 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
             {BUDGET_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
+        {data && savedBudget !== (parseInt(budget) || 0) && (
+          <div style={{ fontSize: 11, color: 'var(--text3)', margin: '-8px 0 14px' }}>
+            Your channel recommendations were written for {savedBudget === null ? 'an unspecified budget' : budgetLabel(savedBudget)}. Use Refresh All to match {budgetLabel(parseInt(budget) || 0)}.
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {budgetPlan.map((line, i) => {
             const amount   = budgetNum > 0 ? Math.round(line.pct / 100 * budgetNum) : null
@@ -592,7 +608,7 @@ export default function GoToMarketTab({ data, loading, onGenerate, onRefresh, on
             {playbook.marketingFormula?.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '.06em', color: 'var(--accent)', marginBottom: 10 }}>
-                  📋 Proven Marketing Formula — Step by step
+                  📋 A step-by-step approach
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                   {playbook.marketingFormula.map((item: any, i: number) => (

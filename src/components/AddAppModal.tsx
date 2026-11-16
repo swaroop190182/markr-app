@@ -8,6 +8,7 @@ import { COLORS } from '../lib/data'
 import { normalizeInstagramHandle } from '../lib/instagram'
 import FounderBriefFields, { draftFromBrief, type FounderBriefDraft } from './FounderBriefFields'
 import { normalizeFounderBrief, stampFounderBrief } from '../lib/founder'
+import { bottleneckLine } from '../lib/bottleneck'
 
 type Step = 'pending' | 'active' | 'done' | 'skip'
 
@@ -80,7 +81,7 @@ WEBSITE CATEGORY: ${urlData.category || ''}
 WEBSITE DESCRIPTION: ${urlData.scraped?.metaDesc || ''}
 WEBSITE H1: ${urlData.scraped?.h1 || ''}
 GROWTH TEASER: ${urlData.growth_teaser || ''}
-BOTTLENECK: ${urlData.bottleneck?.label || ''} — ${urlData.bottleneck?.issue || ''}
+${bottleneckLine(urlData, 'BOTTLENECK') || 'BOTTLENECK: unknown'}
 SCORE: ${urlData.overall || ''}/10`
               // Auto-set category from URL analysis if user left default
               if (urlData.category && category === 'Productivity') {

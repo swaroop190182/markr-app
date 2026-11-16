@@ -9,6 +9,7 @@ import { SLOT_CONFIGS } from '../lib/data'
 import { toast } from '../components/Toast'
 import type { AppData, AgentPost, ContentContext, PostHistoryEntry, ScreenLabel, ScreenshotAnalysis, ScreenshotImage, ScreenshotVision } from '../types'
 import { SCREEN_LABELS } from '../types'
+import { realBottleneck, noBottleneck, NO_BOTTLENECK_TEXT } from '../lib/bottleneck'
 
 type ChannelId = 'instagram' | 'linkedin' | 'twitter' | 'youtube' | 'facebook' | 'whatsapp' | 'email' | 'reddit'
 type SlotKey = 'morning' | 'midday' | 'evening'
@@ -175,8 +176,9 @@ function buildContentStrategyContext(currentApp: any, ua: any) {
     realResult:          currentApp?.content_context?.real_result  || '',
     userQuote:           currentApp?.content_context?.user_quote   || '',
     beforeState:         currentApp?.content_context?.before_state || '',
-    bottleneck:          ua?.bottleneck?.label                     || '',
-    bottleneckIssue:     ua?.bottleneck?.issue                     || '',
+    bottleneck:          realBottleneck(ua)?.label                 || '',   // only a dimension below 7
+    bottleneckIssue:     realBottleneck(ua)?.issue                 || '',
+    noBottleneck:        noBottleneck(ua),
     topStrengths:        swot?.strengths?.slice(0, 2)              || [],
     topOpportunity:      swot?.opportunities?.[0]                  || '',
     positioningGap:      competitive?.positioning_gap              || '',
@@ -198,7 +200,7 @@ TARGET USER: ${ctx.targetUser}
 REAL RESULT: ${ctx.realResult}
 USER QUOTE: ${ctx.userQuote}
 BEFORE STATE: ${ctx.beforeState}
-BOTTLENECK: ${ctx.bottleneck} — ${ctx.bottleneckIssue}
+BOTTLENECK: ${ctx.bottleneck ? `${ctx.bottleneck} — ${ctx.bottleneckIssue}` : ctx.noBottleneck ? NO_BOTTLENECK_TEXT : 'unknown'}
 POSITIONING GAP: ${ctx.positioningGap}
 ACTIVE PILLAR: ${ctx.activePillar}
 TOP STRENGTH: ${ctx.topStrengths?.[0] || ''}
@@ -757,7 +759,7 @@ export default function ContentStudio({ onUpgrade }: { onUpgrade?: () => void })
       stratCtx.targetUser !== 'target user' ? `Target user: ${stratCtx.targetUser}` : '',
       stratCtx.realResult  ? `Proven result: ${stratCtx.realResult}`  : '',
       stratCtx.beforeState ? `Before state: ${stratCtx.beforeState}`  : '',
-      stratCtx.bottleneck  ? `#1 bottleneck to address: ${stratCtx.bottleneck} — ${stratCtx.bottleneckIssue}` : '',
+      stratCtx.bottleneck  ? `#1 bottleneck to address: ${stratCtx.bottleneck} — ${stratCtx.bottleneckIssue}` : stratCtx.noBottleneck ? NO_BOTTLENECK_TEXT : '',
       stratCtx.positioningGap      ? `Competitor positioning gap: ${stratCtx.positioningGap}`     : '',
       stratCtx.competitorWeakness  ? `Competitor weakness to exploit: ${stratCtx.competitorWeakness}` : '',
       stratCtx.recommendedChannels.length ? `Marketing recommended channels: ${stratCtx.recommendedChannels.join(', ')}` : '',

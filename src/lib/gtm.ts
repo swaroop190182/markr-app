@@ -20,19 +20,24 @@ export interface GtmRun {
   started_at: string
 }
 
+import { realBottleneck, noBottleneck, NO_BOTTLENECK_TEXT } from './bottleneck.ts'
+
 // ── Mandatory findings, routed to the part that uses them ────────────────────
 export function gtmMandatory(ua: any, competitive: any, swot: any): Record<GtmPart, string[]> {
   const m: Record<GtmPart, string[]> = { channels: [], templates: [], playbook: [] }
   const dim = (label: string) => ua?.dimensions?.find((d: any) => d.label === label)?.score
   const trust = dim('Trust'), conv = dim('Conversion Readiness')
+  const bn = realBottleneck(ua)   // only a dimension below 7
   if (ua && ua.overall < 7)
     m.channels.push(`Landing page is ${ua.overall}/10 — BELOW the ad-ready threshold of 7. Say explicitly that paid spend should wait until the page is fixed.`)
   if (trust != null && trust < 7)
-    m.channels.push(`Trust score is ${trust}/10 — cite it in channel reasoning: paid ads to a low-trust page waste budget. The fix: ${ua?.bottleneck?.issue ?? 'add social proof'}.`)
+    m.channels.push(`Trust score is ${trust}/10 — cite it in channel reasoning: paid ads to a low-trust page waste budget. The fix: ${bn?.issue || 'add social proof'}.`)
   if (conv != null && conv < 5)
     m.playbook.push(`Conversion readiness is ${conv}/10 — sign-up friction will kill paid ROI. Address it in the formula's step order.`)
-  if (ua?.bottleneck)
-    m.playbook.push(`#1 bottleneck is "${ua.bottleneck.label}": ${ua.bottleneck.issue} — the formula must fix this before any scaling.`)
+  if (bn)
+    m.playbook.push(`#1 bottleneck is "${bn.label}"${bn.score !== null ? ` (${bn.score}/10)` : ''}: ${bn.issue} — the formula must fix this before any scaling.`)
+  else if (noBottleneck(ua))
+    m.playbook.push(`${NO_BOTTLENECK_TEXT} Do not call any dimension a bottleneck; the formula should maintain the page and focus on distribution.`)
   const topGap = competitive?.comps?.[0]?.positioningGap
   if (topGap) m.channels.push(`Top competitor gap: "${topGap}" — at least one channel's firstAction must exploit this positioning.`)
   if (competitive?.winCond) m.playbook.push(`Win condition: "${competitive.winCond}" — the eternal principles should reference it.`)
@@ -50,6 +55,25 @@ export interface GtmPromptCtx {
   targetUser: string
   currencyRule: string     // CURRENCY_RULE (passed in to keep this module free of runtime imports)
   mandatory: string[]      // this part's findings from gtmMandatory()
+  budget?: number          // the Budget Planner's monthly budget in ₹ (0 = free only)
+}
+
+// ── Budget ───────────────────────────────────────────────────────────────────
+export const budgetLabel = (budget: number): string =>
+  budget <= 0 ? '₹0 — free only' : `₹${budget.toLocaleString('en-IN')}${budget >= 50000 ? '+' : ''} / month`
+
+export function budgetRule(budget: number | undefined): string {
+  if (budget === undefined) return ''
+  if (budget <= 0) return `BUDGET RULE: The founder's monthly marketing budget is ₹0 (free only). Recommend only free channels and actions — no paid ads, boosted posts, sponsorships, paid influencers or paid tools, and no ad spend. Every cost is ₹0/mo. A paid option may be mentioned only as "later, when you have budget".`
+  return `BUDGET RULE: The founder's monthly marketing budget is ${budgetLabel(budget)}. Any paid channel or step must fit within it; never suggest spending more.`
+}
+
+// A channel that spends money now: paid wording in its name, or a non-zero cost
+const PAID = /\b(ads?|advertis\w*|paid|sponsor\w*|boost\w*|promoted|ppc|cpc|cpm|influencer marketing)\b/i
+export function isPaidChannel(ch: any): boolean {
+  const cost = typeof ch?.cost === 'string' ? ch.cost : ''
+  const costsMoney = /[1-9]/.test(cost.replace(/\b(\d+\s*-\s*)?\d+\s*(weeks?|days?|months?|hrs?|hours?)\b/gi, ''))   // ignore time spans ("2-4 weeks")
+  return PAID.test(typeof ch?.name === 'string' ? ch.name : '') || costsMoney
 }
 
 const head = (c: GtmPromptCtx, task: string) => `You are a go-to-market strategist. Using the CONTEXT below (from this app's actual stored analyses), ${task} Reference specific scores, gaps and findings from the context — not generic advice.
@@ -71,6 +95,7 @@ Rules:
 - "why" must cite a specific finding from the context (a score, competitor gap or SWOT opportunity).
 - "firstAction" must be a concrete, specific first step (what to post, where in general terms, what to measure).
 - One Low, one Medium and one High effort channel.
+${budgetRule(c.budget)}
 ${COMMUNITY_RULE}
 ${c.currencyRule}
 
@@ -101,6 +126,7 @@ Rules:
 - "whatNotToDo": 3 common failure patterns and why they waste time or money.
 - "marketingFormula": 6 ordered steps — page fixes before paid scale.
 - "eternalPrinciples": the 5 principles below, each with a specific action for ${c.appName} from the context.
+${budgetRule(c.budget)}
 ${PATTERNS_RULE}
 ${COMMUNITY_RULE}
 ${c.currencyRule}
@@ -143,10 +169,13 @@ const deep = (v: any, f: (x: string) => string): any =>
   typeof v === 'string' ? f(v) : Array.isArray(v) ? v.map(x => deep(x, f)) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x, f)])) : v
 
 // Validate one part's JSON and return the data to store, or throw with a readable reason
-export function parseGtmPart(part: GtmPart, json: any, context: string): { data: any; removedFigures: number } {
+export function parseGtmPart(part: GtmPart, json: any, context: string, opts: { budget?: number } = {}): { data: any; removedFigures: number } {
   if (part === 'channels') {
     if (!Array.isArray(json?.channels) || !json.channels.length) throw new Error('the response had no channels')
-    return { data: deep(json.channels.slice(0, 3), stripNamedCommunities), removedFigures: 0 }
+    // Free-only budget: paid channels are never shown, whatever the model returned
+    const chans = opts.budget !== undefined && opts.budget <= 0 ? json.channels.filter((c: any) => !isPaidChannel(c)) : json.channels
+    if (!chans.length) throw new Error('the response only had paid channels for a free-only budget')
+    return { data: deep(chans.slice(0, 3), stripNamedCommunities), removedFigures: 0 }
   }
   if (part === 'templates') {
     const t = json?.templates

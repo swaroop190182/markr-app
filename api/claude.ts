@@ -78,7 +78,9 @@ async function logUsage(supabase: any, userId: string, feature: string, u: Usage
 const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 
 // ── Call Anthropic ─────────────────────────────────────────────────────────────
-async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse, images?: string[]): Promise<UsageInfo | { failStatus: number } | null> {
+// onDone runs BEFORE the response is sent/ended: on Vercel, work after the response ends is not
+// guaranteed to run, so the timing log line and the usage insert must happen first.
+async function callAnthropic(prompt: string, system: string, maxTokens: number, doStream: boolean, res: VercelResponse, images?: string[], onDone?: (u: UsageInfo) => Promise<void>): Promise<UsageInfo | { failStatus: number } | null> {
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) return null
   const MODEL = ANTHROPIC_MODEL
@@ -111,7 +113,7 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
         for (const line of lines) {
           if (!line.startsWith('data:')) continue
           const d = line.slice(5).trim()
-          if (d === '[DONE]') { res.write('data: [DONE]\n\n'); res.end(); return { inputTokens, outputTokens, model: MODEL } }
+          if (d === '[DONE]') { const u = { inputTokens, outputTokens, model: MODEL }; await onDone?.(u); res.write('data: [DONE]\n\n'); res.end(); return u }
           try {
             const j = JSON.parse(d)
             // Capture token counts from Anthropic SSE events
@@ -121,15 +123,19 @@ async function callAnthropic(prompt: string, system: string, maxTokens: number, 
           } catch {}
         }
       }
+      const u = { inputTokens, outputTokens, model: MODEL }
+      await onDone?.(u)
       res.write('data: [DONE]\n\n'); res.end()
-      return { inputTokens, outputTokens, model: MODEL }
+      return u
     } else {
       const resp = await fetch('https://api.anthropic.com/v1/messages', { method:'POST', headers, body })
       if (!resp.ok) return { failStatus: resp.status }
       const data = await resp.json()
       if (data.error) return null
+      const u = { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0, model: MODEL }
+      await onDone?.(u)
       res.status(200).json({ content: data.content, provider: 'anthropic' })
-      return { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0, model: MODEL }
+      return u
     }
   } catch { return null }
 }
@@ -370,18 +376,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (r.timeout) return res.status(504).json({ error: 'Live search took too long and was stopped — please try again.', code: 'search_timeout' })
       return res.status(503).json({ error: 'Live source check unavailable — please try again later.', code: 'search_unavailable' })
     }
-    logUsage(supabase, userId, feature, { inputTokens: r.inputTokens, outputTokens: r.outputTokens, model: ANTHROPIC_MODEL })
+    await logUsage(supabase, userId, feature, { inputTokens: r.inputTokens, outputTokens: r.outputTokens, model: ANTHROPIC_MODEL })   // before responding (see callAnthropic)
     return res.status(200).json({ content: [{ type: 'text', text: JSON.stringify(r.json) }], provider: 'anthropic' })
   }
 
   const callStarted = Date.now()
-  const anthropicResult = await callAnthropic(prompt, sys, tok, doStream, res, images)
-  if (anthropicResult && !('failStatus' in anthropicResult)) {
-    // Timing per feature (e.g. feature=swot) to check calls stay well inside the 60s function limit
-    console.log(`[callClaude] provider: anthropic feature=${feature} ms=${Date.now() - callStarted} out=${anthropicResult.outputTokens} max=${tok} stream=${!!doStream}`)
-    logUsage(supabase, userId, feature, anthropicResult)
-    return
-  }
+  const anthropicResult = await callAnthropic(prompt, sys, tok, doStream, res, images, async u => {
+    // Timing per feature (e.g. feature=gtm_channels) to check calls stay well inside the 60s function limit.
+    // Logged before the response is sent, so Vercel keeps it.
+    console.log(`[callClaude] provider: anthropic feature=${feature} ms=${Date.now() - callStarted} out=${u.outputTokens} max=${tok} stream=${!!doStream}`)
+    await logUsage(supabase, userId, feature, u)
+  })
+  if (anthropicResult && !('failStatus' in anthropicResult)) return
 
   // Vision calls are Anthropic-only — don't fall back to text-only providers
   if (images && images.length > 0) {

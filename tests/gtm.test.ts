@@ -108,3 +108,41 @@ test('playbook-only run covers just that part', () => {
   assert.equal(isRunComplete(readGtm(JSON.stringify({ channels: [] }))), false)   // no run recorded
   assert.deepEqual(readGtm('not json'), {})
 })
+
+// ── Budget (Budget Planner) ──────────────────────────────────────────────────
+import { budgetRule, budgetLabel, isPaidChannel } from '../src/lib/gtm.ts'
+
+test('free-only budget: no paid channels or ad spend; paid only as "later"', () => {
+  assert.match(budgetRule(0), /₹0 \(free only\).*no paid ads.*"later, when you have budget"/s)
+  assert.match(budgetRule(10000), /₹10,000 \/ month/)
+  assert.equal(budgetRule(undefined), '')
+  assert.equal(budgetLabel(0), '₹0 — free only')
+  assert.equal(budgetLabel(50000), '₹50,000+ / month')
+  const c0 = channelsPrompt({ ...ctx(), budget: 0 })
+  assert.ok(c0.includes('BUDGET RULE') && c0.includes('free only'))
+  assert.ok(playbookPrompt({ ...ctx(), budget: 0 }).includes('BUDGET RULE'))
+  assert.ok(!templatesPrompt({ ...ctx(), budget: 0 }).includes('BUDGET RULE'))
+})
+
+test('paid channels are detected and removed for a ₹0 budget', () => {
+  assert.equal(isPaidChannel({ name: 'Meta ads', cost: '₹0/mo' }), true)
+  assert.equal(isPaidChannel({ name: 'Boosted Instagram posts', cost: '' }), true)
+  assert.equal(isPaidChannel({ name: 'Nano-influencer sponsorship', cost: '₹0/mo' }), true)
+  assert.equal(isPaidChannel({ name: 'Founder-led LinkedIn content', cost: '₹2,000/mo' }), true)
+  assert.equal(isPaidChannel({ name: 'Founder-led LinkedIn content', cost: '₹0/mo' }), false)
+  assert.equal(isPaidChannel({ name: 'Community answers', cost: 'Free — 3 hrs/week' }), false)
+  assert.equal(isPaidChannel({ name: 'SEO blog', cost: '₹0/mo (2-4 weeks of writing)' }), false)
+  const json = { channels: [
+    { name: 'Founder-led content', cost: '₹0/mo', firstAction: 'Post weekly; later, when you have budget, test ads' },
+    { name: 'Meta ads', cost: '₹5,000/mo' },
+    { name: 'Direct outreach', cost: '₹0/mo' },
+  ] }
+  assert.deepEqual(parseGtmPart('channels', json, '', { budget: 0 }).data.map((c: any) => c.name), ['Founder-led content', 'Direct outreach'])
+  assert.equal(parseGtmPart('channels', json, '', { budget: 10000 }).data.length, 3)
+  assert.throws(() => parseGtmPart('channels', { channels: [{ name: 'Google ads', cost: '₹3,000/mo' }] }, '', { budget: 0 }), /only had paid channels/)
+})
+
+test('the run records the budget, so a retry uses the same one', () => {
+  const o = startRun(null, GTM_PARTS, 'r', undefined, { budget: 0 })
+  assert.equal(o.budget, 0)
+})

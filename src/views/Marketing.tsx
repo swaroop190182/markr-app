@@ -6,6 +6,7 @@ import { CURRENCY_RULE, fixAnalysisCurrency } from '../lib/prices'
 import { isAdminEmail } from '../lib/admin'
 import OutdatedNotice from '../components/OutdatedNotice'
 import { readCompetitive } from '../lib/founder'
+import { bottleneckLine, isRealBottleneck } from '../lib/bottleneck'
 import { toast } from '../components/Toast'
 import GoToMarketTab from './insights/GoToMarket'
 import FirstHundred from './insights/FirstHundred'
@@ -67,7 +68,7 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
     try { if (currentApp.growth_analysis)      growth      = JSON.parse(currentApp.growth_analysis)      } catch {}
 
     const dimScore    = (label: string) => ua?.dimensions?.find((d: any) => d.label === label)?.score ?? null
-    const isBottleneck = (label: string) => ua?.bottleneck?.label === label
+    const isBottleneck = (label: string) => isRealBottleneck(ua, label)   // only below 7
 
     const lines: string[] = []
 
@@ -80,7 +81,8 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
       lines.push(`\nLANDING PAGE (from stored URL analysis — do NOT re-analyze):`)
       lines.push(`  Overall score: ${ua.overall}/10${ua.overall < 7 ? ' — BELOW ad-ready threshold of 7' : ' — ad-ready'}`)
       if (ua.headline)   lines.push(`  Headline: "${ua.headline}"`)
-      if (ua.bottleneck) lines.push(`  #1 bottleneck: ${ua.bottleneck.label} — ${ua.bottleneck.issue}`)
+      const bn = bottleneckLine(ua, '#1 bottleneck')   // or "No bottleneck — … maintain it." when every dimension is 7+
+      if (bn) lines.push(`  ${bn}`)
       const trust = dimScore('Trust')
       const conv  = dimScore('Conversion Readiness')
       const clar  = dimScore('Clarity')
@@ -152,7 +154,8 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
     } as any)
   }
 
-  async function runParts(parts: GtmPart[], resume = false) {
+  async function runParts(parts: GtmPart[], resume = false, budgetArg?: unknown) {
+    const budgetIn = typeof budgetArg === 'number' ? budgetArg : undefined   // handlers wired to onClick pass an event
     setLoading(true)
     const ua      = currentApp.url_analysis
     const context = buildGTMContext()
@@ -162,8 +165,10 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
     const targetUser = currentApp.content_context?.typical_user ?? `${currentApp.category} users`
 
     // A retry continues the saved run; a new run keeps everything already saved (first100, other parts)
+    // The Budget Planner's monthly budget (saved with the plan so a retry uses the same one)
+    const budget = budgetIn ?? (typeof savedGtm.budget === 'number' ? savedGtm.budget : 0)
     let obj = resume ? readGtm(currentApp.gtm_analysis)
-      : startRun(currentApp.gtm_analysis, parts, crypto.randomUUID(), undefined, { generatedAtScore: ua?.overall ?? null })
+      : startRun(currentApp.gtm_analysis, parts, crypto.randomUUID(), undefined, { generatedAtScore: ua?.overall ?? null, budget })
     let limitHit = false
     try {
       for (const [n, part] of parts.entries()) {
@@ -172,11 +177,11 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
         const info = GTM_PART_INFO[part]
         try {
           const raw = await callClaude(
-            GTM_PROMPTS[part]({ appName: currentApp.name, category: currentApp.category, context, targetUser, currencyRule: CURRENCY_RULE, mandatory: mandatory[part] }),
+            GTM_PROMPTS[part]({ appName: currentApp.name, category: currentApp.category, context, targetUser, currencyRule: CURRENCY_RULE, mandatory: mandatory[part], budget }),
             'Output ONLY valid JSON. No markdown fences.', info.maxTokens, undefined, 'sonnet', info.feature)
           const cleaned = extractJSON(raw)
           if (!cleaned) throw new Error('the response was empty')
-          obj = applyPart(obj, part, parseGtmPart(part, JSON.parse(cleaned), context).data)
+          obj = applyPart(obj, part, parseGtmPart(part, JSON.parse(cleaned), context, { budget }).data)
         } catch (e: any) {
           if (e instanceof AiLimitError) limitHit = true
           const msg = e instanceof AiLimitError ? 'Daily AI limit reached' : (e?.message ?? 'unknown error')
@@ -195,17 +200,17 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
   }
 
   // ── Full generation ────────────────────────────────────────────────────────
-  async function genMarketingAll() {
+  async function genMarketingAll(budget?: unknown) {
     if (!canRefresh(currentApp.gtm_analyzed_at, userEmail) && !canBypassLock(currentApp, plan, 'gtm')) {
       toast(`Marketing plan updated ${lastUpdatedLabel(currentApp.gtm_analyzed_at).toLowerCase()}. Refreshes once per month.`)
       return
     }
-    await runParts(GTM_PARTS)
+    await runParts(GTM_PARTS, false, budget)
   }
 
   // ── Playbook-only refresh ──────────────────────────────────────────────────
-  async function genPlaybookOnly() {
-    await runParts(['playbook'])
+  async function genPlaybookOnly(budget?: unknown) {
+    await runParts(['playbook'], false, budget)
   }
 
   // ── Retry one part that didn't complete (not subject to the monthly lock) ───
@@ -214,9 +219,12 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
   }
 
   // ── Smart refresh ──────────────────────────────────────────────────────────
-  async function genSmartRefresh() {
+  async function genSmartRefresh(budgetArg?: unknown) {
+    const budget = typeof budgetArg === 'number' ? budgetArg : undefined
     // Outdated (brief/screenshots changed): channels and templates must be redone too, not just the playbook
-    if (isOutdated(currentApp, 'gtm')) { await genMarketingAll(); return }
+    if (isOutdated(currentApp, 'gtm')) { await genMarketingAll(budget); return }
+    // A different budget changes which channels fit — redo everything
+    if (budget !== undefined && budget !== (typeof savedGtm.budget === 'number' ? savedGtm.budget : 0)) { await genMarketingAll(budget); return }
     const currentScore = currentApp.url_analysis?.overall ?? null
     let storedScore: number | null = null
     try { if (currentApp.gtm_analysis) storedScore = JSON.parse(currentApp.gtm_analysis).generatedAtScore ?? null } catch {}
@@ -226,9 +234,9 @@ export default function Marketing({ onUpgrade, onEditApp }: { onUpgrade?: () => 
       : null
 
     if (scoreDelta == null || scoreDelta >= 0.5) {
-      await genMarketingAll()
+      await genMarketingAll(budget)
     } else {
-      await genPlaybookOnly()
+      await genPlaybookOnly(budget)
     }
   }
 

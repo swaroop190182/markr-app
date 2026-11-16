@@ -8,6 +8,7 @@ import { isOutdated, markGenerated } from '../lib/outdated'
 import { CURRENCY_RULE, fixAnalysisCurrency } from '../lib/prices'
 import { isAdminEmail } from '../lib/admin'
 import OutdatedNotice from '../components/OutdatedNotice'
+import { bottleneckLine } from '../lib/bottleneck'
 
 export default function Strategy() {
   const { currentApp, updateApp, plan, userEmail } = useStore()
@@ -51,7 +52,7 @@ export default function Strategy() {
     if (ua) {
       if (ua.headline)   lines.push(`CURRENT HEADLINE: "${ua.headline}"`)
       if (ua.overall)    lines.push(`LANDING PAGE SCORE: ${ua.overall}/10`)
-      if (ua.bottleneck) lines.push(`#1 WEAKNESS: ${ua.bottleneck.label} — ${ua.bottleneck.issue}`)
+      { const bn = bottleneckLine(ua as any, '#1 WEAKNESS'); if (bn) lines.push(bn) }   // only below 7; else "no bottleneck — maintain"
       const trust = ua.dimensions?.find((d: any) => d.label === 'Trust')
       if (trust)         lines.push(`TRUST SCORE: ${trust.score}/10 — ${trust.issue ?? ''}`)
     }
