@@ -23,6 +23,9 @@ export interface First100Place {
   draft: string | null         // filled by the draft calls
   link_policy: LinkPolicy
   no_link: boolean             // link_policy !== 'allowed' → draft carries no link
+  third_party?: boolean        // the confirmed URL is a page ABOUT the community, not the community itself
+  angle?: Angle | null         // the draft's angle (different across a run)
+  point?: string | null        // the draft's core argument, as the model summarised it (for the repeat check)
 }
 
 export interface First100Section {
@@ -34,8 +37,8 @@ export interface First100Section {
 export const FIRST100_MAX_USES = 10   // searches per place-finding call
 export const TOPUP_BELOW = 6          // a second, targeted search call runs only if fewer places were confirmed
 export const MAX_PLACES = 10
-export const DRAFT_BATCH = 5          // places per draft call (2 calls for up to 10 places)
-export const FIRST100_CALLS = 4       // upper bound shown in the confirm panel: 2 searches + 2 draft calls
+export const DRAFT_BATCH = MAX_PLACES  // all places in one draft call, so drafts stay distinct from each other
+export const FIRST100_CALLS = 4       // upper bound shown in the confirm panel: 2 searches + 1 draft call + 1 repair call
 export const FIRST100_SEARCHES = 2 * FIRST100_MAX_USES
 
 const PLACE_TYPES: PlaceType[] = ['subreddit', 'facebook group', 'linkedin group', 'forum', 'newsletter', 'online community', 'creator']
@@ -49,26 +52,138 @@ const NEWSLETTER_HOSTS = /(^|\.)(substack\.com|beehiiv\.com|buttondown\.(email|c
 const COMMUNITY_HOSTS  = /(^|\.)(discord\.gg|discord\.com|slack\.com|t\.me|telegram\.me|chat\.whatsapp\.com|circle\.so|skool\.com|indiehackers\.com|groups\.google\.com|mighty\.network|geneva\.com)$/
 const CREATOR_HOSTS    = /(^|\.)(youtube\.com|x\.com|twitter\.com|instagram\.com|threads\.net|tiktok\.com)$/
 
-// The place type implied by its (server-confirmed) URL, or null when the URL doesn't say
-export function typeFromUrl(url: string): PlaceType | null {
+// URLs that ARE the community itself (its own page or invite) — the strongest evidence of what it is
+function ownPageType(url: string): PlaceType | null {
   const h = host(url)
-  if (!h) return null
   if (/(^|\.)reddit\.com$/.test(h) && path0(url) === 'r') return 'subreddit'
   if (/(^|\.)facebook\.com$/.test(h) && path0(url) === 'groups') return 'facebook group'
   if (/(^|\.)linkedin\.com$/.test(h) && path0(url) === 'groups') return 'linkedin group'
-  if (NEWSLETTER_HOSTS.test(h)) return 'newsletter'
   if (COMMUNITY_HOSTS.test(h)) return 'online community'
+  return null
+}
+// Hosts that also carry pages ABOUT other things (a Substack post about a Slack group) — weak evidence
+function hostType(url: string): PlaceType | null {
+  const h = host(url)
+  if (NEWSLETTER_HOSTS.test(h)) return 'newsletter'
   if (CREATOR_HOSTS.test(h)) return 'creator'
   return null
+}
+
+// The place type implied by its URL alone, or null when the URL doesn't say
+export function typeFromUrl(url: string): PlaceType | null {
+  return host(url) ? ownPageType(url) ?? hostType(url) : null
+}
+
+// What the community itself says it is — its name first, then the sourced description/facts
+const NATURE: Array<[RegExp, PlaceType]> = [
+  [/\b(slack|discord|telegram|whatsapp|circle|skool|mighty ?networks?)\b/i, 'online community'],
+  [/(^|\s)r\/\w+/i, 'subreddit'],
+  [/\bsubreddit\b/i, 'subreddit'],
+  [/\blinkedin group\b/i, 'linkedin group'],
+  [/\bfacebook group\b/i, 'facebook group'],
+  [/\b(newsletter|digest)\b/i, 'newsletter'],
+  [/\bforum\b/i, 'forum'],
+  [/\b(podcast|youtube channel|youtuber)\b/i, 'creator'],
+]
+function natureType(...texts: Array<string | null | undefined>): PlaceType | null {
+  for (const t of texts) {
+    if (!t) continue
+    for (const [re, type] of NATURE) if (re.test(t)) return type
+    if (/\bsubscribers?\b/i.test(t)) return 'newsletter'
+  }
+  return null
+}
+
+// Type from (1) the community's own page URL, (2) its own nature (name, then sourced description
+// and facts), (3) a host that only hints (Substack, YouTube…), (4) the model's label.
+// So "Growth Marketing Pros Slack" confirmed via a Substack post about it is a Community, not a Newsletter.
+export function inferType(p: { name: string; url: string; type?: string; why?: string; rules?: Sourced; members?: Sourced }): PlaceType {
+  return ownPageType(p.url)
+    ?? natureType(p.name)
+    ?? natureType(p.rules?.value, p.members?.value)
+    ?? hostType(p.url)
+    ?? natureType(p.why)
+    ?? (PLACE_TYPES.includes(p.type as PlaceType) ? p.type as PlaceType : 'online community')
+}
+
+// The confirmed URL is a third-party page ABOUT the community (e.g. a Substack post about a Slack group)
+export function isThirdPartyPage(p: { url: string; type: PlaceType }): boolean {
+  const own = ownPageType(p.url)
+  if (own) return own !== p.type
+  const ht = hostType(p.url)
+  return ht !== null && ht !== p.type
 }
 
 const TYPE_LABEL: Record<PlaceType, string> = {
   'subreddit': 'Subreddit', 'facebook group': 'Facebook group', 'linkedin group': 'LinkedIn group', 'forum': 'Forum',
   'newsletter': 'Newsletter', 'online community': 'Community', 'creator': 'Creator',
 }
-// Label shown on the card — from the URL when it says, so older saved places are labelled right too
-export const placeTypeLabel = (p: { type: string; url: string }): string =>
-  TYPE_LABEL[typeFromUrl(p.url) ?? (PLACE_TYPES.includes(p.type as PlaceType) ? p.type as PlaceType : 'online community')]
+// Label shown on the card — re-derived, so older saved places are labelled right too
+export const placeTypeLabel = (p: { name?: string; type: string; url: string; why?: string; rules?: Sourced; members?: Sourced }): string =>
+  TYPE_LABEL[inferType({ name: p.name ?? '', ...p })]
+
+// What to do with the draft, by type: members get a post; editors and creators get a pitch
+export function draftHowTo(type: PlaceType): string {
+  return type === 'newsletter' ? 'Send this to the editor'
+       : type === 'creator'    ? 'Send this to the creator'
+       : type === 'subreddit'  ? 'Post this in the subreddit'
+       : type === 'forum'      ? 'Post this in the forum'
+       : type === 'facebook group' || type === 'linkedin group' ? 'Post this in the group'
+       : 'Post this to the community\'s members'
+}
+
+// ── Draft angles: no two drafts in a run share an opening or core argument ───
+export type Angle = 'audit' | 'lesson' | 'question' | 'teardown'
+export const ANGLE_TEXT: Record<Angle, string> = {
+  audit:    'FREE AUDIT OFFER: offer to look at members\' landing pages — "share your landing page and I\'ll tell you your score and the one thing I\'d fix". Give one concrete example of the kind of fix.',
+  lesson:   'LESSON: one specific lesson from the founder\'s own experience building the product (from the founder context only — never invent results or numbers).',
+  question: 'QUESTION: a genuine, specific question to the community that members would want to answer; the founder shares their own current thinking briefly.',
+  teardown: 'TEARDOWN INSIGHT: one short, concrete insight about what makes a landing page or launch work or fail, explained with a generic example (no real company names).',
+}
+
+// Spread angles evenly. The audit offer only where sourced rules allow promotion (and preferred there);
+// editors and creators get a pitch built on a lesson or teardown, never an offer or a question.
+export function assignAngles(places: Array<{ type: PlaceType; link_policy: LinkPolicy }>): Angle[] {
+  const used: Record<Angle, number> = { audit: 0, lesson: 0, question: 0, teardown: 0 }
+  const ORDER: Angle[] = ['audit', 'lesson', 'question', 'teardown']
+  return places.map(p => {
+    const pitch = p.type === 'newsletter' || p.type === 'creator'
+    const options = ORDER.filter(a => pitch ? (a === 'lesson' || a === 'teardown') : (a !== 'audit' || p.link_policy === 'allowed'))
+    const min = Math.min(...options.map(a => used[a]))
+    const pick = options.find(a => used[a] === min)!   // audit first on ties where it's allowed
+    used[pick]++
+    return pick
+  })
+}
+
+// Comparable opening: first ~6 words of the first line, lower case, letters/digits only
+export function openingKey(text: string): string {
+  const first = text.trim().split('\n').find(l => l.trim()) ?? ''
+  return (first.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).slice(0, 6).join(' ')
+}
+const STOP = new Set(['the', 'a', 'an', 'and', 'or', 'to', 'of', 'in', 'on', 'for', 'your', 'you', 'i', 'my', 'is', 'are', 'it', 'that', 'this', 'with', 'how', 'what', 'why'])
+const content = (s: string) => new Set((s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(w => w.length > 2 && !STOP.has(w)))
+// Two core arguments are "the same" when most of their content words overlap
+export function samePoint(a: string, b: string): boolean {
+  const A = content(a), B = content(b)
+  if (!A.size || !B.size) return false
+  const shared = [...A].filter(w => B.has(w)).length
+  return shared / Math.min(A.size, B.size) >= 0.6
+}
+
+// Indexes of drafts that repeat an earlier draft's opening or core argument (the earlier one is kept)
+export function repeatedDrafts(places: Array<{ draft: string | null; point?: string | null }>): number[] {
+  const out: number[] = []
+  places.forEach((p, i) => {
+    if (!p.draft) return
+    for (let j = 0; j < i; j++) {
+      const q = places[j]
+      if (!q.draft || out.includes(j)) continue
+      if (openingKey(p.draft) === openingKey(q.draft) || (p.point && q.point && samePoint(p.point, q.point))) { out.push(i); break }
+    }
+  })
+  return out
+}
 
 // ── Links: only when sourced rules allow promotion ───────────────────────────
 // Sourced rules that forbid self-promotion or links
@@ -246,21 +361,28 @@ export function normalizePlaces(json: any): First100Place[] {
     .slice(0, MAX_PLACES)
     .map((p: any): First100Place => {
       const rules = sourced(p.rules)
+      const members = sourced(p.members)
       const policy = linkPolicy(rules)
+      const name = str(p.name, 80)
+      const why = words(str(p.why, 300), 20)
+      const type = inferType({ name, url: p.url, type: p.type, why, rules, members })   // the community's own nature, not just the host
       return {
-        name: str(p.name, 80),
-        type: typeFromUrl(p.url) ?? (PLACE_TYPES.includes(p.type) ? p.type : 'online community'),   // the confirmed URL decides when it can
+        name,
+        type,
         url: p.url,
         evidence_url: p.evidence_url,
-        why: words(str(p.why, 300), 20),
+        why,
         rules,
-        members: sourced(p.members),
+        members,
+        third_party: isThirdPartyPage({ url: p.url, type }),
         language: str(p.language, 30) || 'English',
         last_seen: typeof p.last_seen === 'string' ? p.last_seen : null,
         possibly_inactive: p.possibly_inactive === true,
         draft: null,
         link_policy: policy,
         no_link: policy !== 'allowed',
+        angle: null,
+        point: null,
       }
     })
 }
@@ -273,18 +395,35 @@ export function unconfirmedCandidates(json: any): Array<{ name: string; url: str
 }
 
 // ── Draft calls (no search) ──────────────────────────────────────────────────
+// All places in ONE call, so the model sees every draft and can keep them distinct; a repeated
+// opening or core argument found in code gets one repair call with the others listed to avoid.
 export const DRAFT_SYSTEM = 'You write as the founder, in first person. Output ONLY valid JSON, no markdown.'
 
+const FORMAT: Record<PlaceType, string> = {
+  'subreddit':        'a discussion post to the subreddit\'s members: a title line, then the body',
+  'forum':            'a discussion post to the forum\'s members: a title line, then the body',
+  'facebook group':   'a short friendly post to the group\'s members',
+  'linkedin group':   'a short professional post to the group\'s members',
+  'online community': 'a short post to the community\'s members (as in a Slack/Discord channel) — never a pitch to an editor or admin',
+  'newsletter':       'a short pitch email TO THE EDITOR proposing a story or tip for their readers (2 short paragraphs + sign-off)',
+  'creator':          'a short pitch message TO THE CREATOR proposing something useful for their audience',
+}
+
 // indexes: each place's position in the saved list (defaults to startIndex + i) — drafts come back keyed by it
+// angles: one per place (same order as places); avoid: openings/core arguments of drafts that must not be repeated
 export function draftPrompt(c: {
   appName: string; appUrl: string; product: string; founder: string; places: First100Place[]; startIndex: number; indexes?: number[]
-  appLanguage?: string
+  appLanguage?: string; angles?: Angle[]; avoid?: Array<{ opening: string; point?: string | null }>
 }): string {
   const at = (i: number) => c.indexes?.[i] ?? c.startIndex + i
   const appLang = c.appLanguage ?? 'English'
-  const list = c.places.map((p, i) =>
-    `${at(i)}. ${p.name} (${p.type}) — write in ${draftLanguage(p.language, appLang)}${p.rules ? ` — rules: ${p.rules.value}` : ' — rules unknown'}${p.no_link ? ' — NO LINK' : ' — link allowed'}`).join('\n')
-  return `Write one draft post per place below, for the founder of ${c.appName} to post themselves.
+  const list = c.places.map((p, i) => {
+    const angle = c.angles?.[i]
+    return `${at(i)}. ${p.name} (${p.type}) — write in ${draftLanguage(p.language, appLang)}${p.rules ? ` — rules: ${p.rules.value}` : ' — rules unknown'}${p.no_link ? ' — NO LINK' : ' — link allowed'}
+   FORMAT: ${FORMAT[p.type] ?? FORMAT['online community']}${angle ? `\n   ANGLE: ${ANGLE_TEXT[angle]}` : ''}`
+  }).join('\n')
+  const avoid = (c.avoid ?? []).filter(a => a.opening)
+  return `Write one draft per place below, for the founder of ${c.appName} to post or send themselves.
 
 PRODUCT: ${c.product}
 ${c.founder ? c.founder + '\n' : ''}APP URL: ${c.appUrl || '(none)'}
@@ -293,42 +432,58 @@ PLACES:
 ${list}
 
 RULES:
-- First person as the founder ("I built…"). Value first: share a lesson, a question or something useful to this audience; mention the app briefly and honestly. No hard sell, no hype.
-- Adapt to the place: subreddit/forum → a discussion post with a title line; facebook/linkedin group → a short friendly post; newsletter/creator → a short pitch email to the owner asking if it fits their audience; online community → a short intro message.
+- First person as the founder ("I built…"). Value first; mention the app briefly and honestly. No hard sell, no hype.
+- Follow each place's FORMAT and ANGLE exactly. Members get a post; editors and creators get a pitch.
+- Every draft must open differently and make a different core argument — no shared first sentence, no shared template, no reused phrases.${avoid.length ? `\n- Do NOT reuse these openings or arguments from other drafts:\n${avoid.map(a => `  · opening "${a.opening}"${a.point ? ` / argument "${a.point}"` : ''}`).join('\n')}` : ''}
 - Write each draft entirely in the language given for that place. Never mix scripts or languages in one draft.
+- Plain text only: no markdown, no asterisks or underscores for emphasis, no headings.
 - Never name competitors or other products. Never invent numbers, user counts, quotes, testimonials or results.
 - NO LINK places: no URL or domain at all. Offer something useful or ask the community a genuine question instead; the app may be named once in passing.
 - "link allowed" places: the app URL may appear once, at the end.
 - ≤150 words each.
+- "point" = the draft's core argument in ≤10 words.
 
-Return JSON only, "i" = the place's number above: {"drafts":[{"i":${at(0)},"text":"..."}]}`
+Return JSON only, "i" = the place's number above: {"drafts":[{"i":${at(0)},"point":"...","text":"..."}]}`
 }
 
 const URL_RE = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(?:com|app|io|ai|co|in|org|net)(?:\/\S*)?\b/gi
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-// Enforce in code what the prompt asks: no links where not allowed; no competitor names (the sentence
-// naming one is removed); one script per draft (sentences in another script are removed).
+// Markdown emphasis and headings → plain text. Underscores inside words (snake_case) and URLs are kept.
+export function stripMarkdown(t: string): string {
+  return t
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')                       // headings
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')                       // **bold**
+    .replace(/__([^_\n]+)__/g, '$1')                           // __bold__
+    .replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g, '$1$2')         // *italic*
+    .replace(/(^|[^\w/])_([^_\n]+)_(?![\w])/g, '$1$2')         // _italic_ (not snake_case or inside URLs)
+    .replace(/^\s*[*•]\s+/gm, '- ')                            // "* item" bullets → "- item"
+    .replace(/\*{2,}|(?<![\w/])_{2,}(?![\w])/g, '')            // leftover runs
+}
+
+// Enforce in code what the prompt asks: plain text; no links where not allowed; no competitor names
+// (the sentence naming one is removed); one script per draft (sentences in another script are removed).
 export function cleanDraft(text: unknown, noLink: boolean, competitorNames: string[], language = 'English', appName = ''): string | null {
   let t = typeof text === 'string' ? text.trim() : ''
   if (!t) return null
+  t = stripMarkdown(t)
   if (noLink) t = t.replace(URL_RE, '').replace(/\(\s*\)/g, '')
   const names = competitorNames.map(n => n.trim()).filter(n => n.length >= 3)
   if (names.length) {
     const re = new RegExp('\\b(' + names.map(escapeRe).join('|') + ')\\b', 'i')
-    t = t.split(/(?<=[.!?])\s+|\n/).filter(s => !re.test(s)).join(' ')
+    t = t.split('\n').map(line => line.split(/(?<=[.!?])\s+/).filter(s => !re.test(s)).join(' ')).join('\n')
   }
   t = keepOneScript(t, language, appName ? [appName] : [])
   t = t.replace(/[ \t]{2,}/g, ' ').replace(/ +([.,!?])/g, '$1').trim()
   return t || null
 }
 
-// Attach drafts ({i, text}) to places by index
+// Attach drafts ({i, point, text}) to places by index
 export function mergeDrafts(places: First100Place[], json: any, competitorNames: string[], appLanguage = 'English', appName = ''): First100Place[] {
   const drafts = Array.isArray(json?.drafts) ? json.drafts : []
   return places.map((p, i) => {
     const d = drafts.find((x: any) => Number(x?.i) === i)
-    return d ? { ...p, draft: cleanDraft(d.text, p.no_link, competitorNames, draftLanguage(p.language, appLanguage), appName) } : p
+    return d ? { ...p, draft: cleanDraft(d.text, p.no_link, competitorNames, draftLanguage(p.language, appLanguage), appName), point: str(d.point, 120) || null } : p
   })
 }
 

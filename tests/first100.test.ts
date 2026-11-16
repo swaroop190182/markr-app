@@ -16,7 +16,7 @@ const place = (o: any = {}) => ({
 test('normalizePlaces keeps well-formed places, caps the list and "why", maps unknown types', () => {
   const longWhy = Array.from({ length: 30 }, (_, i) => 'w' + i).join(' ')
   const ps = normalizePlaces({ places: [
-    place({ why: longWhy, type: 'telegram channel', url: 'https://forum.example.org', evidence_url: 'https://forum.example.org/t/1' }),   // URL says nothing: model type checked
+    place({ name: 'Founders hangout', why: longWhy, type: 'telegram channel', url: 'https://forum.example.org', evidence_url: 'https://forum.example.org/t/1' }),   // URL says nothing: model type checked
     { name: 'No evidence', url: 'https://a.org' },             // not confirmed by the server → dropped
     { name: '', url: 'https://b.org', evidence_url: 'https://b.org/x' },
     ...Array.from({ length: 12 }, (_, i) => place({ name: 'P' + i })),
@@ -146,7 +146,7 @@ test('type comes from the confirmed URL: Substack = Newsletter, Discord/Slack = 
   assert.equal(placeTypeLabel({ type: 'online community', url: 'https://discord.gg/x' }), 'Community')
   assert.equal(placeTypeLabel({ type: 'subreddit', url: 'https://www.reddit.com/r/SaaS' }), 'Subreddit')
   assert.equal(placeTypeLabel({ type: 'forum', url: 'https://forum.example.org' }), 'Forum')
-  const [p] = normalizePlaces({ places: [place({ type: 'creator', url: 'https://lenny.substack.com', evidence_url: 'https://lenny.substack.com/p/x' })] })
+  const [p] = normalizePlaces({ places: [place({ name: 'Lenny\x27s Newsletter', type: 'creator', url: 'https://lenny.substack.com', evidence_url: 'https://lenny.substack.com/p/x' })] })
   assert.equal(p.type, 'newsletter')
 })
 
@@ -233,4 +233,80 @@ test('draft prompt gives each place its language and link status', () => {
   assert.ok(en.includes('Never mix scripts'))
   const hi = draftPrompt({ appName: 'Markr', appUrl: '', product: 'p', founder: '', places: ps, startIndex: 0, appLanguage: 'Hindi' })
   assert.ok(hi.includes('0. r/IndianStartups (subreddit) — write in Hindi'))
+})
+
+// ── Variety, type from the community's nature, plain text ────────────────────
+import { inferType, isThirdPartyPage, draftHowTo, assignAngles, openingKey, samePoint, repeatedDrafts, stripMarkdown } from '../src/lib/first100.ts'
+
+test('type from the community\'s own nature: a Slack group confirmed via a Substack post is a Community', () => {
+  const [p] = normalizePlaces({ places: [place({ name: 'Growth Marketing Pros Slack', type: 'newsletter',
+    url: 'https://growthnotes.substack.com', evidence_url: 'https://growthnotes.substack.com/p/best-slack-groups' })] })
+  assert.equal(p.type, 'online community')
+  assert.equal(placeTypeLabel(p), 'Community')
+  assert.equal(p.third_party, true)
+  assert.equal(draftHowTo(p.type), 'Post this to the community\'s members')
+  // the community's own page decides over its name
+  assert.equal(inferType({ name: 'Newsletter Writers', url: 'https://www.reddit.com/r/Newsletters' }), 'subreddit')
+  // a real newsletter on its own Substack
+  const [n] = normalizePlaces({ places: [place({ name: 'Lenny\'s Newsletter', type: 'creator', url: 'https://lenny.substack.com', evidence_url: 'https://lenny.substack.com/p/x' })] })
+  assert.deepEqual([n.type, n.third_party], ['newsletter', false])
+  assert.equal(draftHowTo('newsletter'), 'Send this to the editor')
+  // sourced facts: "subscribers" → newsletter; Discord in the name → community
+  assert.equal(inferType({ name: 'Founder Weekly', url: 'https://founderweekly.com', members: { value: '12,000 subscribers', source_url: 's' } }), 'newsletter')
+  assert.equal(inferType({ name: 'Indie Makers Discord', url: 'https://blog.example.com/discords' }), 'online community')
+  assert.equal(isThirdPartyPage({ url: 'https://discord.gg/abc', type: 'online community' }), false)
+  // saved places get re-labelled from the name too
+  assert.equal(placeTypeLabel({ name: 'Growth Marketing Pros Slack', type: 'newsletter', url: 'https://growthnotes.substack.com' }), 'Community')
+})
+
+test('angles are spread; the audit offer only where rules allow promotion; editors get a pitch angle', () => {
+  const P = (type: any, link_policy: any) => ({ type, link_policy })
+  const a = assignAngles([P('subreddit', 'allowed'), P('subreddit', 'unknown'), P('online community', 'forbidden'), P('forum', 'unknown'), P('newsletter', 'unknown'), P('online community', 'allowed')])
+  assert.equal(a[0], 'audit')                                   // preferred where offers are allowed
+  assert.ok(!['audit'].includes(a[1]) && !['audit'].includes(a[2]) && !['audit'].includes(a[3]))
+  assert.ok(['lesson', 'teardown'].includes(a[4]))               // editor pitch
+  assert.deepEqual(new Set(a.slice(0, 4)).size, 4)               // first four all different
+  const counts = a.reduce((m: any, x) => (m[x] = (m[x] ?? 0) + 1, m), {})
+  assert.ok(Math.max(...Object.values(counts) as number[]) <= 2)
+  assert.deepEqual(assignAngles([]), [])
+})
+
+test('repeated openings or core arguments are caught in code', () => {
+  assert.equal(openingKey('**Hey founders!** I built a tool...'), 'hey founders i built a tool')
+  assert.equal(samePoint('Landing pages lose users before the first click', 'Most landing pages lose users before their first click'), true)
+  assert.equal(samePoint('Ask for feedback early', 'Pricing pages need one clear plan'), false)
+  const out = repeatedDrafts([
+    { draft: 'Hey founders! I built Markr to score pages.', point: 'scoring landing pages finds the leak' },
+    { draft: 'Hey founders! I built Markr to score pages, again.', point: 'something else entirely here' },       // same opening
+    { draft: 'Quick question for this group.', point: 'scoring your landing page finds the leak' },               // same point
+    { draft: 'A teardown: the hero hides the price.', point: 'hidden prices cost signups' },
+    { draft: null, point: null },
+  ])
+  assert.deepEqual(out, [1, 2])
+})
+
+test('markdown emphasis is stripped from drafts', () => {
+  assert.equal(stripMarkdown('**Bold** and *italic* and __strong__ and _em_.'), 'Bold and italic and strong and em.')
+  assert.equal(stripMarkdown('## Title\nBody'), 'Title\nBody')
+  assert.equal(stripMarkdown('* one\n* two'), '- one\n- two')
+  assert.equal(stripMarkdown('keep snake_case_name and https://a.com/x_y_z'), 'keep snake_case_name and https://a.com/x_y_z')
+  assert.equal(stripMarkdown('Price is 2*3*4 units'), 'Price is 2*3*4 units')
+  assert.equal(cleanDraft('**Title:** What would you fix?', false, []), 'Title: What would you fix?')
+})
+
+test('draft prompt: members get a post, editors get a pitch, each with its angle and an avoid list', () => {
+  const ps = normalizePlaces({ places: [
+    place({ name: 'Growth Pros Slack', url: 'https://join.slack.com/t/growthpros', evidence_url: 'https://join.slack.com/t/growthpros/shared_invite/x' }),
+    place({ name: 'Lenny\'s Newsletter', url: 'https://lenny.substack.com', evidence_url: 'https://lenny.substack.com/p/x' }),
+  ] })
+  const dp = draftPrompt({ appName: 'Markr', appUrl: '', product: 'p', founder: '', places: ps, startIndex: 0,
+    angles: ['question', 'lesson'], avoid: [{ opening: 'Hey founders!', point: 'scores find leaks' }] })
+  assert.match(dp, /0\. Growth Pros Slack \(online community\)[^\n]*\n {3}FORMAT: a short post to the community's members[^\n]*never a pitch to an editor[^\n]*\n {3}ANGLE: QUESTION/)
+  assert.match(dp, /1\. Lenny's Newsletter \(newsletter\)[^\n]*\n {3}FORMAT: a short pitch email TO THE EDITOR[^\n]*\n {3}ANGLE: LESSON/)
+  assert.ok(dp.includes('opening "Hey founders!" / argument "scores find leaks"'))
+  assert.ok(dp.includes('no asterisks or underscores'))
+  assert.ok(dp.includes('"point":"..."'))
+  // drafts keep their core argument for the repeat check
+  const merged = mergeDrafts(ps, { drafts: [{ i: 0, point: 'ask what stops signups', text: 'What stops your signups?' }] }, [])
+  assert.equal(merged[0].point, 'ask what stops signups')
 })

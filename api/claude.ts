@@ -215,6 +215,11 @@ async function callAnthropicWithSearch(prompt: string, system: string, maxTokens
       // for the client: counts for its message, and the dropped candidates a top-up search can look for directly
       json.place_check = { proposed: report.proposed, confirmed: report.confirmed, dropped: report.dropped.slice(0, 10).map(d => ({ name: d.name, url: d.url, reason: d.reason })) }
       console.log(`[first_100] queries=${JSON.stringify(queries)}`)
+      // Does the search reach Reddit / LinkedIn at all? Count results by host
+      const byHost = new Map<string, number>()
+      for (const r of returned) { try { const h = new URL(r.url).hostname.toLowerCase().replace(/^(www|old|new|np|m)\./, ''); byHost.set(h, (byHost.get(h) ?? 0) + 1) } catch { /* skip */ } }
+      const count = (re: RegExp) => [...byHost].filter(([h]) => re.test(h)).reduce((n, [, c]) => n + c, 0)
+      console.log(`[first_100] result_hosts reddit=${count(/(^|\.)reddit\.com$/)} linkedin=${count(/(^|\.)linkedin\.com$/)} facebook=${count(/(^|\.)facebook\.com$/)} top=${JSON.stringify([...byHost].sort((x, y) => y[1] - x[1]).slice(0, 12))}`)
       console.log(`[first_100] places proposed=${report.proposed} confirmed=${report.confirmed} dropped=${report.dropped.length} results=${returned.length}`)
       for (const d of report.dropped) console.log(`[first_100] dropped name=${JSON.stringify(d.name)} url=${JSON.stringify(d.url)} reason=${d.reason} same_host_results=${d.same_host_results}`)
     }

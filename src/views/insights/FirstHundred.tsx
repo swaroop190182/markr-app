@@ -12,9 +12,9 @@ import { CopyButton } from '../../components/ui'
 import { toast } from '../../components/Toast'
 import {
   searchPrompt, topUpPrompt, draftPrompt, normalizePlaces, mergePlaces, mergeDrafts, unconfirmedCandidates,
-  readFirst100, isFirst100Outdated, placeTypeLabel, linkPolicy, linkNote, detectLanguage,
+  readFirst100, isFirst100Outdated, placeTypeLabel, linkPolicy, linkNote, detectLanguage, inferType, assignAngles, repeatedDrafts, draftHowTo,
   searchErrorMessage, noneConfirmedMessage, draftsFailedMessage,
-  SEARCH_SYSTEM, DRAFT_SYSTEM, FIRST100_MAX_USES, FIRST100_SEARCHES, TOPUP_BELOW, MAX_PLACES, DRAFT_BATCH, FIRST100_CALLS,
+  SEARCH_SYSTEM, DRAFT_SYSTEM, FIRST100_MAX_USES, FIRST100_SEARCHES, TOPUP_BELOW, MAX_PLACES, FIRST100_CALLS,
   type First100Place, type First100Section,
 } from '../../lib/first100'
 import type { AppData } from '../../types'
@@ -79,24 +79,42 @@ export default function FirstHundred({ app, plan, onUpgrade, onEditApp }: { app:
     return (await updateApp(app.id, { gtm_analysis: json } as any)) ? json : null
   }
 
-  // Draft posts for the given places (batches of DRAFT_BATCH in parallel). A failed batch leaves draft: null.
-  async function writeDrafts(places: First100Place[], only?: (p: First100Place) => boolean) {
+  // Draft posts for the given places in ONE call (so the model sees them all), each with its own angle.
+  // Then a code check: a draft repeating an earlier draft's opening or core argument gets one repair
+  // call with the others listed to avoid; if it still repeats, it is left empty ("Write missing drafts").
+  async function writeDrafts(input: First100Place[], only?: (p: First100Place) => boolean) {
+    // Type re-derived from the community's own nature (fixes older saved places too); angles spread across the run
+    const places = input.map(p => ({ ...p, type: inferType(p) }))
     const idx = places.map((_, i) => i).filter(i => !only || only(places[i]))
-    const batches: number[][] = []
-    for (let i = 0; i < idx.length; i += DRAFT_BATCH) batches.push(idx.slice(i, i + DRAFT_BATCH))
-    const results = await Promise.allSettled(batches.map(async b => {
-      // Places keep their position in the saved list, so drafts come back keyed by it
+    const keep = places.map((_, i) => i).filter(i => !idx.includes(i) && places[i].draft)   // drafts not being rewritten
+    const angles = assignAngles(places)
+    const callDrafts = async (ids: number[], avoidFrom: number[], cur: First100Place[]) => {
       const raw = await callClaude(
-        draftPrompt({ appName: app.name, appUrl: app.url || '', product, founder: getFounderContext(app), places: b.map(i => places[i]), startIndex: b[0], indexes: b, appLanguage }),
-        DRAFT_SYSTEM, 3000, undefined, 'haiku', 'first_100_drafts')
-      return JSON.parse(extractJSON(raw))
-    }))
-    let out = places, firstError: any = null
-    results.forEach(r => {
-      if (r.status === 'fulfilled') out = mergeDrafts(out, r.value, competitorNames, appLanguage, app.name)
-      else { firstError ??= r.reason; console.warn('[first_100] draft batch failed:', r.reason) }
-    })
-    const missing = idx.filter(i => !out[i].draft).length   // failed batches + drafts emptied by the clean-up
+        draftPrompt({ appName: app.name, appUrl: app.url || '', product, founder: getFounderContext(app),
+          places: ids.map(i => cur[i]), startIndex: ids[0], indexes: ids, appLanguage, angles: ids.map(i => angles[i]),
+          avoid: avoidFrom.map(i => ({ opening: (cur[i].draft ?? '').split('\n')[0].slice(0, 90), point: cur[i].point })) }),
+        DRAFT_SYSTEM, 4500, undefined, 'haiku', 'first_100_drafts')
+      const merged = mergeDrafts(cur, JSON.parse(extractJSON(raw)), competitorNames, appLanguage, app.name)
+      return merged.map((p, i) => ids.includes(i) ? { ...p, angle: angles[i] } : p)
+    }
+
+    let out: First100Place[] = places, firstError: any = null
+    if (idx.length) {
+      try { out = await callDrafts(idx, keep, places) }
+      catch (e) { firstError = e; console.warn('[first_100] draft call failed:', e) }
+    }
+    // Repeats: rewrite once, avoiding every other draft
+    let repeats = repeatedDrafts(out).filter(i => idx.includes(i))
+    if (repeats.length && !firstError) {
+      console.log(`[first_100] repeated openings/arguments at ${repeats.join(',')} — one repair call`)
+      try {
+        const others = out.map((_, i) => i).filter(i => !repeats.includes(i) && out[i].draft)
+        out = await callDrafts(repeats, others, out)
+      } catch (e) { console.warn('[first_100] repair call failed:', e) }
+      repeats = repeatedDrafts(out).filter(i => idx.includes(i))
+      if (repeats.length) out = out.map((p, i) => repeats.includes(i) ? { ...p, draft: null, point: null } : p)   // never two alike
+    }
+    const missing = idx.filter(i => !out[i].draft).length   // failed call + drafts emptied by the clean-up or the repeat check
     return { places: out, missing, total: idx.length, firstError }
   }
 
@@ -285,6 +303,9 @@ export default function FirstHundred({ app, plan, onUpgrade, onEditApp }: { app:
             <a href={p.evidence_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 'auto' }}>found via</a>
           </div>
           {p.why && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>{p.why}</div>}
+          {(p.third_party ?? false) && (
+            <div style={{ fontSize: 11, marginTop: 4, color: 'var(--text3)' }}>🔗 The link goes to a page about this community, not the community itself — find the join link there.</div>
+          )}
           <div style={{ fontSize: 11, marginTop: 6, color: 'var(--text3)' }}>
             {p.rules
               ? <>📋 Rules: <span style={{ color: 'var(--text2)' }}>{p.rules.value}</span>{srcLink(p.rules.source_url)}</>
@@ -298,8 +319,9 @@ export default function FirstHundred({ app, plan, onUpgrade, onEditApp }: { app:
           {p.draft ? (
             <div style={{ marginTop: 10 }}>
               <div style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, padding: '10px 12px', borderRadius: 8, background: 'rgba(124,111,247,.05)', border: '1px solid rgba(124,111,247,.15)' }}>{p.draft}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
                 <CopyButton text={p.draft} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)' }}>{draftHowTo(inferType(p))}</span>
                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>{linkNote(p.link_policy ?? linkPolicy(p.rules))}</span>
               </div>
             </div>
