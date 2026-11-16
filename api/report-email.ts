@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { resultSummary } from './_lib/bottleneck.js'   // the shared below-7 bottleneck rule
 
 // Generate specific fix advice per dimension
 function getDimFix(label: string, score: number): string {
@@ -33,11 +34,13 @@ function getDimFix(label: string, score: number): string {
   return fixes[label]?.[tier] ?? `Score: ${score}/10 — focus on improving this dimension.`
 }
 
-function getBenchmark(score: number): { label: string; desc: string; color: string } {
+// hasBottleneck: some dimension scores below 7 (otherwise the email shows "next thing to improve")
+function getBenchmark(score: number, hasBottleneck: boolean): { label: string; desc: string; color: string } {
+  const focus = hasBottleneck ? 'the bottleneck identified above' : 'the next thing to improve identified above'
   if (score >= 8) return { label: 'Top 10% of apps analyzed', desc: 'Apps at this level typically convert 3-5x better than average. Focus on growth and content strategy.', color: '#34c98a' }
-  if (score >= 7) return { label: 'Above average', desc: 'You\'re ahead of most apps. Fix the bottleneck identified above and you could reach top 10%.', color: '#34c98a' }
+  if (score >= 7) return { label: 'Above average', desc: `You're ahead of most apps. Improve ${focus} and you could reach top 10%.`, color: '#34c98a' }
   if (score >= 5) return { label: 'Average — room to grow', desc: 'Most apps score in this range. 2-3 targeted fixes can push you to 7+ within a week.', color: '#f5a623' }
-  if (score >= 3) return { label: 'Below average — needs work', desc: 'Don\'t worry — this is fixable. Focus on the #1 bottleneck first. One good fix can add 1-2 points.', color: '#f5a623' }
+  if (score >= 3) return { label: 'Below average — needs work', desc: `Don't worry — this is fixable. Start with ${focus}. One good fix can add 1-2 points.`, color: '#f5a623' }
   return { label: 'Early stage — big opportunity', desc: 'The gap between where you are and where you could be is actually good news — small changes have huge impact at this stage.', color: '#e55555' }
 }
 
@@ -51,10 +54,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const score      = result.overall ?? 0
   const scoreColor = score >= 7 ? '#34c98a' : score >= 5 ? '#f5a623' : '#e55555'
   const dims       = (result.dimensions ?? []) as any[]
-  const bottleneck = result.bottleneck ?? { label: '', issue: '' }
+  const summary    = resultSummary(result)   // bottleneck only below 7; else "no major bottleneck" + next thing to improve
   const teaser     = result.growth_teaser ?? ''
   const pagesRead  = result.pagesRead ?? []
-  const benchmark  = getBenchmark(score)
+  const benchmark  = getBenchmark(score, summary?.kind !== 'none')
+  const scoreFor   = (label: string) => dims.find((d: any) => d.label === label)?.score ?? 3
+
+  const summaryBlock = !summary ? '' : summary.kind === 'none' ? `
+  <!-- No major bottleneck -->
+  <div style="background:#fff;border-left:1px solid #e4e4f0;border-right:1px solid #e4e4f0;padding:0 32px 24px">
+    <div style="background:#f3fcf8;border:1px solid #bbebd6;border-radius:10px;padding:18px">
+      <div style="font-size:11px;font-weight:700;color:#1f9d6b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">✅ No major bottleneck</div>
+      <div style="font-size:13px;color:#333;line-height:1.7;margin-bottom:6px">Next thing to improve: <strong>${summary.next.label} (${summary.next.score}/10)</strong></div>
+      ${summary.next.recommendation ? `<div style="font-size:13px;color:#333;line-height:1.7;margin-bottom:10px">${summary.next.recommendation}</div>` : ''}
+      <div style="font-size:12px;color:#666;line-height:1.6;padding-top:10px;border-top:1px solid #bbebd6">
+        <strong style="color:#333">How:</strong> ${getDimFix(summary.next.label, summary.next.score)}
+      </div>
+    </div>
+  </div>` : `
+  <!-- Biggest bottleneck -->
+  <div style="background:#fff;border-left:1px solid #e4e4f0;border-right:1px solid #e4e4f0;padding:0 32px 24px">
+    <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;padding:18px">
+      <div style="font-size:11px;font-weight:700;color:#e55;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🚨 Biggest Bottleneck — ${summary.label}</div>
+      <div style="font-size:13px;color:#333;line-height:1.7;margin-bottom:10px">${summary.issue}</div>
+      <div style="font-size:12px;color:#666;line-height:1.6;padding-top:10px;border-top:1px solid #fecaca">
+        <strong style="color:#333">Fix:</strong> ${getDimFix(summary.label, scoreFor(summary.label))}
+      </div>
+    </div>
+  </div>`
 
   // Sort dims by score ascending — worst first
   const sortedDims = [...dims].sort((a, b) => a.score - b.score)
@@ -130,16 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     </table>
   </div>
 
-  <!-- Biggest bottleneck -->
-  <div style="background:#fff;border-left:1px solid #e4e4f0;border-right:1px solid #e4e4f0;padding:0 32px 24px">
-    <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;padding:18px">
-      <div style="font-size:11px;font-weight:700;color:#e55;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🚨 Biggest Bottleneck — ${bottleneck.label}</div>
-      <div style="font-size:13px;color:#333;line-height:1.7;margin-bottom:10px">${bottleneck.issue}</div>
-      <div style="font-size:12px;color:#666;line-height:1.6;padding-top:10px;border-top:1px solid #fecaca">
-        <strong style="color:#333">Fix:</strong> ${getDimFix(bottleneck.label, dims.find((d:any) => d.label === bottleneck.label)?.score ?? 3)}
-      </div>
-    </div>
-  </div>
+${summaryBlock}
 
   <!-- Priority action plan -->
   <div style="background:#fff;border-left:1px solid #e4e4f0;border-right:1px solid #e4e4f0;padding:0 32px 24px">

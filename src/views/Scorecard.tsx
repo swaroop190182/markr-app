@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import ResultSummaryBlock from '../components/ResultSummaryBlock'
 
 const D = "'Inter', sans-serif"
 
@@ -189,17 +190,8 @@ export default function Scorecard({ scorecardId }: { scorecardId: string }) {
             </div>
           </div>
 
-          {/* Bottleneck / manual review */}
-          {sc.bottleneck && (
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,.07)', background: sc.bottleneck.isUnverifiable ? 'rgba(245,166,35,.04)' : 'rgba(220,38,38,.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: sc.bottleneck.isUnverifiable ? '#f5a623' : '#fca5a5', letterSpacing: '.06em', textTransform: 'uppercase' as const, marginBottom: 6 }}>
-                {sc.bottleneck.isUnverifiable
-                  ? `⚠️ Needs Manual Review — Unable to fully evaluate ${sc.bottleneck.label} — JavaScript-rendered page`
-                  : `🚨 Biggest Bottleneck — ${sc.bottleneck.label}`}
-              </div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)', lineHeight: 1.6 }}>{sc.bottleneck.issue}</div>
-            </div>
-          )}
+          {/* Bottleneck (only below 7) / no major bottleneck / manual review */}
+          <ResultSummaryBlock result={sc} padding="16px 24px" />
 
           {/* Growth teaser */}
           {sc.growth_teaser && (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import ResultSummaryBlock from '../components/ResultSummaryBlock'
 
 const D = "'Inter', sans-serif"
 const B = "'Inter', sans-serif"
@@ -440,15 +441,8 @@ export default function Landing() {
                 )}
               </div>
 
-              {/* Bottleneck / manual review */}
-              <div style={{ padding:'14px 20px', borderBottom:'1px solid rgba(255,255,255,.07)', background: result.bottleneck.isUnverifiable ? 'rgba(245,166,35,.04)' : 'rgba(220,38,38,.04)' }}>
-                <div style={{ fontSize:11, fontWeight:700, color: result.bottleneck.isUnverifiable ? '#f5a623' : '#fca5a5', letterSpacing:'.06em', textTransform:'uppercase' as const, marginBottom:5, fontFamily:D }}>
-                  {result.bottleneck.isUnverifiable
-                    ? `⚠️ Needs Manual Review — Unable to fully evaluate ${result.bottleneck.label} — JavaScript-rendered page`
-                    : `🚨 Biggest Bottleneck — ${result.bottleneck.label}`}
-                </div>
-                <div style={{ fontSize:13, color:'rgba(255,255,255,.75)', lineHeight:1.6, fontFamily:D }}>{result.bottleneck.issue}</div>
-              </div>
+              {/* Bottleneck (only below 7) / no major bottleneck / manual review */}
+              <ResultSummaryBlock result={result} />
 
               {/* Growth teaser */}
               <div style={{ padding:'14px 20px', background:'rgba(124,111,247,.05)' }}>
