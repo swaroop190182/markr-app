@@ -214,8 +214,14 @@ export default function Landing() {
       </nav>
 
       {/* ── HERO — Outcome first ── */}
-      <section style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'100px 6% 40px', position:'relative', overflow:'hidden' }}>
+      <section style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'76px 6% 40px', position:'relative', overflow:'hidden' }}>
         <div style={{ position:'absolute', top:'15%', left:'50%', transform:'translateX(-50%)', width:800, height:500, borderRadius:'50%', background:'radial-gradient(ellipse, rgba(124,111,247,.08) 0%, transparent 65%)', pointerEvents:'none' }} />
+
+        {/* Brand lockup — sizes in index.css (.hero-lockup*): 64px mark / 56px wordmark, 40 / 36 on mobile */}
+        <div className="hero-lockup" style={{ position:'relative' }}>
+          <div className="hero-lockup-mark" style={{ background:'linear-gradient(135deg,#7c6ff7,#e26faf)', fontFamily:D, fontWeight:800, color:'#fff' }}>M</div>
+          <span className="hero-lockup-word" style={{ fontFamily:D, fontWeight:800, color:'#f5f5f7' }}>Markr</span>
+        </div>
 
         {/* Badge */}
         <a href={PH_TODO ? undefined : PRODUCT_HUNT_URL} target="_blank" rel="noopener noreferrer"
