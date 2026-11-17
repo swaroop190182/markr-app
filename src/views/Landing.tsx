@@ -195,9 +195,9 @@ export default function Landing() {
 
       {/* ── NAV ── */}
       <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:100, display:'flex', alignItems:'center', height:56, padding:'0 5%', background:scrolled?'rgba(8,8,10,.96)':'transparent', backdropFilter:scrolled?'blur(20px)':'none', borderBottom:scrolled?'1px solid rgba(255,255,255,.06)':'none', transition:'all .25s' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8, flex:1 }}>
-          <div style={{ width:28, height:28, borderRadius:7, background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:14, fontWeight:800, color:'#fff' }}>M</div>
-          <span style={{ fontFamily:D, fontSize:14, fontWeight:600 }}>Markr</span>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flex:1 }}>
+          <div style={{ width:38, height:38, borderRadius:10, flexShrink:0, background:'linear-gradient(135deg,#7c6ff7,#e26faf)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:D, fontSize:19, fontWeight:800, color:'#fff' }}>M</div>
+          <span style={{ fontFamily:D, fontSize:19, fontWeight:800, letterSpacing:'-.01em' }}>Markr</span>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:24, fontSize:13, color:'rgba(255,255,255,.5)' }} className="landing-nav-links">
           {[['How it works','#how'],['Features','#features'],['Why Markr','#why'],['For Whom','#forwho'],['Founder','#about'],['Pricing','#pricing']].map(([l,h])=>(

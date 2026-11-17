@@ -35,20 +35,20 @@ export default function Sidebar({ onAddApp, onEditApp, onSignOut, onUpgrade, onC
       {/* Logo — fixed */}
       <div
         className="flex items-center gap-2.5"
-        style={{ padding: '18px 16px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}
+        style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}
       >
         <div
           className="flex items-center justify-center text-white font-black text-base"
           style={{
-            width: 30, height: 30, borderRadius: 8,
+            width: 40, height: 40, borderRadius: 10, flexShrink: 0,
             background: 'linear-gradient(135deg, var(--accent), var(--pink))',
-            fontFamily: 'Syne, sans-serif', fontSize: 16,
+            fontFamily: 'Syne, sans-serif', fontSize: 21,
           }}
         >
           M
         </div>
         <div>
-          <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+          <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 19, fontWeight: 800, color: 'var(--text)', lineHeight: 1.15, letterSpacing: '-.01em' }}>
             Markr
           </div>
           <div style={{ fontSize: 10, color: 'var(--text3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>
